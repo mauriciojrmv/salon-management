@@ -21,7 +21,7 @@ export default function InventoryPage() {
     name: '',
     sku: '',
     category: 'hair_products',
-    type: 'unit' as const,
+    type: 'unit' as 'unit' | 'measurable' | 'service_cost',
     unit: 'pieces',
     currentStock: 0,
     minStock: 5,

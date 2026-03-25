@@ -20,7 +20,7 @@ export default function AppointmentsPage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [formData, setFormData] = useState({
     clientId: '',
-    serviceIds: [],
+    serviceIds: [] as string[],
     staffId: '',
     startTime: '09:00',
     endTime: '10:00',

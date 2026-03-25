@@ -37,6 +37,7 @@ export interface CreateServiceRequest {
 }
 
 export interface CreateSessionRequest {
+  salonId: string;
   clientId: string;
   date: string;
   startTime: Date;
@@ -61,6 +62,7 @@ export interface ProcessPaymentRequest {
 }
 
 export interface CreateAppointmentRequest {
+  salonId: string;
   clientId: string;
   serviceIds: string[];
   staffId: string;

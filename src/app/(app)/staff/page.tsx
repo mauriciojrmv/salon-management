@@ -23,7 +23,7 @@ export default function StaffPage() {
     email: '',
     phone: '',
     skills: [] as string[],
-    commissionType: 'percentage' as const,
+    commissionType: 'percentage' as 'percentage' | 'fixed',
     commissionValue: 20,
   });
 

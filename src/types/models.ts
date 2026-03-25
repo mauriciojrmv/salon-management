@@ -22,11 +22,11 @@ export interface Salon {
   };
 }
 
-export interface BusinessHours {
+export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+
+export type BusinessHours = {
   [day in DayOfWeek]: DaySchedule;
 }
-
-export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
 export interface DaySchedule {
   isOpen: boolean;
@@ -132,7 +132,6 @@ export interface Service {
 
 export type ServiceCategory = 'haircut' | 'coloring' | 'styling' | 'nails' | 'waxing' | 'skincare' | 'massage' | 'other';
 
-// Session entity (visit)
 export interface Session {
   id: string;
   salonId: string;
@@ -141,7 +140,7 @@ export interface Session {
   startTime: Date;
   endTime?: Date;
   status: 'active' | 'completed' | 'cancelled';
-  services: SessionService[];
+  services: SessionServiceItem[];
   notes?: string;
   totalAmount: number;
   tax: number;
@@ -153,7 +152,7 @@ export interface Session {
   updatedAt: Date;
 }
 
-export interface SessionService {
+export interface SessionServiceItem {
   id: string;
   serviceId: string;
   serviceName: string;

@@ -1,6 +1,6 @@
 import React from 'react';
 
-interface TableColumn<T> {
+export interface TableColumn<T> {
   key: keyof T | string;
   label: string;
   render?: (value: any, item: T) => React.ReactNode;

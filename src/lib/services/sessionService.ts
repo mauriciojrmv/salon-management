@@ -1,5 +1,5 @@
 import { addDocument, updateDocument, getDocument, queryDocuments, firebaseConstraints } from '@/lib/firebase/db';
-import { Session, SessionService, MaterialUsage, Payment } from '@/types/models';
+import { Session, SessionServiceItem, MaterialUsage, Payment } from '@/types/models';
 import { CreateSessionRequest, AddServiceToSessionRequest, RecordMaterialUsageRequest, ProcessPaymentRequest } from '@/types/api';
 
 export class SessionService {
@@ -24,7 +24,7 @@ export class SessionService {
     const session = await this.getSession(data.sessionId);
     if (!session) throw new Error('Session not found');
 
-    const newService: SessionService = {
+    const newService: SessionServiceItem = {
       id: `service_${Date.now()}`,
       serviceId: data.serviceId,
       serviceName: '', // Fetch from service
