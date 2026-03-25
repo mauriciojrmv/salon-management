@@ -10,8 +10,9 @@ import { Table, TableColumn } from '@/components/Table';
 import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
-import { InventoryService } from '@/lib/services/inventoryService';
+import { ProductRepository } from '@/lib/repositories/productRepository';
 import { Product } from '@/types/models';
+import ES from '@/config/text.es';
 
 export default function InventoryPage() {
   const { userData } = useAuth();
@@ -20,7 +21,7 @@ export default function InventoryPage() {
   const [formData, setFormData] = useState({
     name: '',
     sku: '',
-    category: 'hair_products',
+    category: 'hair_products' as const,
     type: 'unit' as 'unit' | 'measurable' | 'service_cost',
     unit: 'pieces',
     currentStock: 0,
@@ -31,26 +32,41 @@ export default function InventoryPage() {
   });
   const [loading, setLoading] = useState(false);
 
-  const { data: products, refetch } = useAsync(async () => {
+  const { data: productsData, refetch, loading: productsLoading } = useAsync(async () => {
     if (!userData?.salonId) return [];
-    return InventoryService.getSalonProducts(userData.salonId);
+    return ProductRepository.getSalonProducts(userData.salonId);
   }, [userData?.salonId]);
 
-  const { data: lowStockProducts } = useAsync(async () => {
+  const products = productsData || [];
+
+  const { data: lowStockData } = useAsync(async () => {
     if (!userData?.salonId) return [];
-    return InventoryService.getLowStockProducts(userData.salonId);
+    return ProductRepository.getLowStockProducts(userData.salonId);
   }, [userData?.salonId]);
+
+  const lowStockProducts = lowStockData || [];
 
   const handleCreateProduct = async () => {
     if (!formData.name || !userData?.salonId) {
-      error('Please fill in all required fields');
+      error(ES.messages.fillRequiredFields);
       return;
     }
 
     setLoading(true);
     try {
-      await InventoryService.createProduct(userData.salonId, formData);
-      success('Product created successfully');
+      await ProductRepository.createProduct(userData.salonId, {
+        name: formData.name,
+        sku: formData.sku,
+        category: formData.category,
+        type: formData.type,
+        unit: formData.type !== 'service_cost' ? formData.unit : undefined,
+        currentStock: formData.currentStock,
+        minStock: formData.minStock,
+        maxStock: formData.maxStock,
+        cost: formData.cost,
+        price: formData.price,
+      });
+      success(ES.actions.success);
       setIsModalOpen(false);
       setFormData({
         name: '',
@@ -66,19 +82,19 @@ export default function InventoryPage() {
       });
       refetch();
     } catch (err) {
-      error(err instanceof Error ? err.message : 'Failed to create product');
+      error(err instanceof Error ? err.message : 'Falló al crear el producto');
     } finally {
       setLoading(false);
     }
   };
 
   const productColumns: TableColumn<Product>[] = [
-    { key: 'name', label: 'Product Name' },
-    { key: 'sku', label: 'SKU' },
-    { key: 'category', label: 'Category' },
+    { key: 'name', label: ES.inventory.name },
+    { key: 'sku', label: ES.inventory.sku },
+    { key: 'category', label: ES.inventory.category },
     {
       key: 'currentStock',
-      label: 'Stock',
+      label: ES.inventory.stock,
       render: (value, item) => (
         <span
           className={
@@ -87,34 +103,34 @@ export default function InventoryPage() {
               : 'text-green-600 font-semibold'
           }
         >
-          {value} {item.unit}
+          {value} {item.unit || 'un'}
         </span>
       ),
     },
-    { key: 'cost', label: 'Cost', render: (v) => `$${v?.toFixed(2)}` },
-    { key: 'price', label: 'Price', render: (v) => `$${v?.toFixed(2)}` },
+    { key: 'cost', label: ES.inventory.cost, render: (v) => `$${v?.toFixed(2)}` },
+    { key: 'price', label: ES.inventory.price, render: (v) => `$${v?.toFixed(2)}` },
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Inventory</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{ES.inventory.title}</h1>
         <Button onClick={() => setIsModalOpen(true)} size="lg">
-          + Add Product
+          {ES.inventory.add}
         </Button>
       </div>
 
       {/* Low Stock Alert */}
-      {lowStockProducts && lowStockProducts.length > 0 && (
+      {lowStockProducts.length > 0 && (
         <Card className="bg-red-50 border border-red-200">
           <CardBody>
             <p className="font-semibold text-red-900 mb-3">
-              ⚠️ {lowStockProducts.length} products below minimum stock
+              ⚠️ {lowStockProducts.length} {ES.inventory.lowStock}
             </p>
             <div className="space-y-2">
               {lowStockProducts.map((product) => (
                 <div key={product.id} className="text-sm text-red-800">
-                  {product.name}: {product.currentStock} {product.unit} (min: {product.minStock})
+                  {product.name}: {product.currentStock} {product.unit || 'un'} (min: {product.minStock})
                 </div>
               ))}
             </div>
@@ -125,14 +141,15 @@ export default function InventoryPage() {
       {/* Products Table */}
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900">All Products</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{ES.inventory.allProducts}</h2>
         </CardHeader>
         <CardBody>
           <Table
             columns={productColumns}
-            data={products || []}
+            data={products}
             rowKey="id"
-            emptyMessage="No products yet"
+            loading={productsLoading}
+            emptyMessage={ES.inventory.noProducts}
           />
         </CardBody>
       </Card>
@@ -141,92 +158,92 @@ export default function InventoryPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Add Product"
+        title={ES.inventory.add}
         size="lg"
       >
         <div className="space-y-4">
           <Input
-            label="Product Name"
+            label={ES.inventory.name}
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             required
           />
           <Input
-            label="SKU"
+            label={ES.inventory.sku}
             value={formData.sku}
             onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
             required
           />
           <Select
-            label="Category"
+            label={ES.inventory.category}
             value={formData.category}
             onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
             options={[
-              { value: 'hair_products', label: 'Hair Products' },
-              { value: 'skincare', label: 'Skincare' },
-              { value: 'wax', label: 'Wax' },
-              { value: 'nail_products', label: 'Nail Products' },
-              { value: 'tools', label: 'Tools' },
-              { value: 'supplies', label: 'Supplies' },
+              { value: 'hair_products', label: 'Productos Capilares' },
+              { value: 'skincare', label: 'Cuidado de Piel' },
+              { value: 'wax', label: 'Cera' },
+              { value: 'nail_products', label: 'Productos de Uñas' },
+              { value: 'tools', label: 'Herramientas' },
+              { value: 'supplies', label: 'Suministros' },
             ]}
             required
           />
           <Select
-            label="Type"
+            label="Tipo"
             value={formData.type}
             onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
             options={[
-              { value: 'unit', label: 'Unit-based' },
-              { value: 'measurable', label: 'Measurable (ml/g)' },
-              { value: 'service_cost', label: 'Service Cost' },
+              { value: 'unit', label: 'Por Unidad' },
+              { value: 'measurable', label: 'Medible (ml/g)' },
+              { value: 'service_cost', label: 'Costo de Servicio' },
             ]}
             required
           />
           {formData.type !== 'service_cost' && (
             <Select
-              label="Unit"
+              label="Unidad"
               value={formData.unit}
               onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
               options={[
-                { value: 'pieces', label: 'Pieces' },
-                { value: 'ml', label: 'Milliliters' },
-                { value: 'g', label: 'Grams' },
-                { value: 'bottles', label: 'Bottles' },
-                { value: 'sachets', label: 'Sachets' },
+                { value: 'pieces', label: 'Piezas' },
+                { value: 'ml', label: 'Mililitros' },
+                { value: 'g', label: 'Gramos' },
+                { value: 'bottles', label: 'Botellas' },
+                { value: 'sachets', label: 'Sobres' },
               ]}
               required
             />
           )}
           <Input
-            label="Current Stock"
+            label={`${ES.inventory.stock} (${ES.actions.loading})`}
             type="number"
             value={formData.currentStock}
             onChange={(e) => setFormData({ ...formData, currentStock: parseFloat(e.target.value) })}
             required
           />
           <Input
-            label="Minimum Stock"
+            label="Stock Mínimo"
             type="number"
             value={formData.minStock}
             onChange={(e) => setFormData({ ...formData, minStock: parseFloat(e.target.value) })}
             required
           />
           <Input
-            label="Maximum Stock"
+            label="Stock Máximo"
             type="number"
             value={formData.maxStock}
             onChange={(e) => setFormData({ ...formData, maxStock: parseFloat(e.target.value) })}
             required
           />
           <Input
-            label="Cost per Unit"
+            label={`${ES.inventory.cost} por Unidad`}
             type="number"
             value={formData.cost}
             onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) })}
             required
           />
           <Input
-            label="Selling Price"
+            label={`${ES.inventory.price} de Venta`}
             type="number"
             value={formData.price}
             onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
@@ -234,10 +251,10 @@ export default function InventoryPage() {
           />
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
-              Cancel
+              {ES.actions.cancel}
             </Button>
             <Button onClick={handleCreateProduct} loading={loading}>
-              Add Product
+              {ES.inventory.add}
             </Button>
           </div>
         </div>

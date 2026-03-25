@@ -4,49 +4,64 @@ import React, { useState } from 'react';
 import { Card, CardBody, CardHeader } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { Select } from '@/components/Select';
 import { Modal } from '@/components/Modal';
 import { Table, TableColumn } from '@/components/Table';
 import { useAuth } from '@/hooks/useAuth';
+import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
+import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { Staff } from '@/types/models';
+import ES from '@/config/text.es';
 
 export default function StaffPage() {
   const { userData } = useAuth();
   const { success, error } = useNotification();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [staffList, setStaffList] = useState<Staff[]>([]); // Mock data
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
-    skills: [] as string[],
     commissionType: 'percentage' as 'percentage' | 'fixed',
     commissionValue: 20,
   });
 
+  const { data: staffData, loading: staffLoading, refetch } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return StaffRepository.getSalonStaff(userData.salonId);
+  }, [userData?.salonId]);
+
+  const staff = staffData || [];
+
   const handleCreateStaff = async () => {
-    if (!formData.firstName || !formData.email) {
-      error('Please fill in all required fields');
+    if (!formData.firstName || !formData.email || !userData?.salonId) {
+      error(ES.messages.fillRequiredFields);
       return;
     }
 
     setLoading(true);
     try {
-      // TODO: Integrate with Firebase
-      success('Staff member added successfully');
+      await StaffRepository.createStaff(userData.salonId, {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        commissionType: formData.commissionType,
+        commissionValue: formData.commissionValue,
+        skills: [],
+      });
+      success(ES.actions.success);
       setIsModalOpen(false);
       setFormData({
         firstName: '',
         lastName: '',
         email: '',
         phone: '',
-        skills: [],
         commissionType: 'percentage',
         commissionValue: 20,
       });
+      refetch();
     } catch (err) {
       error(err instanceof Error ? err.message : 'Failed to add staff member');
     } finally {
@@ -55,37 +70,46 @@ export default function StaffPage() {
   };
 
   const staffColumns: TableColumn<Staff>[] = [
-    { key: 'firstName', label: 'Name', render: (v, item) => `${item.firstName} ${item.lastName}` },
-    { key: 'email', label: 'Email' },
-    { key: 'phone', label: 'Phone' },
+    {
+      key: 'firstName',
+      label: ES.staff.name,
+      render: (v, item) => `${item.firstName} ${item.lastName}`
+    },
+    { key: 'email', label: ES.staff.email },
+    { key: 'phone', label: ES.staff.phone },
     {
       key: 'commissionConfig',
-      label: 'Commission',
-      render: (v) => `${v?.type === 'percentage' ? v.value + '%' : '$' + v?.value}`,
+      label: ES.staff.commission,
+      render: (v) => v ? `${v.type === 'percentage' ? v.value + '%' : '$' + v.value}` : '-',
     },
-    { key: 'totalEarnings', label: 'Earnings', render: (v) => `$${v?.toFixed(2)}` },
+    {
+      key: 'totalEarnings',
+      label: ES.dashboard.myEarnings,
+      render: (v) => `$${v?.toFixed(2) || '0.00'}`
+    },
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Staff Management</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{ES.staff.title}</h1>
         <Button onClick={() => setIsModalOpen(true)} size="lg">
-          + Add Staff
+          {ES.staff.add}
         </Button>
       </div>
 
       {/* Staff Table */}
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900">Team Members</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{ES.staff.teamMembers}</h2>
         </CardHeader>
         <CardBody>
           <Table
             columns={staffColumns}
-            data={staffList}
+            data={staff}
             rowKey="id"
-            emptyMessage="No staff members yet"
+            loading={staffLoading}
+            emptyMessage={ES.staff.noStaff}
           />
         </CardBody>
       </Card>
@@ -94,31 +118,32 @@ export default function StaffPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Add Staff Member"
+        title={ES.staff.add}
         size="lg"
       >
         <div className="space-y-4">
           <Input
-            label="First Name"
+            label={ES.staff.name}
             value={formData.firstName}
             onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
             required
           />
           <Input
-            label="Last Name"
+            label={ES.staff.name}
+            placeholder={ES.staff.name}
             value={formData.lastName}
             onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
             required
           />
           <Input
-            label="Email"
+            label={ES.staff.email}
             type="email"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             required
           />
           <Input
-            label="Phone"
+            label={ES.staff.phone}
             value={formData.phone}
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             required
@@ -126,7 +151,7 @@ export default function StaffPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Commission Type
+              {ES.staff.commission}
             </label>
             <div className="flex gap-4">
               <label className="flex items-center">
@@ -142,7 +167,7 @@ export default function StaffPage() {
                   }
                   className="mr-2"
                 />
-                <span>Percentage</span>
+                <span>{ES.staff.percentage}</span>
               </label>
               <label className="flex items-center">
                 <input
@@ -157,13 +182,13 @@ export default function StaffPage() {
                   }
                   className="mr-2"
                 />
-                <span>Fixed Amount</span>
+                <span>{ES.staff.fixed}</span>
               </label>
             </div>
           </div>
 
           <Input
-            label={formData.commissionType === 'percentage' ? 'Commission %' : 'Commission Amount'}
+            label={`${ES.staff.commission} ${formData.commissionType === 'percentage' ? '%' : '$'}`}
             type="number"
             value={formData.commissionValue}
             onChange={(e) =>
@@ -177,10 +202,10 @@ export default function StaffPage() {
 
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
-              Cancel
+              {ES.actions.cancel}
             </Button>
             <Button onClick={handleCreateStaff} loading={loading}>
-              Add Staff
+              {ES.staff.add}
             </Button>
           </div>
         </div>

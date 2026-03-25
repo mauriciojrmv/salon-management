@@ -7,14 +7,16 @@ import { Input } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { Table, TableColumn } from '@/components/Table';
 import { useAuth } from '@/hooks/useAuth';
+import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
+import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { Client } from '@/types/models';
+import ES from '@/config/text.es';
 
 export default function ClientsPage() {
   const { userData } = useAuth();
   const { success, error } = useNotification();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [clients, setClients] = useState<Client[]>([]); // Mock data
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
@@ -26,16 +28,31 @@ export default function ClientsPage() {
     notes: '',
   });
 
+  const { data: clientsData, loading: clientsLoading, refetch } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return ClientRepository.getSalonClients(userData.salonId);
+  }, [userData?.salonId]);
+
+  const clients = clientsData || [];
+
   const handleCreateClient = async () => {
-    if (!formData.firstName || !formData.email) {
-      error('Please fill in all required fields');
+    if (!formData.firstName || !formData.email || !userData?.salonId) {
+      error(ES.messages.fillRequiredFields);
       return;
     }
 
     setLoading(true);
     try {
-      // TODO: Integrate with Firebase
-      success('Client added successfully');
+      await ClientRepository.createClient(userData.salonId, {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        dateOfBirth: formData.dateOfBirth,
+        gender: formData.gender,
+        notes: formData.notes,
+      });
+      success(ES.actions.success);
       setIsModalOpen(false);
       setFormData({
         firstName: '',
@@ -46,6 +63,7 @@ export default function ClientsPage() {
         gender: '',
         notes: '',
       });
+      refetch();
     } catch (err) {
       error(err instanceof Error ? err.message : 'Failed to add client');
     } finally {
@@ -54,38 +72,47 @@ export default function ClientsPage() {
   };
 
   const clientColumns: TableColumn<Client>[] = [
-    { key: 'firstName', label: 'Name', render: (v, item) => `${item.firstName} ${item.lastName}` },
-    { key: 'email', label: 'Email' },
-    { key: 'phone', label: 'Phone' },
-    { key: 'totalSessions', label: 'Sessions' },
-    { key: 'totalSpent', label: 'Total Spent', render: (v) => `$${v?.toFixed(2)}` },
+    {
+      key: 'firstName',
+      label: ES.clients.name,
+      render: (v, item) => `${item.firstName} ${item.lastName}`
+    },
+    { key: 'email', label: ES.clients.email },
+    { key: 'phone', label: ES.clients.phone },
+    { key: 'totalSessions', label: ES.sessions.title },
+    {
+      key: 'totalSpent',
+      label: ES.clients.totalSpent,
+      render: (v) => `$${v?.toFixed(2) || '0.00'}`
+    },
     {
       key: 'lastVisit',
-      label: 'Last Visit',
-      render: (v) => (v ? new Date(v).toLocaleDateString() : '-'),
+      label: ES.clients.lastVisit,
+      render: (v) => (v ? new Date(v).toLocaleDateString('es-ES') : '-'),
     },
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Clients</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{ES.clients.title}</h1>
         <Button onClick={() => setIsModalOpen(true)} size="lg">
-          + Add Client
+          {ES.clients.add}
         </Button>
       </div>
 
       {/* Clients Table */}
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900">Client List</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{ES.clients.title}</h2>
         </CardHeader>
         <CardBody>
           <Table
             columns={clientColumns}
             data={clients}
             rowKey="id"
-            emptyMessage="No clients yet"
+            loading={clientsLoading}
+            emptyMessage={ES.clients.noClients}
           />
         </CardBody>
       </Card>
@@ -94,53 +121,54 @@ export default function ClientsPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Add Client"
+        title={ES.clients.add}
         size="lg"
       >
         <div className="space-y-4">
           <Input
-            label="First Name"
+            label={ES.clients.name}
             value={formData.firstName}
             onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
             required
           />
           <Input
-            label="Last Name"
+            label={ES.clients.name}
+            placeholder={ES.clients.name}
             value={formData.lastName}
             onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
             required
           />
           <Input
-            label="Email"
+            label={ES.clients.email}
             type="email"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             required
           />
           <Input
-            label="Phone"
+            label={ES.clients.phone}
             value={formData.phone}
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             required
           />
           <Input
-            label="Date of Birth"
+            label={ES.clients.dateOfBirth}
             type="date"
             value={formData.dateOfBirth}
             onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
           />
           <Input
-            label="Notes"
+            label={ES.clients.notes}
             value={formData.notes}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            placeholder="Allergies, preferences, etc."
+            placeholder="Alergias, preferencias, etc."
           />
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
-              Cancel
+              {ES.actions.cancel}
             </Button>
             <Button onClick={handleCreateClient} loading={loading}>
-              Add Client
+              {ES.clients.add}
             </Button>
           </div>
         </div>
