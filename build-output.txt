@@ -1,0 +1,23 @@
+
+> salon-management@1.0.0 build
+> next build
+
+   ▲ Next.js 15.5.14
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 8.8s
+   Linting and checking validity of types ...
+Failed to compile.
+
+./src/lib/repositories/productRepository.ts:68:11
+Type error: Cannot find name 'updateProduct'. Did you mean the static member 'ProductRepository.updateProduct'?
+
+[0m [90m 66 |[39m     [36mif[39m (newStock [33m<[39m [35m0[39m) [36mthrow[39m [36mnew[39m [33mError[39m([32m'Insufficient stock'[39m)[33m;[39m
+ [90m 67 |[39m
+[31m[1m>[22m[39m[90m 68 |[39m     [36mawait[39m updateProduct(productId[33m,[39m {
+ [90m    |[39m           [31m[1m^[22m[39m
+ [90m 69 |[39m       currentStock[33m:[39m newStock[33m,[39m
+ [90m 70 |[39m     })[33m;[39m
+ [90m 71 |[39m   }[0m
+Next.js build worker exited with code: 1 and signal: null

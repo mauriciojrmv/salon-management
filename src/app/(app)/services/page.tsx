@@ -9,32 +9,47 @@ import { Modal } from '@/components/Modal';
 import { Table, TableColumn } from '@/components/Table';
 import { Service } from '@/types/models';
 import { useAuth } from '@/hooks/useAuth';
+import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
+import { ServiceRepository } from '@/lib/repositories/serviceRepository';
+import ES from '@/config/text.es';
 
 export default function ServicesPage() {
   const { userData } = useAuth();
   const { success, error } = useNotification();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [services, setServices] = useState<Service[]>([]); // Mock data
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    category: 'haircut',
+    category: 'haircut' as const,
     price: 0,
     duration: 30,
   });
 
+  const { data: servicesData, loading: servicesLoading, refetch } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return ServiceRepository.getSalonServices(userData.salonId);
+  }, [userData?.salonId]);
+
+  const services = servicesData || [];
+
   const handleCreateService = async () => {
     if (!formData.name || !userData?.salonId) {
-      error('Please fill in all required fields');
+      error(ES.messages.fillRequiredFields);
       return;
     }
 
     setLoading(true);
     try {
-      // TODO: Integrate with Firebase
-      success('Service created successfully');
+      await ServiceRepository.createService(userData.salonId, {
+        name: formData.name,
+        description: formData.description,
+        category: formData.category,
+        price: formData.price,
+        duration: formData.duration,
+      });
+      success(ES.actions.success);
       setIsModalOpen(false);
       setFormData({
         name: '',
@@ -43,6 +58,7 @@ export default function ServicesPage() {
         price: 0,
         duration: 30,
       });
+      refetch();
     } catch (err) {
       error(err instanceof Error ? err.message : 'Failed to create service');
     } finally {
@@ -51,41 +67,42 @@ export default function ServicesPage() {
   };
 
   const serviceColumns: TableColumn<Service>[] = [
-    { key: 'name', label: 'Service Name' },
-    { key: 'category', label: 'Category' },
-    { key: 'price', label: 'Price', render: (v) => `$${v?.toFixed(2)}` },
-    { key: 'duration', label: 'Duration', render: (v) => `${v} mins` },
+    { key: 'name', label: ES.services.name },
+    { key: 'category', label: ES.services.category },
+    { key: 'price', label: ES.services.price, render: (v) => `$${v?.toFixed(2)}` },
+    { key: 'duration', label: ES.services.duration, render: (v) => `${v} min` },
     {
       key: 'isActive',
-      label: 'Status',
+      label: ES.actions.view,
       render: (v) => (
         <span className={v ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
-          {v ? 'Active' : 'Inactive'}
+          {v ? ES.status.active : ES.status.inactive}
         </span>
       ),
     },
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Services</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{ES.services.title}</h1>
         <Button onClick={() => setIsModalOpen(true)} size="lg">
-          + Add Service
+          {ES.services.add}
         </Button>
       </div>
 
       {/* Services Table */}
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900">Service Catalog</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{ES.services.title}</h2>
         </CardHeader>
         <CardBody>
           <Table
             columns={serviceColumns}
             data={services}
             rowKey="id"
-            emptyMessage="No services yet"
+            loading={servicesLoading}
+            emptyMessage={ES.services.noServices}
           />
         </CardBody>
       </Card>
@@ -94,46 +111,46 @@ export default function ServicesPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Add Service"
+        title={ES.services.add}
         size="lg"
       >
         <div className="space-y-4">
           <Input
-            label="Service Name"
+            label={ES.services.name}
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             required
           />
           <Input
-            label="Description"
+            label={ES.services.description}
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           />
           <Select
-            label="Category"
+            label={ES.services.category}
             value={formData.category}
-            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+            onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
             options={[
-              { value: 'haircut', label: 'Haircut' },
-              { value: 'coloring', label: 'Coloring' },
-              { value: 'styling', label: 'Styling' },
-              { value: 'nails', label: 'Nails' },
-              { value: 'waxing', label: 'Waxing' },
-              { value: 'skincare', label: 'Skincare' },
-              { value: 'massage', label: 'Massage' },
-              { value: 'other', label: 'Other' },
+              { value: 'haircut', label: ES.services.haircut },
+              { value: 'coloring', label: ES.services.coloring },
+              { value: 'styling', label: ES.services.styling },
+              { value: 'nails', label: ES.services.nails },
+              { value: 'waxing', label: ES.services.waxing },
+              { value: 'skincare', label: ES.services.skincare },
+              { value: 'massage', label: ES.services.massage },
+              { value: 'other', label: ES.services.other },
             ]}
             required
           />
           <Input
-            label="Price ($)"
+            label={`${ES.services.price} ($)`}
             type="number"
             value={formData.price}
             onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
             required
           />
           <Input
-            label="Duration (minutes)"
+            label={`${ES.services.duration} (${ES.services.duration})`}
             type="number"
             value={formData.duration}
             onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
@@ -141,10 +158,10 @@ export default function ServicesPage() {
           />
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
-              Cancel
+              {ES.actions.cancel}
             </Button>
             <Button onClick={handleCreateService} loading={loading}>
-              Add Service
+              {ES.services.add}
             </Button>
           </div>
         </div>
