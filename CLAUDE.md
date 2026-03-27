@@ -6,6 +6,7 @@
 * When fixing a bug or completing a task: mark it `[x]` with the date in PROJECT_GUIDE.md
 * When discovering new issues: add them to the appropriate priority level in Section 8
 * Development phases tracked in PROJECT_GUIDE.md Section 11
+* **After completing a batch of working changes (build passes), commit and push to GitHub.** Do not accumulate large uncommitted diffs across sessions.
 
 ## Stack
 

@@ -618,6 +618,27 @@ export default function SessionsPage() {
         </div>
       </Modal>
 
+      {/* Add Note Modal */}
+      <Modal isOpen={!!noteSessionId} onClose={() => setNoteSessionId(null)} title={ES.sessions.addNote}>
+        <div className="space-y-4">
+          <Input
+            label={ES.sessions.noteLabel}
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder={ES.sessions.notePlaceholder}
+            required
+          />
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setNoteSessionId(null)}>
+              {ES.actions.cancel}
+            </Button>
+            <Button onClick={handleSaveNote} loading={loading}>
+              {ES.actions.save}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Create Session Modal */}
       <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title={ES.sessions.create}>
         <div className="space-y-4">

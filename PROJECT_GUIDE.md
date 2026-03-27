@@ -3,6 +3,8 @@
 > Living document. Updated as the project evolves. This is the source of truth for architecture decisions, known issues, UX patterns, and development standards.
 >
 > **Workflow rule**: When fixing a bug or completing a task, mark it `[x]` in Section 8 (Issue Tracker) and/or Section 11 (Development Phases) with the date. When discovering new issues during development, add them to the appropriate priority level in Section 8. This keeps the guide accurate without a separate tracking tool.
+>
+> **Push rule**: After completing a batch of working changes (build passes), commit and push to the GitHub repository. Do not accumulate large uncommitted diffs across sessions.
 
 ---
 
@@ -248,7 +250,7 @@ Mistakes happen. Cancellation must:
 - [x] **No appointment overlap/double-booking detection** — Fixed 2026-03-27: `AppointmentService.createAppointment()` now calls `checkStaffAvailability()` before creating. If staff has an overlapping appointment (time range intersection), throws `STAFF_DOUBLE_BOOKED` error shown as Spanish toast message.
 - [x] **Unused model fields** — Verified 2026-03-27: `refundedAt`/`refundAmount` are used in `cancelSession()` when voiding payments. `reminderSent` is set on appointment creation — reserved for future reminder feature. No fields need removal.
 - [ ] Payment receipt generation (printable/shareable summary for client)
-- [ ] Session edit after close (allow adding forgotten materials/corrections)
+- [x] **Session edit after close** — Fixed 2026-03-27: Completed sessions now show expanded cards with service list, notes, and edit actions (admin/manager only). Three capabilities: (1) "Agregar Servicio" — adds forgotten services/materials to closed session via the same add-service modal, `addServiceToSession` has no status restriction; (2) "Procesar Pago" — shown when balance remains, payment block changed from `completed` to `cancelled` only; (3) "Agregar Nota" — timestamped correction notes appended to session via `SessionService.addSessionNote()`. All changes logged via `auditLog()`.
 - [ ] Client birthday reminders / loyalty tracking
 - [ ] Frequent client detection (auto-suggest "usual service")
 - [ ] Low-stock alert notification (not just badge — active alert when product runs out mid-day)
