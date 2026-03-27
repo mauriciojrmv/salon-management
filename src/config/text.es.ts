@@ -496,6 +496,50 @@ export const ES = {
     creditAdded: 'Saldo agregado al cliente',
     creditAmount: 'Monto del anticipo',
   },
+
+  // Receipt
+  receipt: {
+    title: 'Recibo',
+    print: 'Imprimir Recibo',
+    share: 'Compartir',
+    date: 'Fecha',
+    paymentDetail: 'Detalle de Pagos',
+    thankYou: 'Gracias por su preferencia',
+    viewReceipt: 'Ver Recibo',
+  },
+
+  // Birthday & Loyalty
+  birthday: {
+    todayBirthdays: 'Cumpleanos Hoy',
+    weekBirthdays: 'Cumpleanos Esta Semana',
+    noBirthdays: 'Sin cumpleanos esta semana',
+    happyBirthday: 'Feliz cumpleanos',
+    loyalClient: 'Cliente Frecuente',
+    visits: 'visitas',
+    newClient: 'Nuevo',
+    regular: 'Regular',
+    frequent: 'Frecuente',
+    vip: 'VIP',
+  },
+
+  // Frequent Client
+  frequentClient: {
+    usualServices: 'Servicios Habituales',
+    suggestedService: 'Servicio sugerido',
+    basedOnHistory: 'Basado en historial del cliente',
+    addSuggested: 'Agregar',
+  },
+
+  // Low Stock Alerts
+  stockAlert: {
+    title: 'Alertas de Inventario',
+    outOfStock: 'Agotado',
+    lowStock: 'Stock Bajo',
+    productsLow: 'productos con stock bajo',
+    restockNeeded: 'Reabastecimiento necesario',
+    currentStock: 'Actual',
+    minStock: 'Minimo',
+  },
 };
 
 export default ES;

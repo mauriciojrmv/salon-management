@@ -10,11 +10,13 @@ import { CategoryServicePicker, ServiceOption } from '@/components/CategoryServi
 import { SessionCard } from '@/components/SessionCard';
 import { ClientHistoryModal } from '@/components/ClientHistoryModal';
 import { Toast } from '@/components/Toast';
+import { ReceiptModal } from '@/components/ReceiptModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
 import { useRealtime } from '@/hooks/useRealtime';
 import { useNotification } from '@/hooks/useNotification';
 import { SessionService } from '@/lib/services/sessionService';
+import { SessionRepository } from '@/lib/repositories/sessionRepository';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
@@ -54,6 +56,8 @@ export default function SessionsPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [noteSessionId, setNoteSessionId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
+  const [receiptSession, setReceiptSession] = useState<Session | null>(null);
+  const [suggestedServices, setSuggestedServices] = useState<{ serviceId: string; serviceName: string; count: number }[]>([]);
 
   // Quick client form
   const [quickClient, setQuickClient] = useState({ firstName: '', lastName: '', phone: '' });
@@ -150,8 +154,11 @@ export default function SessionsPage() {
   const productOptions = (products || []).map((p) => ({
     value: p.id,
     label: p.name,
-    secondary: `${ES.sessions.materialSellPrice}: $${p.price}/${p.unit || 'ud'} · Stock: ${p.currentStock}`,
+    secondary: `${ES.sessions.materialSellPrice}: $${p.price}/${p.unit || 'ud'} · Stock: ${p.currentStock}${p.currentStock <= p.minStock ? ' ⚠' : ''}`,
   }));
+
+  // Low-stock products for alert banner
+  const lowStockProducts = (products || []).filter((p) => p.currentStock <= p.minStock);
 
   // Name resolvers
   const getClientName = (id: string) => {
@@ -424,6 +431,19 @@ export default function SessionsPage() {
   return (
     <div className="space-y-6 p-6">
       <Toast notifications={notifications} onDismiss={removeNotification} />
+
+      {/* Low-stock alert banner */}
+      {lowStockProducts.length > 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-2 flex items-center gap-2 text-sm">
+          <span className="text-yellow-600">&#9888;</span>
+          <span className="text-yellow-800 font-medium">{ES.stockAlert.lowStock}:</span>
+          <span className="text-yellow-700">
+            {lowStockProducts.slice(0, 3).map((p) => `${p.name} (${p.currentStock})`).join(', ')}
+            {lowStockProducts.length > 3 && ` +${lowStockProducts.length - 3}`}
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">{ES.sessions.title}</h1>
         <Button onClick={() => setIsCreateModalOpen(true)} size="lg">
@@ -446,11 +466,28 @@ export default function SessionsPage() {
               session={session}
               clientName={getClientName(session.clientId)}
               getStaffName={getStaffName}
-              onAddService={() => {
+              onAddService={async () => {
                 setActiveSessionId(session.id);
                 setServiceForm({ serviceId: '', staffId: '', price: 0 });
                 setMaterials([]);
+                setSuggestedServices([]);
                 setIsAddServiceModalOpen(true);
+                // Load frequent services for this client
+                if (userData?.salonId && session.clientId) {
+                  try {
+                    const history = await SessionRepository.getUserSessions(userData.salonId, session.clientId);
+                    const freq: Record<string, { serviceName: string; count: number }> = {};
+                    history.forEach((s) => (s.services || []).forEach((svc) => {
+                      if (!freq[svc.serviceId]) freq[svc.serviceId] = { serviceName: svc.serviceName, count: 0 };
+                      freq[svc.serviceId].count++;
+                    }));
+                    const sorted = Object.entries(freq)
+                      .map(([serviceId, v]) => ({ serviceId, ...v }))
+                      .sort((a, b) => b.count - a.count)
+                      .slice(0, 3);
+                    setSuggestedServices(sorted);
+                  } catch { /* ignore */ }
+                }
               }}
               onProcessPayment={() => {
                 setActiveSessionId(session.id);
@@ -525,11 +562,27 @@ export default function SessionsPage() {
                     {/* Edit actions (admin/manager only) */}
                     {canCancel && (
                       <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
-                        <Button size="sm" variant="secondary" onClick={() => {
+                        <Button size="sm" variant="secondary" onClick={async () => {
                           setActiveSessionId(session.id);
                           setServiceForm({ serviceId: '', staffId: '', price: 0 });
                           setMaterials([]);
+                          setSuggestedServices([]);
                           setIsAddServiceModalOpen(true);
+                          if (userData?.salonId && session.clientId) {
+                            try {
+                              const history = await SessionRepository.getUserSessions(userData.salonId, session.clientId);
+                              const freq: Record<string, { serviceName: string; count: number }> = {};
+                              history.forEach((s) => (s.services || []).forEach((svc) => {
+                                if (!freq[svc.serviceId]) freq[svc.serviceId] = { serviceName: svc.serviceName, count: 0 };
+                                freq[svc.serviceId].count++;
+                              }));
+                              const sorted = Object.entries(freq)
+                                .map(([serviceId, v]) => ({ serviceId, ...v }))
+                                .sort((a, b) => b.count - a.count)
+                                .slice(0, 3);
+                              setSuggestedServices(sorted);
+                            } catch { /* ignore */ }
+                          }
                         }}>
                           {ES.sessions.addService}
                         </Button>
@@ -557,6 +610,11 @@ export default function SessionsPage() {
                         </Button>
                       </div>
                     )}
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <Button size="sm" variant="ghost" onClick={() => setReceiptSession(session)}>
+                        {ES.receipt.viewReceipt}
+                      </Button>
+                    </div>
                   </CardBody>
                 </Card>
               );
@@ -702,6 +760,26 @@ export default function SessionsPage() {
       {/* Add Service Modal — with editable price + materials */}
       <Modal isOpen={isAddServiceModalOpen} onClose={() => setIsAddServiceModalOpen(false)} title={ES.sessions.addService} size="lg">
         <div className="space-y-4">
+          {/* Suggested services based on client history */}
+          {suggestedServices.length > 0 && !serviceForm.serviceId && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-xs font-semibold text-blue-600 mb-2">{ES.frequentClient.usualServices}</p>
+              <div className="flex flex-wrap gap-2">
+                {suggestedServices.map((sug) => (
+                  <button
+                    key={sug.serviceId}
+                    type="button"
+                    onClick={() => handleServiceSelect(sug.serviceId)}
+                    className="px-3 py-1.5 bg-white border border-blue-300 rounded-lg text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+                  >
+                    {sug.serviceName} <span className="text-xs text-blue-400">({sug.count}x)</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-blue-400 mt-1">{ES.frequentClient.basedOnHistory}</p>
+            </div>
+          )}
+
           {/* 1. Select service — mobile-friendly category picker */}
           <CategoryServicePicker
             label={ES.sessions.selectService}
@@ -1114,6 +1192,16 @@ export default function SessionsPage() {
         clientName={historyClientId ? getClientName(historyClientId) : ''}
         salonId={userData?.salonId || ''}
         getStaffName={getStaffName}
+      />
+
+      {/* Receipt Modal */}
+      <ReceiptModal
+        isOpen={!!receiptSession}
+        onClose={() => setReceiptSession(null)}
+        session={receiptSession}
+        clientName={receiptSession ? getClientName(receiptSession.clientId) : ''}
+        getStaffName={getStaffName}
+        salonName={ES.app.name}
       />
     </div>
   );

@@ -1,0 +1,209 @@
+import React, { useRef } from 'react';
+import { Modal } from '@/components/Modal';
+import { Button } from '@/components/Button';
+import { Session } from '@/types/models';
+import { toDate } from '@/lib/utils/helpers';
+import ES from '@/config/text.es';
+
+interface ReceiptModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  session: Session | null;
+  clientName: string;
+  getStaffName: (id: string) => string;
+  salonName?: string;
+}
+
+export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffName, salonName }: ReceiptModalProps) {
+  const receiptRef = useRef<HTMLDivElement>(null);
+
+  if (!session) return null;
+
+  const services = session.services || [];
+  const payments = (session.payments || []).filter((p) => p.status === 'completed');
+  const materials = session.materialsUsed || [];
+
+  const servicePrices = services.reduce((sum, s) => sum + s.price, 0);
+  const materialPrices = materials.reduce((sum, m) => sum + m.cost, 0);
+  const total = servicePrices + materialPrices;
+  const paidAmount = payments.reduce((sum, p) => sum + p.amount, 0);
+
+  const methodLabels: Record<string, string> = {
+    cash: ES.payments.cash,
+    card: ES.payments.card,
+    qr_code: ES.payments.qrCode,
+    transfer: ES.payments.transfer,
+    credit: ES.payments.creditBalance,
+  };
+
+  const handlePrint = () => {
+    if (!receiptRef.current) return;
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${ES.receipt.title}</title>
+          <style>
+            body { font-family: 'Courier New', monospace; max-width: 320px; margin: 0 auto; padding: 16px; font-size: 12px; color: #000; }
+            .center { text-align: center; }
+            .bold { font-weight: bold; }
+            .divider { border-top: 1px dashed #999; margin: 8px 0; }
+            .row { display: flex; justify-content: space-between; margin: 2px 0; }
+            .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin: 4px 0; }
+            h2 { margin: 4px 0; font-size: 16px; }
+            p { margin: 2px 0; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>
+          ${receiptRef.current.innerHTML}
+          <script>window.print(); window.close();</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handleShare = async () => {
+    const lines = [
+      salonName || ES.app.name,
+      `${ES.receipt.date}: ${session.date}`,
+      `${ES.sessions.client}: ${clientName}`,
+      '',
+      `--- ${ES.sessions.services} ---`,
+      ...services.map((s) => `${s.serviceName}: $${s.price.toFixed(2)}`),
+      ...(materialPrices > 0 ? [
+        '',
+        `--- ${ES.sessions.materialsUsed} ---`,
+        ...materials.map((m) => `${m.productName}: $${m.cost.toFixed(2)}`),
+      ] : []),
+      '',
+      `${ES.payments.total}: $${total.toFixed(2)}`,
+      `${ES.payments.paid}: $${paidAmount.toFixed(2)}`,
+      ...(payments.length > 0 ? [
+        '',
+        `--- ${ES.receipt.paymentDetail} ---`,
+        ...payments.map((p) => `${methodLabels[p.method] || p.method}: $${p.amount.toFixed(2)}`),
+      ] : []),
+      '',
+      ES.receipt.thankYou,
+    ];
+    const text = lines.join('\n');
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: ES.receipt.title, text });
+      } catch {
+        // User cancelled share
+      }
+    } else {
+      await navigator.clipboard.writeText(text);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={ES.receipt.title}>
+      <div ref={receiptRef}>
+        <div className="text-center mb-3">
+          <h2 className="text-lg font-bold">{salonName || ES.app.name}</h2>
+          <p className="text-xs text-gray-500">{ES.receipt.date}: {session.date}</p>
+          <p className="text-xs text-gray-500">{ES.sessions.client}: {clientName}</p>
+        </div>
+
+        <div className="border-t border-dashed border-gray-300 my-2" />
+
+        {/* Services */}
+        <div className="space-y-1 mb-2">
+          {services.map((svc) => (
+            <div key={svc.id} className="flex justify-between text-sm">
+              <span className="text-gray-700">
+                {svc.serviceName}
+                {svc.assignedStaff?.length > 0 && (
+                  <span className="text-xs text-gray-400 ml-1">
+                    ({svc.assignedStaff.map(getStaffName).join(', ')})
+                  </span>
+                )}
+              </span>
+              <span className="font-medium">${svc.price.toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Materials */}
+        {materialPrices > 0 && (
+          <>
+            <div className="border-t border-dashed border-gray-300 my-2" />
+            <p className="text-xs text-gray-500 mb-1">{ES.sessions.materialsUsed}</p>
+            <div className="space-y-1 mb-2">
+              {materials.map((mat, i) => (
+                <div key={i} className="flex justify-between text-sm">
+                  <span className="text-gray-600">{mat.productName} ({mat.quantity} {mat.unit})</span>
+                  <span className="font-medium">${mat.cost.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div className="border-t border-dashed border-gray-300 my-2" />
+
+        {/* Totals */}
+        <div className="space-y-1">
+          <div className="flex justify-between text-sm">
+            <span>{ES.sessions.servicesSubtotal}</span>
+            <span>${servicePrices.toFixed(2)}</span>
+          </div>
+          {materialPrices > 0 && (
+            <div className="flex justify-between text-sm">
+              <span>{ES.sessions.materialsSubtotal}</span>
+              <span>${materialPrices.toFixed(2)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-base font-bold border-t border-gray-300 pt-1 mt-1">
+            <span>{ES.payments.total}</span>
+            <span>${total.toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Payment breakdown */}
+        {payments.length > 0 && (
+          <>
+            <div className="border-t border-dashed border-gray-300 my-2" />
+            <p className="text-xs text-gray-500 mb-1">{ES.receipt.paymentDetail}</p>
+            {payments.map((p) => (
+              <div key={p.id} className="flex justify-between text-sm">
+                <span className="text-gray-600">{methodLabels[p.method] || p.method}</span>
+                <span>${p.amount.toFixed(2)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between text-sm font-semibold mt-1">
+              <span>{ES.payments.paid}</span>
+              <span className="text-green-600">${paidAmount.toFixed(2)}</span>
+            </div>
+          </>
+        )}
+
+        <div className="border-t border-dashed border-gray-300 my-3" />
+        <p className="text-center text-xs text-gray-400">{ES.receipt.thankYou}</p>
+        {session.endTime && (
+          <p className="text-center text-xs text-gray-400">
+            {toDate(session.endTime).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </p>
+        )}
+      </div>
+
+      <div className="flex gap-2 mt-4 pt-3 border-t border-gray-200">
+        <Button size="sm" variant="primary" onClick={handlePrint}>
+          {ES.receipt.print}
+        </Button>
+        <Button size="sm" variant="secondary" onClick={handleShare}>
+          {ES.receipt.share}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onClose}>
+          {ES.actions.close}
+        </Button>
+      </div>
+    </Modal>
+  );
+}

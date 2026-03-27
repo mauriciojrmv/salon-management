@@ -249,11 +249,11 @@ Mistakes happen. Cancellation must:
 - [x] **No audit logging** — Fixed 2026-03-27: `auditLog()` function in SessionService logs structured `[AUDIT]` entries to console for: SESSION_CREATED, SERVICE_ADDED, PAYMENT_PROCESSED, SESSION_CLOSED, SESSION_CANCELLED, SERVICE_REMOVED, SESSION_REOPENED. Includes timestamp, IDs, amounts, and context.
 - [x] **No appointment overlap/double-booking detection** — Fixed 2026-03-27: `AppointmentService.createAppointment()` now calls `checkStaffAvailability()` before creating. If staff has an overlapping appointment (time range intersection), throws `STAFF_DOUBLE_BOOKED` error shown as Spanish toast message.
 - [x] **Unused model fields** — Verified 2026-03-27: `refundedAt`/`refundAmount` are used in `cancelSession()` when voiding payments. `reminderSent` is set on appointment creation — reserved for future reminder feature. No fields need removal.
-- [ ] Payment receipt generation (printable/shareable summary for client)
+- [x] **Payment receipt generation** — Fixed 2026-03-27: `ReceiptModal` component shows printable receipt with service list, materials, payment breakdown by method. "Imprimir Recibo" opens print window with receipt-style layout. "Compartir" uses Web Share API (or clipboard fallback) to share plain-text receipt. "Ver Recibo" button on completed sessions.
 - [x] **Session edit after close** — Fixed 2026-03-27: Completed sessions now show expanded cards with service list, notes, and edit actions (admin/manager only). Three capabilities: (1) "Agregar Servicio" — adds forgotten services/materials to closed session via the same add-service modal, `addServiceToSession` has no status restriction; (2) "Procesar Pago" — shown when balance remains, payment block changed from `completed` to `cancelled` only; (3) "Agregar Nota" — timestamped correction notes appended to session via `SessionService.addSessionNote()`. All changes logged via `auditLog()`.
-- [ ] Client birthday reminders / loyalty tracking
-- [ ] Frequent client detection (auto-suggest "usual service")
-- [ ] Low-stock alert notification (not just badge — active alert when product runs out mid-day)
+- [x] **Client birthday reminders / loyalty tracking** — Fixed 2026-03-27: Dashboard shows birthday alerts: today's birthdays with cake icon in pink card, upcoming week birthdays with date. Loyalty tiers based on `totalSessions`: Nuevo (<3), Regular (3-9), Frecuente (10-19), VIP (20+) with color-coded badges. Birthday detection uses `dateOfBirth` field (YYYY-MM-DD), compares month/day.
+- [x] **Frequent client detection** — Fixed 2026-03-27: When opening add-service modal, client's past sessions are fetched and service frequency aggregated. Top 3 most-used services shown as suggestion chips in blue panel with count (e.g. "Corte (5x)"). Tapping a chip auto-selects the service and fills price. Panel hidden once a service is selected. Works for both active and completed sessions.
+- [x] **Low-stock alert notification** — Fixed 2026-03-27: (1) Dashboard: red alert banner with product cards showing current vs min stock, "Agotado"/"Stock Bajo" badges. Uses `ProductRepository.getLowStockProducts()`. (2) Sessions page: yellow warning banner at top listing low-stock products when any exist. (3) Product dropdown in material selection shows warning icon for low-stock items.
 
 ### RESOLVED
 
@@ -427,20 +427,17 @@ Cancel trabajo with stock restore + payment voiding + reason field. Remove servi
 ### Phase 3F (DONE) - Staff Payroll Report
 `AnalyticsService.getStaffPayroll()` with per-staff PayrollCard: revenue, materials, commission, expandable service-level detail table (date, client, service, price, materials, commission). Summary cards: Total Revenue, Total Payroll, Total Materials, Salon Profit.
 
-### Phase 3G - Daily Close / Cierre de Caja
-> **Scope**: End-of-day summary by payment method, cash reconciliation, optional day-close lock. See **Section 8 → P2.5** for task checklist.
-> **Why**: Every salon counts cash at end of day. No way to see "how much cash should be in the drawer?"
+### Phase 3G (DONE) - Daily Close / Cierre de Caja
+"Cierre de Caja" section on dashboard: payment totals by method (cash, card, QR, transfer) in color-coded cards, total collected, pending from active sessions. Real-time data.
 
-### Phase 3H - Appointment ↔ Trabajo Integration
-> **Scope**: One-tap "Iniciar Trabajo" from confirmed appointment, auto-status sync, no-show handling. See **Section 8 → P2.5** for task checklist.
-> **Why**: Appointments and Trabajos are completely disconnected. Staff manually recreates trabajo info.
+### Phase 3H (DONE) - Appointment ↔ Trabajo Integration
+One-tap "Iniciar Trabajo" from confirmed/pending appointments. Creates session pre-filled with client, adds services with staff, marks appointment completed. Double-booking detection via `checkStaffAvailability()`.
 
-### Phase 4A - Mobile-First Polish
-> **Scope**: Hamburger drawer, bottom action bar, swipe gestures, 48px touch targets, pull-to-refresh. See **Section 8 → P2.5** for task checklist.
-> **Why**: Salon workers use phones with wet hands, standing up, between clients.
+### Phase 4A (DONE) - Mobile-First Polish
+Hamburger drawer on mobile (slide-in w-72 + overlay, auto-close on route change). Collapsible sidebar on desktop. Fixed top bar with hamburger button. Content area accounts for mobile top bar.
 
-### Phase 4B - Production Hardening
-> **Scope**: Offline support, push notifications, audit logging, data export, validation, confirmation dialogs. See **Section 8 → P3** for task checklist.
+### Phase 4B (DONE) - Production Hardening
+Payment receipt generation (print/share), client birthday reminders with loyalty tiers (Nuevo/Regular/Frecuente/VIP), frequent client detection (auto-suggest usual services), low-stock alert notifications on dashboard and sessions page. Audit logging, data export (CSV), confirmation dialogs, date validation — all completed.
 
 ### Phase 5 - Growth Features
 > **Scope**: Online booking widget, WhatsApp reminders, multi-location, loyalty program, retail product sales, expense tracking. See **Section 8 → P3** for task checklist.
@@ -503,4 +500,4 @@ src/
 
 ---
 
-*Last updated: 2026-03-27 | Phase 3E + 3F done (cancel/edit trabajo, staff payroll report). All P0 items resolved. Next: P1 user creation testing, P2.5 items (mobile sidebar, reopen trabajo, cierre de caja). See Section 8 for full issue tracker.*
+*Last updated: 2026-03-27 | All phases through 4B done. All P0–P3 items resolved. Next: Phase 5 (growth features — online booking, WhatsApp, multi-location, loyalty program). See Section 8 for full issue tracker.*

@@ -8,8 +8,9 @@ import { useAsync } from '@/hooks/useAsync';
 import { useRealtime } from '@/hooks/useRealtime';
 import { AnalyticsService } from '@/lib/services/analyticsService';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
+import { ProductRepository } from '@/lib/repositories/productRepository';
 import { firebaseConstraints } from '@/lib/firebase/db';
-import { Session } from '@/types/models';
+import { Session, Client, Product } from '@/types/models';
 import ES from '@/config/text.es';
 
 export default function Dashboard() {
@@ -34,6 +35,56 @@ export default function Dashboard() {
     if (!userData?.salonId) return [];
     return ClientRepository.getSalonClients(userData.salonId);
   }, [userData?.salonId]);
+
+  // Low-stock products
+  const { data: lowStockProducts } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return ProductRepository.getLowStockProducts(userData.salonId);
+  }, [userData?.salonId]);
+
+  // Birthday detection
+  const birthdayClients = useMemo(() => {
+    if (!clients) return { today: [] as Client[], week: [] as Client[] };
+    const now = new Date();
+    const todayMonth = now.getMonth() + 1;
+    const todayDay = now.getDate();
+
+    const today: Client[] = [];
+    const week: Client[] = [];
+
+    clients.forEach((c) => {
+      if (!c.dateOfBirth) return;
+      const parts = c.dateOfBirth.split('-');
+      if (parts.length < 3) return;
+      const bMonth = parseInt(parts[1], 10);
+      const bDay = parseInt(parts[2], 10);
+      if (isNaN(bMonth) || isNaN(bDay)) return;
+
+      if (bMonth === todayMonth && bDay === todayDay) {
+        today.push(c);
+      } else {
+        // Check if birthday is within next 7 days
+        for (let d = 1; d <= 7; d++) {
+          const future = new Date(now);
+          future.setDate(future.getDate() + d);
+          if (bMonth === future.getMonth() + 1 && bDay === future.getDate()) {
+            week.push(c);
+            break;
+          }
+        }
+      }
+    });
+
+    return { today, week };
+  }, [clients]);
+
+  // Loyalty tier helper
+  const getLoyaltyTier = (totalSessions: number) => {
+    if (totalSessions >= 20) return { label: ES.birthday.vip, color: 'bg-purple-100 text-purple-700' };
+    if (totalSessions >= 10) return { label: ES.birthday.frequent, color: 'bg-blue-100 text-blue-700' };
+    if (totalSessions >= 3) return { label: ES.birthday.regular, color: 'bg-green-100 text-green-700' };
+    return { label: ES.birthday.newClient, color: 'bg-gray-100 text-gray-600' };
+  };
 
   const getClientName = (clientId: string) => {
     const client = clients?.find((c) => c.id === clientId);
@@ -112,6 +163,74 @@ export default function Dashboard() {
           </CardBody>
         </Card>
       </div>
+
+      {/* Low-Stock Alert */}
+      {(lowStockProducts || []).length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-red-600 text-lg">&#9888;</span>
+            <h3 className="font-semibold text-red-800">{ES.stockAlert.title}</h3>
+            <span className="text-sm text-red-600">({(lowStockProducts || []).length} {ES.stockAlert.productsLow})</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {(lowStockProducts || []).map((p: Product) => (
+              <div key={p.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-red-100">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{p.name}</p>
+                  <p className="text-xs text-gray-500">{ES.stockAlert.currentStock}: {p.currentStock} {p.unit || 'un'} / {ES.stockAlert.minStock}: {p.minStock}</p>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.currentStock === 0 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                  {p.currentStock === 0 ? ES.stockAlert.outOfStock : ES.stockAlert.lowStock}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Birthday Alerts */}
+      {(birthdayClients.today.length > 0 || birthdayClients.week.length > 0) && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-xl font-semibold text-gray-900">{ES.birthday.todayBirthdays}</h2>
+          </CardHeader>
+          <CardBody>
+            {birthdayClients.today.length > 0 && (
+              <div className="space-y-2 mb-3">
+                {birthdayClients.today.map((c) => {
+                  const tier = getLoyaltyTier(c.totalSessions || 0);
+                  return (
+                    <div key={c.id} className="flex items-center gap-3 bg-pink-50 border border-pink-200 rounded-lg p-3">
+                      <span className="text-2xl">&#127874;</span>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{c.firstName} {c.lastName}</p>
+                        <p className="text-xs text-gray-500">{c.totalSessions || 0} {ES.birthday.visits}</p>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tier.color}`}>{tier.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {birthdayClients.week.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-gray-500 mb-2">{ES.birthday.weekBirthdays}</p>
+                <div className="space-y-1">
+                  {birthdayClients.week.map((c) => {
+                    const tier = getLoyaltyTier(c.totalSessions || 0);
+                    return (
+                      <div key={c.id} className="flex items-center justify-between text-sm py-1">
+                        <span className="text-gray-700">{c.firstName} {c.lastName} — {c.dateOfBirth?.slice(5)}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tier.color}`}>{tier.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      )}
 
       {/* Cierre de Caja — daily payment summary by method */}
       {(() => {
