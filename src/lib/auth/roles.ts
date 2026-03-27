@@ -86,6 +86,9 @@ export function canAccessRoute(role: UserRole, route: string): boolean {
     '/settings': (r) => hasPermission(r, 'canEditSettings'),
     '/my-earnings': () => true, // All staff can see their own
     '/my-work': () => true, // All staff can see their own work
+    '/sales': (r) => hasPermission(r, 'canProcessPayments'),
+    '/expenses': (r) => hasPermission(r, 'canViewReports'),
+    '/salons': (r) => r === 'admin',
   };
 
   const checker = routePermissions[route];

@@ -91,6 +91,29 @@ export interface CreateProductRequest {
   supplier?: string;
 }
 
+export interface CreateRetailSaleRequest {
+  salonId: string;
+  clientId?: string;
+  items: { productId: string; productName: string; quantity: number; unitPrice: number; total: number }[];
+  totalAmount: number;
+  paymentMethod: string;
+  soldBy: string;
+  notes?: string;
+}
+
+export interface CreateExpenseRequest {
+  salonId: string;
+  category: string;
+  description: string;
+  amount: number;
+  date: string;
+  recurring: boolean;
+  recurrenceType?: string;
+  paidTo?: string;
+  paymentMethod?: string;
+  createdBy: string;
+}
+
 // API Response wrapper
 export interface ApiResponse<T> {
   success: boolean;

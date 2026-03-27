@@ -250,6 +250,52 @@ export interface Payment {
 
 export type PaymentMethod = 'cash' | 'card' | 'qr_code' | 'transfer' | 'check' | 'credit';
 
+// Retail Sale (direct product sale to client, no service)
+export interface RetailSale {
+  id: string;
+  salonId: string;
+  clientId?: string; // optional — walk-in sales
+  items: RetailSaleItem[];
+  totalAmount: number;
+  payment: {
+    method: PaymentMethod;
+    amount: number;
+    status: 'completed' | 'refunded';
+  };
+  notes?: string;
+  soldBy: string; // staff/admin user ID
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface RetailSaleItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number; // selling price
+  total: number;
+}
+
+// Expense tracking
+export interface Expense {
+  id: string;
+  salonId: string;
+  category: ExpenseCategory;
+  description: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  recurring: boolean;
+  recurrenceType?: 'monthly' | 'weekly';
+  paidTo?: string; // vendor/payee
+  paymentMethod?: PaymentMethod;
+  receipt?: string; // URL or reference
+  createdBy: string; // user ID
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type ExpenseCategory = 'rent' | 'utilities' | 'salaries' | 'supplies' | 'marketing' | 'maintenance' | 'insurance' | 'other';
+
 // Staff Commission Report
 export interface CommissionReport {
   id: string;

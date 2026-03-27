@@ -439,8 +439,11 @@ Hamburger drawer on mobile (slide-in w-72 + overlay, auto-close on route change)
 ### Phase 4B (DONE) - Production Hardening
 Payment receipt generation (print/share), client birthday reminders with loyalty tiers (Nuevo/Regular/Frecuente/VIP), frequent client detection (auto-suggest usual services), low-stock alert notifications on dashboard and sessions page. Audit logging, data export (CSV), confirmation dialogs, date validation — all completed.
 
-### Phase 5 - Growth Features
-> **Scope**: Online booking widget, WhatsApp reminders, multi-location, loyalty program, retail product sales, expense tracking. See **Section 8 → P3** for task checklist.
+### Phase 5A (DONE) - Multi-Location, Retail Sales, Expense Tracking
+Multi-location: `/salons` admin page for CRUD salon management + sidebar salon switcher dropdown (updates user's salonId, reloads). Retail product sales: `/sales` POS page with product picker, quantity, payment method, stock auto-deduction, daily sales summary. Expense tracking: `/expenses` page with CRUD, 8 categories (rent/utilities/salaries/supplies/marketing/maintenance/insurance/other), month filter, category breakdown cards, recurring expense support.
+
+### Phase 5B - Growth Features (Remaining)
+> **Scope**: Online booking widget, WhatsApp reminders, loyalty program. See **Section 8** for future items.
 
 ---
 
@@ -465,6 +468,9 @@ src/
       reports/page.tsx     # Analytics, profitability, staff performance
       users/page.tsx       # Admin-only user management (admin/manager/staff creation)
       my-work/page.tsx     # Staff dashboard (own services, self-assign, materials)
+      salons/page.tsx      # Multi-location salon management (admin only)
+      sales/page.tsx       # Retail product sales POS
+      expenses/page.tsx    # Expense tracking CRUD with categories
   components/
     index.ts               # Barrel exports
     Button.tsx, Input.tsx, Select.tsx, Card.tsx,
@@ -478,7 +484,8 @@ src/
     firebase/config.ts, auth.ts, db.ts
     repositories/clientRepository.ts, serviceRepository.ts,
                   staffRepository.ts, productRepository.ts,
-                  sessionRepository.ts
+                  sessionRepository.ts, salonRepository.ts,
+                  retailSaleRepository.ts, expenseRepository.ts
     services/index.ts, sessionService.ts, appointmentService.ts,
              inventoryService.ts, analyticsService.ts,
              commissionService.ts
@@ -500,4 +507,4 @@ src/
 
 ---
 
-*Last updated: 2026-03-27 | All phases through 4B done. All P0–P3 items resolved. Next: Phase 5 (growth features — online booking, WhatsApp, multi-location, loyalty program). See Section 8 for full issue tracker.*
+*Last updated: 2026-03-27 | All phases through 5A done. All P0–P3 items resolved. Phase 5A: multi-location, retail sales, expense tracking. Next: Phase 5B (online booking, WhatsApp, loyalty program). See Section 8 for full issue tracker.*

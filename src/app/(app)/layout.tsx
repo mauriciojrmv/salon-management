@@ -4,9 +4,13 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useAsync } from '@/hooks/useAsync';
 import { logoutUser } from '@/lib/firebase/auth';
+import { updateUserDocument } from '@/lib/firebase/auth';
+import { SalonRepository } from '@/lib/repositories/salonRepository';
 import { useRouter } from 'next/navigation';
 import { canAccessRoute } from '@/lib/auth/roles';
+import type { Salon } from '@/types/models';
 import type { UserRole } from '@/lib/auth/roles';
 import { RoleGuard } from '@/components/RoleGuard';
 import ES from '@/config/text.es';
@@ -27,7 +31,10 @@ const allNavItems: NavItem[] = [
   { name: ES.nav.staff, href: '/staff', icon: '👤' },
   { name: ES.nav.inventory, href: '/inventory', icon: '📦' },
   { name: ES.nav.myWork, href: '/my-work', icon: '🙋' },
+  { name: ES.retail.title, href: '/sales', icon: '🛒' },
+  { name: ES.expenses.title, href: '/expenses', icon: '💰' },
   { name: ES.nav.reports, href: '/reports', icon: '📈' },
+  { name: ES.salons.title, href: '/salons', icon: '🏢', adminOnly: true },
   { name: ES.users.title, href: '/users', icon: '🔑', adminOnly: true },
 ];
 
@@ -39,6 +46,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
 
   const userRole = (userData?.role || 'staff') as UserRole;
+
+  // Load salons for admin salon switcher
+  const { data: salons } = useAsync(async () => {
+    if (!user?.uid || userRole !== 'admin') return [];
+    return SalonRepository.getOwnerSalons(user.uid);
+  }, [user?.uid, userRole]);
+
+  const handleSwitchSalon = async (salonId: string) => {
+    if (!user?.uid || salonId === userData?.salonId) return;
+    await updateUserDocument(user.uid, { salonId });
+    window.location.reload();
+  };
+
+  const currentSalonName = (salons || []).find((s: Salon) => s.id === userData?.salonId)?.name;
 
   // Close mobile drawer on route change
   useEffect(() => {
@@ -119,11 +140,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="border-t border-gray-800 p-4 space-y-2">
+          {/* Salon switcher for admins with multiple salons */}
+          {showLabels && userRole === 'admin' && (salons || []).length > 1 && (
+            <div className="pb-2 mb-2 border-b border-gray-700">
+              <p className="text-xs text-gray-500 mb-1">{ES.salons.switchSalon}</p>
+              <select
+                value={userData?.salonId || ''}
+                onChange={(e) => handleSwitchSalon(e.target.value)}
+                className="w-full bg-gray-800 text-white text-sm rounded px-2 py-1.5 border border-gray-700 focus:border-blue-500 outline-none"
+              >
+                {(salons || []).map((s: Salon) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {showLabels && (
             <>
               <div className="text-sm text-white font-medium truncate">
                 {userData?.firstName} {userData?.lastName}
               </div>
+              {currentSalonName && (
+                <div className="text-xs text-gray-400 truncate">{currentSalonName}</div>
+              )}
               <div className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
                 userRole === 'admin' ? 'bg-red-500/20 text-red-300' :
                 userRole === 'manager' ? 'bg-blue-500/20 text-blue-300' :
