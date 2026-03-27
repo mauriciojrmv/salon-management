@@ -34,6 +34,7 @@ const allNavItems: NavItem[] = [
   { name: ES.retail.title, href: '/sales', icon: '🛒' },
   { name: ES.expenses.title, href: '/expenses', icon: '💰' },
   { name: ES.nav.reports, href: '/reports', icon: '📈' },
+  { name: ES.loyalty.rewards, href: '/rewards', icon: '⭐', adminOnly: true },
   { name: ES.salons.title, href: '/salons', icon: '🏢', adminOnly: true },
   { name: ES.users.title, href: '/users', icon: '🔑', adminOnly: true },
 ];

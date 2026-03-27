@@ -11,7 +11,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
-import { Client } from '@/types/models';
+import { LoyaltyRepository } from '@/lib/repositories/loyaltyRepository';
+import { Client, LoyaltyReward, LoyaltyTransaction } from '@/types/models';
+import { toDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 export default function ClientsPage() {
@@ -22,6 +24,9 @@ export default function ClientsPage() {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [creditModalClient, setCreditModalClient] = useState<Client | null>(null);
   const [creditAmount, setCreditAmount] = useState(0);
+  const [loyaltyClient, setLoyaltyClient] = useState<Client | null>(null);
+  const [loyaltyRewards, setLoyaltyRewards] = useState<LoyaltyReward[]>([]);
+  const [loyaltyHistory, setLoyaltyHistory] = useState<LoyaltyTransaction[]>([]);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -145,6 +150,66 @@ export default function ClientsPage() {
     }
   };
 
+  const getLoyaltyTier = (sessions: number) => {
+    if (sessions >= 20) return { label: ES.birthday.vip, color: 'bg-purple-100 text-purple-700' };
+    if (sessions >= 10) return { label: ES.birthday.frequent, color: 'bg-blue-100 text-blue-700' };
+    if (sessions >= 3) return { label: ES.birthday.regular, color: 'bg-green-100 text-green-700' };
+    return { label: ES.birthday.newClient, color: 'bg-gray-100 text-gray-600' };
+  };
+
+  const openLoyaltyModal = async (client: Client) => {
+    setLoyaltyClient(client);
+    setLoyaltyRewards([]);
+    setLoyaltyHistory([]);
+    if (userData?.salonId) {
+      try {
+        const [rewards, history] = await Promise.all([
+          LoyaltyRepository.getSalonRewards(userData.salonId),
+          LoyaltyRepository.getClientTransactions(userData.salonId, client.id),
+        ]);
+        setLoyaltyRewards(rewards);
+        setLoyaltyHistory(history);
+      } catch { /* ignore */ }
+    }
+  };
+
+  const handleRedeemReward = async (reward: LoyaltyReward) => {
+    if (!loyaltyClient || !userData?.salonId) return;
+    const clientPoints = loyaltyClient.loyaltyPoints || 0;
+    if (clientPoints < reward.pointsCost) {
+      error(ES.loyalty.insufficientPoints);
+      return;
+    }
+    if (!confirm(ES.loyalty.redeemConfirm)) return;
+    setLoading(true);
+    try {
+      // Deduct points
+      await ClientRepository.updateClient(loyaltyClient.id, {
+        loyaltyPoints: clientPoints - reward.pointsCost,
+      });
+      // If reward type is credit, add to client balance
+      if (reward.type === 'credit') {
+        await ClientRepository.addCredit(loyaltyClient.id, reward.value);
+      }
+      // Record transaction
+      await LoyaltyRepository.addTransaction({
+        salonId: userData.salonId,
+        clientId: loyaltyClient.id,
+        type: 'redeemed',
+        points: reward.pointsCost,
+        description: reward.name,
+        rewardId: reward.id,
+      });
+      success(ES.loyalty.redeemed2);
+      setLoyaltyClient(null);
+      refetch();
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const clientColumns: TableColumn<Client>[] = [
     {
       key: 'firstName',
@@ -168,6 +233,20 @@ export default function ClientsPage() {
       },
     },
     {
+      key: 'loyaltyPoints' as keyof Client,
+      label: ES.loyalty.points,
+      render: (v, item) => {
+        const pts = (v as number) || 0;
+        const tier = getLoyaltyTier(item.totalSessions || 0);
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-amber-600">{pts}</span>
+            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${tier.color}`}>{tier.label}</span>
+          </div>
+        );
+      },
+    },
+    {
       key: 'lastVisit',
       label: ES.clients.lastVisit,
       render: (v) => (v ? new Date(v as string).toLocaleDateString('es-ES') : '-'),
@@ -182,6 +261,9 @@ export default function ClientsPage() {
           </Button>
           <Button variant="ghost" size="sm" onClick={() => { setCreditModalClient(item); setCreditAmount(0); }}>
             {ES.payments.addCredit}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => openLoyaltyModal(item)}>
+            {ES.loyalty.points}
           </Button>
           <Button variant="danger" size="sm" onClick={() => handleDelete(item)}>
             {ES.actions.delete}
@@ -298,6 +380,97 @@ export default function ClientsPage() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Loyalty Points Modal */}
+      <Modal
+        isOpen={!!loyaltyClient}
+        onClose={() => setLoyaltyClient(null)}
+        title={`${ES.loyalty.points} — ${loyaltyClient?.firstName || ''} ${loyaltyClient?.lastName || ''}`}
+        size="lg"
+      >
+        {loyaltyClient && (
+          <div className="space-y-4">
+            {/* Points balance + tier */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+              <p className="text-xs text-amber-600 font-medium mb-1">{ES.loyalty.pointsBalance}</p>
+              <p className="text-4xl font-black text-amber-700">{loyaltyClient.loyaltyPoints || 0}</p>
+              <div className="mt-2">
+                {(() => {
+                  const tier = getLoyaltyTier(loyaltyClient.totalSessions || 0);
+                  return <span className={`px-3 py-1 rounded-full text-sm font-medium ${tier.color}`}>{tier.label}</span>;
+                })()}
+              </div>
+              <p className="text-xs text-amber-500 mt-2">{ES.loyalty.earnRate}</p>
+            </div>
+
+            {/* Available rewards to redeem */}
+            {loyaltyRewards.length > 0 && (
+              <div>
+                <p className="text-sm font-semibold text-gray-700 mb-2">{ES.loyalty.rewards}</p>
+                <div className="space-y-2">
+                  {loyaltyRewards.map((reward) => {
+                    const canRedeem = (loyaltyClient.loyaltyPoints || 0) >= reward.pointsCost;
+                    const typeLabels: Record<string, string> = {
+                      discount: ES.loyalty.typeDiscount,
+                      free_service: ES.loyalty.typeFreeService,
+                      free_product: ES.loyalty.typeFreeProduct,
+                      credit: ES.loyalty.typeCredit,
+                    };
+                    return (
+                      <div key={reward.id} className={`flex items-center justify-between p-3 rounded-lg border ${canRedeem ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
+                        <div>
+                          <p className="font-medium text-gray-900">{reward.name}</p>
+                          <p className="text-xs text-gray-500">{typeLabels[reward.type] || reward.type}: {reward.type === 'discount' ? `${reward.value}%` : `$${reward.value}`}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-amber-600">{reward.pointsCost} pts</span>
+                          <Button
+                            size="sm"
+                            variant={canRedeem ? 'primary' : 'secondary'}
+                            disabled={!canRedeem}
+                            onClick={() => handleRedeemReward(reward)}
+                            loading={loading}
+                          >
+                            {ES.loyalty.redeem}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Points history */}
+            <div>
+              <p className="text-sm font-semibold text-gray-700 mb-2">{ES.loyalty.history}</p>
+              {loyaltyHistory.length === 0 ? (
+                <p className="text-sm text-gray-400">{ES.loyalty.noHistory}</p>
+              ) : (
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {loyaltyHistory.slice(0, 20).map((tx) => (
+                    <div key={tx.id} className="flex items-center justify-between text-sm py-1 border-b border-gray-50">
+                      <div>
+                        <span className={tx.type === 'earned' ? 'text-green-600' : 'text-red-600'}>
+                          {tx.type === 'earned' ? '+' : '-'}{tx.points}
+                        </span>
+                        <span className="text-gray-500 ml-2">{tx.description}</span>
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        {toDate(tx.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Button variant="secondary" onClick={() => setLoyaltyClient(null)} className="w-full">
+              {ES.actions.close}
+            </Button>
+          </div>
+        )}
       </Modal>
     </div>
   );

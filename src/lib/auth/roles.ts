@@ -88,6 +88,7 @@ export function canAccessRoute(role: UserRole, route: string): boolean {
     '/my-work': () => true, // All staff can see their own work
     '/sales': (r) => hasPermission(r, 'canProcessPayments'),
     '/expenses': (r) => hasPermission(r, 'canViewReports'),
+    '/rewards': (r) => r === 'admin',
     '/salons': (r) => r === 'admin',
   };
 

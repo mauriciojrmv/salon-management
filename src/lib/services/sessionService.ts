@@ -1,5 +1,7 @@
 import { SessionRepository } from '@/lib/repositories/sessionRepository';
 import { ProductRepository } from '@/lib/repositories/productRepository';
+import { ClientRepository } from '@/lib/repositories/clientRepository';
+import { LoyaltyRepository } from '@/lib/repositories/loyaltyRepository';
 import { Session, SessionServiceItem, MaterialUsage, Payment } from '@/types/models';
 import { AddServiceToSessionRequest, ProcessPaymentRequest, CreateSessionRequest } from '@/types/api';
 import { batchUpdate } from '@/lib/firebase/db';
@@ -107,7 +109,31 @@ export class SessionService {
       endTime: new Date(),
       totalAmount,
     });
-    auditLog('SESSION_CLOSED', { sessionId, totalAmount });
+
+    // Award loyalty points: 1 point per $1 spent
+    const pointsEarned = Math.floor(totalAmount);
+    if (pointsEarned > 0 && session.clientId) {
+      try {
+        const client = await ClientRepository.getClient(session.clientId);
+        if (client) {
+          await ClientRepository.updateClient(session.clientId, {
+            loyaltyPoints: (client.loyaltyPoints || 0) + pointsEarned,
+          });
+          await LoyaltyRepository.addTransaction({
+            salonId: session.salonId,
+            clientId: session.clientId,
+            type: 'earned',
+            points: pointsEarned,
+            description: `Trabajo #${sessionId.slice(-6)} — $${totalAmount.toFixed(2)}`,
+            sessionId,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to award loyalty points:', err);
+      }
+    }
+
+    auditLog('SESSION_CLOSED', { sessionId, totalAmount, pointsEarned });
   }
 
   static async cancelSession(sessionId: string, reason: string): Promise<void> {

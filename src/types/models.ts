@@ -104,6 +104,7 @@ export interface Client extends User {
   lastVisit?: Date;
   totalSessions: number;
   creditBalance?: number; // Advance payment / saldo a favor
+  loyaltyPoints?: number; // Points earned from services/purchases
   preferences?: ClientPreferences;
 }
 
@@ -249,6 +250,33 @@ export interface Payment {
 }
 
 export type PaymentMethod = 'cash' | 'card' | 'qr_code' | 'transfer' | 'check' | 'credit';
+
+// Loyalty Reward (redeemable with points)
+export interface LoyaltyReward {
+  id: string;
+  salonId: string;
+  name: string;
+  description: string;
+  pointsCost: number;
+  type: 'discount' | 'free_service' | 'free_product' | 'credit';
+  value: number; // discount %, free service price, product value, or credit amount
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Loyalty Transaction (points earned or redeemed)
+export interface LoyaltyTransaction {
+  id: string;
+  salonId: string;
+  clientId: string;
+  type: 'earned' | 'redeemed';
+  points: number;
+  description: string;
+  sessionId?: string;
+  rewardId?: string;
+  createdAt: Date;
+}
 
 // Retail Sale (direct product sale to client, no service)
 export interface RetailSale {
