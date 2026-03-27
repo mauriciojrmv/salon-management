@@ -3,8 +3,8 @@ import { Client, Service, Staff, Session, Appointment, Product, Payment } from '
 
 export interface CreateClientRequest {
   firstName: string;
-  lastName: string;
-  email: string;
+  lastName?: string;
+  email?: string;
   phone: string;
   dateOfBirth?: string;
   gender?: string;
@@ -23,6 +23,7 @@ export interface CreateStaffRequest {
   lastName: string;
   email: string;
   phone: string;
+  specialty?: string;
   skills: { serviceId: string; proficiency: 'beginner' | 'intermediate' | 'expert' }[];
   commissionType: 'percentage' | 'fixed';
   commissionValue: number;
@@ -46,7 +47,10 @@ export interface CreateSessionRequest {
 export interface AddServiceToSessionRequest {
   sessionId: string;
   serviceId: string;
+  serviceName: string;
+  price: number;
   staffIds: string[];
+  materials?: { productId: string; productName: string; quantity: number; unit: string; cost: number }[];
 }
 
 export interface RecordMaterialUsageRequest {
@@ -59,6 +63,7 @@ export interface ProcessPaymentRequest {
   sessionId: string;
   amount: number;
   method: string;
+  serviceIds?: string[]; // Which service items this payment covers
 }
 
 export interface CreateAppointmentRequest {

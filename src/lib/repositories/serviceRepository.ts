@@ -1,6 +1,7 @@
 import { addDocument, updateDocument, getDocument, queryDocuments, deleteDocument, firebaseConstraints } from '@/lib/firebase/db';
 import { Service } from '@/types/models';
 import { CreateServiceRequest } from '@/types/api';
+import { sortByCreatedAtDesc } from '@/lib/utils/helpers';
 
 export class ServiceRepository {
   static async createService(salonId: string, data: CreateServiceRequest): Promise<string> {
@@ -38,11 +39,11 @@ export class ServiceRepository {
   }
 
   static async getSalonServices(salonId: string): Promise<Service[]> {
-    return await queryDocuments('services', [
+    const results = await queryDocuments('services', [
       firebaseConstraints.where('salonId', '==', salonId),
       firebaseConstraints.where('isActive', '==', true),
-      firebaseConstraints.orderBy('createdAt', 'desc'),
     ]) as Service[];
+    return results.sort(sortByCreatedAtDesc);
   }
 
   static async getServicesByCategory(salonId: string, category: string): Promise<Service[]> {

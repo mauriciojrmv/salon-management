@@ -3,79 +3,270 @@
 import React, { useState } from 'react';
 import { Card, CardBody, CardHeader } from '@/components/Card';
 import { Input } from '@/components/Input';
-import { Button } from '@/components/Button';
-import { Table, TableColumn } from '@/components/Table';
+import { Table } from '@/components/Table';
+import { Toast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
-import { AnalyticsService } from '@/lib/services/analyticsService';
+import { useNotification } from '@/hooks/useNotification';
+import { Button } from '@/components/Button';
+import { AnalyticsService, PayrollStaffEntry } from '@/lib/services/analyticsService';
+import ES from '@/config/text.es';
+
+function PayrollCard({ entry }: { entry: PayrollStaffEntry }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <Card>
+      <CardBody>
+        {/* Staff summary row — tap to expand */}
+        <div
+          className="flex items-center justify-between cursor-pointer"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <div>
+            <p className="font-semibold text-gray-900 text-lg">{entry.staffName}</p>
+            <p className="text-sm text-gray-500">
+              {entry.servicesCompleted} {ES.reports.servicesCount.toLowerCase()} · {ES.reports.revenue}: ${entry.revenue.toFixed(2)}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">{ES.reports.totalToPay}</p>
+            <p className="text-2xl font-bold text-green-600">${entry.totalCommission.toFixed(2)}</p>
+          </div>
+        </div>
+
+        {/* Commission breakdown bar */}
+        <div className="mt-3 grid grid-cols-3 gap-3 text-center">
+          <div className="bg-blue-50 rounded-lg p-2">
+            <p className="text-xs text-blue-600">{ES.reports.serviceRevenue}</p>
+            <p className="font-semibold text-blue-900">${entry.revenue.toFixed(2)}</p>
+          </div>
+          <div className="bg-red-50 rounded-lg p-2">
+            <p className="text-xs text-red-600">{ES.reports.materialDeduction}</p>
+            <p className="font-semibold text-red-900">-${entry.materialCost.toFixed(2)}</p>
+          </div>
+          <div className="bg-green-50 rounded-lg p-2">
+            <p className="text-xs text-green-600">{ES.reports.commissionEarned}</p>
+            <p className="font-semibold text-green-900">${entry.totalCommission.toFixed(2)}</p>
+          </div>
+        </div>
+
+        {/* Expand/collapse button */}
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="w-full mt-3 py-2 text-sm text-blue-600 font-medium hover:bg-blue-50 rounded-lg transition-colors"
+        >
+          {expanded ? ES.reports.collapseDetail : ES.reports.expandDetail} ({entry.details.length})
+        </button>
+
+        {/* Expanded detail — service-by-service breakdown */}
+        {expanded && (
+          <div className="mt-3 border-t border-gray-200 pt-3">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-500 uppercase tracking-wide">
+                    <th className="pb-2 pr-3">{ES.reports.date}</th>
+                    <th className="pb-2 pr-3">{ES.reports.client}</th>
+                    <th className="pb-2 pr-3">{ES.reports.service}</th>
+                    <th className="pb-2 pr-3 text-right">{ES.reports.price}</th>
+                    <th className="pb-2 pr-3 text-right">{ES.reports.materials}</th>
+                    <th className="pb-2 text-right">{ES.reports.commission}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entry.details
+                    .sort((a, b) => a.date.localeCompare(b.date))
+                    .map((d, i) => (
+                    <tr key={i} className="border-t border-gray-100">
+                      <td className="py-2 pr-3 text-gray-600">{d.date}</td>
+                      <td className="py-2 pr-3 text-gray-900">{d.clientName}</td>
+                      <td className="py-2 pr-3 text-gray-900">{d.serviceName}</td>
+                      <td className="py-2 pr-3 text-right">${d.price.toFixed(2)}</td>
+                      <td className="py-2 pr-3 text-right text-red-600">
+                        {d.materialCost > 0 ? `-$${d.materialCost.toFixed(2)}` : '-'}
+                      </td>
+                      <td className="py-2 text-right font-medium text-green-600">${d.commission.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-gray-300 font-semibold">
+                    <td colSpan={3} className="py-2 text-gray-900">{ES.payments.total}</td>
+                    <td className="py-2 text-right">${entry.revenue.toFixed(2)}</td>
+                    <td className="py-2 text-right text-red-600">-${entry.materialCost.toFixed(2)}</td>
+                    <td className="py-2 text-right text-green-600">${entry.totalCommission.toFixed(2)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
 
 export default function ReportsPage() {
   const { userData } = useAuth();
+  const { notifications, removeNotification } = useNotification();
   const [startDate, setStartDate] = useState(
     new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]
   );
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
+  // Auto-correct: if start > end, swap them
+  const validStartDate = startDate <= endDate ? startDate : endDate;
+  const validEndDate = startDate <= endDate ? endDate : startDate;
+
   const { data: profitability, loading: profitabilityLoading } = useAsync(async () => {
     if (!userData?.salonId) return [];
-    return AnalyticsService.getServiceProfitability(userData.salonId, startDate, endDate);
-  }, [userData?.salonId, startDate, endDate]);
+    return AnalyticsService.getServiceProfitability(userData.salonId, validStartDate, validEndDate);
+  }, [userData?.salonId, validStartDate, validEndDate]);
 
-  const { data: staffPerformance, loading: staffLoading } = useAsync(async () => {
+  const { data: payroll, loading: payrollLoading } = useAsync(async () => {
     if (!userData?.salonId) return [];
-    const month = startDate.substring(0, 7);
-    return AnalyticsService.getStaffPerformance(userData.salonId, month);
-  }, [userData?.salonId, startDate]);
+    return AnalyticsService.getStaffPayroll(userData.salonId, validStartDate, validEndDate);
+  }, [userData?.salonId, validStartDate, validEndDate]);
 
   const profitabilityColumns = [
-    { key: 'serviceId', label: 'Service ID' },
-    { key: 'count', label: 'Sessions' },
-    { key: 'revenue', label: 'Revenue', render: (v: number) => `$${v?.toFixed(2)}` },
-    { key: 'materialCost', label: 'Material Cost', render: (v: number) => `$${v?.toFixed(2)}` },
-    { key: 'profit', label: 'Profit', render: (v: number) => `$${v?.toFixed(2)}` },
-    { key: 'profitMargin', label: 'Margin %', render: (v: number) => `${v?.toFixed(1)}%` },
+    { key: 'serviceName', label: ES.reports.service },
+    { key: 'count', label: ES.reports.sessionsCount },
+    { key: 'revenue', label: ES.reports.revenue, render: (v: number) => `$${v?.toFixed(2)}` },
+    { key: 'materialCost', label: ES.reports.materialCost, render: (v: number) => `$${v?.toFixed(2)}` },
+    { key: 'profit', label: ES.reports.profit, render: (v: number) => (
+      <span className={v > 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+        ${v?.toFixed(2)}
+      </span>
+    )},
+    { key: 'profitMargin', label: ES.reports.margin, render: (v: number) => `${v?.toFixed(1)}%` },
   ];
 
-  const staffColumns = [
-    { key: 'staffId', label: 'Staff ID' },
-    { key: 'servicesCompleted', label: 'Services' },
-    { key: 'revenue', label: 'Revenue', render: (v: number) => `$${v?.toFixed(2)}` },
-    { key: 'earnings', label: 'Earnings', render: (v: number) => `$${v?.toFixed(2)}` },
-  ];
+  const totalRevenue = profitability?.reduce((sum, s) => sum + s.revenue, 0) || 0;
+  const totalMaterialCost = profitability?.reduce((sum, s) => sum + s.materialCost, 0) || 0;
+  const totalProfit = profitability?.reduce((sum, s) => sum + s.profit, 0) || 0;
+  const totalPayroll = payroll?.reduce((sum, s) => sum + s.totalCommission, 0) || 0;
+  const salonProfit = totalRevenue - totalMaterialCost - totalPayroll;
 
   return (
     <div className="space-y-6 p-6">
-      <h1 className="text-3xl font-bold text-gray-900">Reports & Analytics</h1>
+      <Toast notifications={notifications} onDismiss={removeNotification} />
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h1 className="text-3xl font-bold text-gray-900">{ES.reports.title}</h1>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              if (!profitability || profitability.length === 0) return;
+              const headers = ['Servicio', 'Cantidad', 'Ingresos', 'Costo Material', 'Ganancia', 'Margen %'];
+              const rows = profitability.map((r) =>
+                [r.serviceName, r.count, r.revenue.toFixed(2), r.materialCost.toFixed(2), r.profit.toFixed(2), r.profitMargin.toFixed(1)]
+              );
+              const csv = [headers, ...rows].map((r) => r.join(',')).join('\n');
+              const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `reporte_${validStartDate}_${validEndDate}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            {ES.reports.exportCSV}
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => window.print()}>
+            {ES.reports.print}
+          </Button>
+        </div>
+      </div>
 
       {/* Date Filter */}
       <Card>
         <CardBody>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Start Date"
+              label={ES.reports.startDate}
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
             />
             <Input
-              label="End Date"
+              label={ES.reports.endDate}
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
             />
-            <Button variant="secondary" size="sm">
-              Apply Filter
-            </Button>
           </div>
+          {startDate > endDate && (
+            <p className="text-sm text-orange-600 mt-2">
+              Las fechas fueron intercambiadas automáticamente.
+            </p>
+          )}
         </CardBody>
       </Card>
 
-      {/* Service Profitability */}
+      {/* Summary Statistics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardBody>
+            <p className="text-gray-600 text-sm font-medium mb-1">{ES.reports.totalRevenue}</p>
+            <p className="text-2xl font-bold text-gray-900">${totalRevenue.toFixed(2)}</p>
+          </CardBody>
+        </Card>
+        <Card>
+          <CardBody>
+            <p className="text-gray-600 text-sm font-medium mb-1">{ES.reports.totalPayroll}</p>
+            <p className="text-2xl font-bold text-orange-600">${totalPayroll.toFixed(2)}</p>
+          </CardBody>
+        </Card>
+        <Card>
+          <CardBody>
+            <p className="text-gray-600 text-sm font-medium mb-1">{ES.reports.totalMaterialCost}</p>
+            <p className="text-2xl font-bold text-red-600">${totalMaterialCost.toFixed(2)}</p>
+          </CardBody>
+        </Card>
+        <Card>
+          <CardBody>
+            <p className="text-gray-600 text-sm font-medium mb-1">{ES.reports.salonProfit}</p>
+            <p className={`text-2xl font-bold ${salonProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ${salonProfit.toFixed(2)}
+            </p>
+          </CardBody>
+        </Card>
+      </div>
+
+      {/* ==================== PAYROLL SECTION ==================== */}
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900">Service Profitability</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Period: {startDate} to {endDate}
+          <h2 className="text-xl font-semibold text-gray-900">{ES.reports.payroll}</h2>
+          <p className="text-sm text-gray-500 mt-1">{ES.reports.payrollSubtitle}</p>
+        </CardHeader>
+      </Card>
+
+      {payrollLoading ? (
+        <p className="text-center text-gray-500 py-4">{ES.actions.loading}</p>
+      ) : !payroll || payroll.length === 0 ? (
+        <Card>
+          <CardBody>
+            <p className="text-center text-gray-500 py-4">{ES.reports.noPayrollData}</p>
+          </CardBody>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {payroll.map((entry) => (
+            <PayrollCard key={entry.staffId} entry={entry} />
+          ))}
+        </div>
+      )}
+
+      {/* ==================== SERVICE PROFITABILITY ==================== */}
+      <Card>
+        <CardHeader>
+          <h2 className="text-xl font-semibold text-gray-900">{ES.reports.serviceProfitability}</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            {ES.app.period}: {validStartDate} — {validEndDate}
           </p>
         </CardHeader>
         <CardBody>
@@ -84,79 +275,8 @@ export default function ReportsPage() {
             data={profitability || []}
             rowKey="serviceId"
             loading={profitabilityLoading}
-            emptyMessage="No data for selected period"
+            emptyMessage={ES.reports.noData}
           />
-        </CardBody>
-      </Card>
-
-      {/* Staff Performance */}
-      <Card>
-        <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900">Staff Performance</h2>
-        </CardHeader>
-        <CardBody>
-          <Table
-            columns={staffColumns}
-            data={staffPerformance || []}
-            rowKey="staffId"
-            loading={staffLoading}
-            emptyMessage="No staff performance data"
-          />
-        </CardBody>
-      </Card>
-
-      {/* Summary Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardBody>
-            <p className="text-gray-600 text-sm font-medium mb-2">Total Revenue</p>
-            <p className="text-3xl font-bold text-gray-900">
-              ${profitability?.reduce((sum, s) => sum + s.revenue, 0).toFixed(2) || '0.00'}
-            </p>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardBody>
-            <p className="text-gray-600 text-sm font-medium mb-2">Total Material Cost</p>
-            <p className="text-3xl font-bold text-gray-900">
-              ${profitability?.reduce((sum, s) => sum + s.materialCost, 0).toFixed(2) || '0.00'}
-            </p>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardBody>
-            <p className="text-gray-600 text-sm font-medium mb-2">Total Profit</p>
-            <p className="text-3xl font-bold text-green-600">
-              ${profitability?.reduce((sum, s) => sum + s.profit, 0).toFixed(2) || '0.00'}
-            </p>
-          </CardBody>
-        </Card>
-
-        <Card>
-          <CardBody>
-            <p className="text-gray-600 text-sm font-medium mb-2">Avg Profit Margin</p>
-            <p className="text-3xl font-bold text-gray-900">
-              {profitability && profitability.length > 0
-                ? (profitability.reduce((sum, s) => sum + s.profitMargin, 0) /
-                    profitability.length).toFixed(1)
-                : '0'}
-              %
-            </p>
-          </CardBody>
-        </Card>
-      </div>
-
-      {/* Staff Earnings */}
-      <Card>
-        <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900">Total Staff Earnings</h2>
-        </CardHeader>
-        <CardBody>
-          <p className="text-3xl font-bold text-gray-900">
-            ${staffPerformance?.reduce((sum, s) => sum + s.earnings, 0).toFixed(2) || '0.00'}
-          </p>
         </CardBody>
       </Card>
     </div>

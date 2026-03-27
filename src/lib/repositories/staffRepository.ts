@@ -1,6 +1,7 @@
 import { addDocument, updateDocument, getDocument, queryDocuments, deleteDocument, firebaseConstraints } from '@/lib/firebase/db';
 import { Staff } from '@/types/models';
 import { CreateStaffRequest } from '@/types/api';
+import { sortByCreatedAtDesc } from '@/lib/utils/helpers';
 
 export class StaffRepository {
   static async createStaff(salonId: string, data: CreateStaffRequest): Promise<string> {
@@ -12,8 +13,10 @@ export class StaffRepository {
       email: data.email,
       firstName: data.firstName,
       lastName: data.lastName,
-      phone: data.phone,
+      phone: data.phone || '',
       role: 'staff',
+      specialty: data.specialty || 'stylist',
+      serviceIds: (data as unknown as { serviceIds?: string[] }).serviceIds || [],
       salonId,
       skills: data.skills || [],
       commissionConfig: {
@@ -48,12 +51,12 @@ export class StaffRepository {
   }
 
   static async getSalonStaff(salonId: string): Promise<Staff[]> {
-    return await queryDocuments('users', [
+    const results = await queryDocuments('users', [
       firebaseConstraints.where('salonId', '==', salonId),
       firebaseConstraints.where('role', '==', 'staff'),
       firebaseConstraints.where('isActive', '==', true),
-      firebaseConstraints.orderBy('createdAt', 'desc'),
     ]) as Staff[];
+    return results.sort(sortByCreatedAtDesc);
   }
 
   static async getStaffBySkill(salonId: string, serviceId: string): Promise<Staff[]> {

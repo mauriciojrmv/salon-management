@@ -7,7 +7,7 @@ import {
   onAuthStateChanged,
   User as FirebaseUser,
 } from 'firebase/auth';
-import { auth } from './config';
+import { auth, secondaryAuth } from './config';
 import { addDocument, getDocument, updateDocument } from './db';
 import { User } from '@/types/models';
 
@@ -76,6 +76,22 @@ export async function updateUserDocument(uid: string, userData: Partial<User>) {
     await updateDocument('users', uid, userData);
   } catch (error) {
     console.error('Error updating user document:', error);
+    throw error;
+  }
+}
+
+// Creates a new Firebase Auth user WITHOUT switching the current admin session
+export async function createUserWithoutSignIn(email: string, password: string) {
+  try {
+    console.log('Creating auth user via secondary app...');
+    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    console.log('Auth user created:', userCredential.user.uid);
+    // Sign out from secondary app immediately (cleanup)
+    await signOut(secondaryAuth);
+    return userCredential.user;
+  } catch (error: unknown) {
+    const firebaseError = error as { code?: string; message?: string };
+    console.error('Error creating auth user:', firebaseError.code, firebaseError.message);
     throw error;
   }
 }

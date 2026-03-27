@@ -5,22 +5,18 @@ import { useRouter } from 'next/navigation';
 import { Card, CardBody, CardHeader } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
+import { Toast } from '@/components/Toast';
 import { useNotification } from '@/hooks/useNotification';
-import { loginUser, registerUser, createUserDocument } from '@/lib/firebase/auth';
-
-type AuthMode = 'login' | 'register';
+import { loginUser } from '@/lib/firebase/auth';
+import ES from '@/config/text.es';
 
 export default function AuthPage() {
   const router = useRouter();
-  const { success, error } = useNotification();
-  const [mode, setMode] = useState<AuthMode>('login');
+  const { notifications, removeNotification, success, error } = useNotification();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    firstName: '',
-    lastName: '',
-    salonName: '',
   });
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -29,43 +25,10 @@ export default function AuthPage() {
 
     try {
       await loginUser(formData.email, formData.password);
-      success('Logged in successfully!');
+      success(ES.auth.signInSuccess);
       setTimeout(() => router.push('/dashboard'), 500);
     } catch (err) {
-      error(err instanceof Error ? err.message : 'Login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const userCredential = await registerUser(formData.email, formData.password);
-
-      await createUserDocument(userCredential.uid, {
-        id: userCredential.uid,
-        email: formData.email,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        role: 'admin',
-        salonId: `salon_${userCredential.uid}`,
-        isActive: true,
-      });
-
-      success('Account created successfully!');
-      setMode('login');
-      setFormData({
-        email: '',
-        password: '',
-        firstName: '',
-        lastName: '',
-        salonName: '',
-      });
-    } catch (err) {
-      error(err instanceof Error ? err.message : 'Registration failed');
+      error(err instanceof Error ? err.message : ES.auth.loginFailed);
     } finally {
       setLoading(false);
     }
@@ -73,49 +36,21 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <Toast notifications={notifications} onDismiss={removeNotification} />
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader>
           <h1 className="text-2xl font-bold text-gray-900 text-center">
-            Salon Management
+            {ES.auth.signIn}
           </h1>
           <p className="text-center text-gray-600 text-sm mt-2">
-            Premium beauty salon management system
+            Salon Management SaaS
           </p>
         </CardHeader>
 
         <CardBody>
-          <form onSubmit={mode === 'login' ? handleLogin : handleRegister} className="space-y-4">
-            {mode === 'register' && (
-              <>
-                <Input
-                  label="First Name"
-                  value={formData.firstName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, firstName: e.target.value })
-                  }
-                  required
-                />
-                <Input
-                  label="Last Name"
-                  value={formData.lastName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, lastName: e.target.value })
-                  }
-                  required
-                />
-                <Input
-                  label="Salon Name"
-                  value={formData.salonName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, salonName: e.target.value })
-                  }
-                  required
-                />
-              </>
-            )}
-
+          <form onSubmit={handleLogin} className="space-y-4">
             <Input
-              label="Email"
+              label={ES.auth.email}
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -123,7 +58,7 @@ export default function AuthPage() {
             />
 
             <Input
-              label="Password"
+              label={ES.auth.password}
               type="password"
               value={formData.password}
               onChange={(e) =>
@@ -138,32 +73,13 @@ export default function AuthPage() {
               className="w-full"
               size="lg"
             >
-              {mode === 'login' ? 'Sign In' : 'Create Account'}
+              {ES.auth.signIn}
             </Button>
           </form>
 
-          <div className="mt-4 pt-4 border-t border-gray-200 text-center">
-            <p className="text-sm text-gray-600">
-              {mode === 'login'
-                ? "Don't have an account? "
-                : 'Already have an account? '}
-              <button
-                onClick={() => {
-                  setMode(mode === 'login' ? 'register' : 'login');
-                  setFormData({
-                    email: '',
-                    password: '',
-                    firstName: '',
-                    lastName: '',
-                    salonName: '',
-                  });
-                }}
-                className="text-blue-600 hover:text-blue-700 font-semibold"
-              >
-                {mode === 'login' ? 'Sign Up' : 'Sign In'}
-              </button>
-            </p>
-          </div>
+          <p className="mt-4 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
+            Contacte al administrador para obtener acceso.
+          </p>
         </CardBody>
       </Card>
     </div>

@@ -40,7 +40,7 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'admin' | 'staff' | 'client';
+  role: 'admin' | 'manager' | 'staff' | 'client';
   salonId: string;
   phone: string;
   profileImage?: string;
@@ -103,6 +103,7 @@ export interface Client extends User {
   totalSpent: number;
   lastVisit?: Date;
   totalSessions: number;
+  creditBalance?: number; // Advance payment / saldo a favor
   preferences?: ClientPreferences;
 }
 
@@ -157,6 +158,7 @@ export interface SessionServiceItem {
   serviceId: string;
   serviceName: string;
   price: number;
+  commissionRate: number; // Snapshot of commission % at time of service (e.g. 50)
   assignedStaff: string[]; // Staff IDs
   startTime: Date;
   endTime?: Date;
@@ -240,12 +242,13 @@ export interface Payment {
   status: 'pending' | 'completed' | 'failed' | 'refunded';
   transactionId?: string;
   notes?: string;
+  serviceIds?: string[]; // Which service items this payment covers (per-service payment)
   processedAt: Date;
   refundedAt?: Date;
   refundAmount?: number;
 }
 
-export type PaymentMethod = 'cash' | 'card' | 'qr_code' | 'transfer' | 'check';
+export type PaymentMethod = 'cash' | 'card' | 'qr_code' | 'transfer' | 'check' | 'credit';
 
 // Staff Commission Report
 export interface CommissionReport {

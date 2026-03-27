@@ -23,18 +23,18 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
   if (!isOpen) return null;
 
   const sizeStyles = {
-    sm: 'w-96',
-    md: 'w-[32rem]',
-    lg: 'w-2xl',
+    sm: 'max-w-sm',
+    md: 'max-w-lg',
+    lg: 'max-w-2xl',
   };
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
       onClick={onClose}
     >
       <div
-        className={`${sizeStyles[size]} bg-white rounded-lg shadow-xl max-h-[90vh] overflow-y-auto`}
+        className={`${sizeStyles[size]} w-full bg-white rounded-t-xl sm:rounded-lg shadow-xl max-h-[90vh] overflow-y-auto`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (

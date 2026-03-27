@@ -1,6 +1,7 @@
 import { addDocument, updateDocument, getDocument, queryDocuments, firebaseConstraints } from '@/lib/firebase/db';
 import { Product } from '@/types/models';
 import { CreateProductRequest } from '@/types/api';
+import { sortByCreatedAtDesc } from '@/lib/utils/helpers';
 
 export class ProductRepository {
   static async createProduct(salonId: string, data: CreateProductRequest): Promise<string> {
@@ -38,11 +39,11 @@ export class ProductRepository {
   }
 
   static async getSalonProducts(salonId: string): Promise<Product[]> {
-    return await queryDocuments('products', [
+    const results = await queryDocuments('products', [
       firebaseConstraints.where('salonId', '==', salonId),
       firebaseConstraints.where('isActive', '==', true),
-      firebaseConstraints.orderBy('createdAt', 'desc'),
     ]) as Product[];
+    return results.sort(sortByCreatedAtDesc);
   }
 
   static async getLowStockProducts(salonId: string): Promise<Product[]> {

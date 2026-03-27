@@ -1,3 +1,18 @@
+// Firestore returns Timestamp objects, not Date. This safely converts any date-like value.
+export function toDate(value: unknown): Date {
+  if (value instanceof Date) return value;
+  if (value && typeof value === 'object' && 'toDate' in value && typeof (value as { toDate: () => Date }).toDate === 'function') {
+    return (value as { toDate: () => Date }).toDate(); // Firestore Timestamp
+  }
+  if (typeof value === 'string' || typeof value === 'number') return new Date(value);
+  return new Date();
+}
+
+// Sort helper for Firestore documents by createdAt (handles Date, Timestamp, or string)
+export function sortByCreatedAtDesc<T extends { createdAt: unknown }>(a: T, b: T): number {
+  return toDate(b.createdAt).getTime() - toDate(a.createdAt).getTime();
+}
+
 // Date utilities
 export function formatDate(date: Date | string): string {
   const d = new Date(date);
@@ -66,6 +81,9 @@ export function getTimeSlots(startTime: string, endTime: string, duration: numbe
 export function calculateDuration(startTime: Date, endTime: Date): number {
   return Math.floor((endTime.getTime() - startTime.getTime()) / (1000 * 60));
 }
+
+// Business constants
+export const DEFAULT_COMMISSION_RATE = 50; // 50% default commission
 
 // Calculation utilities
 export function calculateCommission(amount: number, commissionType: string, commissionValue: number): number {

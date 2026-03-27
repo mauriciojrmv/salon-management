@@ -18,14 +18,19 @@ export function useAsync<T>(
 
   const isMountedRef = useRef(true);
 
+  // Store fn in a ref so execute's identity is stable
+  const fnRef = useRef(fn);
+  fnRef.current = fn;
+
   const execute = useCallback(async () => {
     setState({ data: null, loading: true, error: null });
     try {
-      const result = await fn();
+      const result = await fnRef.current();
       if (isMountedRef.current) {
         setState({ data: result, loading: false, error: null });
       }
     } catch (err) {
+      console.error('useAsync error:', err);
       if (isMountedRef.current) {
         setState({
           data: null,
@@ -34,7 +39,7 @@ export function useAsync<T>(
         });
       }
     }
-  }, [fn]);
+  }, []);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -43,7 +48,8 @@ export function useAsync<T>(
     return () => {
       isMountedRef.current = false;
     };
-  }, deps || [execute]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps || []);
 
   return {
     ...state,

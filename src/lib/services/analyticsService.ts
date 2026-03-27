@@ -1,6 +1,29 @@
 import { queryDocuments, firebaseConstraints } from '@/lib/firebase/db';
 import { Session, DailyMetrics, ServiceMetric, StaffMetric } from '@/types/models';
-import { InventoryService } from './inventoryService';
+import { StaffRepository } from '@/lib/repositories/staffRepository';
+import { ClientRepository } from '@/lib/repositories/clientRepository';
+import { ServiceRepository } from '@/lib/repositories/serviceRepository';
+import { DEFAULT_COMMISSION_RATE } from '@/lib/utils/helpers';
+
+export interface PayrollServiceDetail {
+  date: string;
+  clientName: string;
+  serviceName: string;
+  price: number;
+  materialCost: number;
+  commissionRate: number;
+  commission: number;
+}
+
+export interface PayrollStaffEntry {
+  staffId: string;
+  staffName: string;
+  servicesCompleted: number;
+  revenue: number;
+  materialCost: number;
+  totalCommission: number;
+  details: PayrollServiceDetail[];
+}
 
 export class AnalyticsService {
   static async getDailyMetrics(salonId: string, date: string): Promise<DailyMetrics> {
@@ -15,33 +38,44 @@ export class AnalyticsService {
     const uniqueClients = new Set(sessions.map(s => s.clientId)).size;
 
     // Calculate service metrics
-    const serviceMap = new Map<string, { count: number; revenue: number }>();
+    const serviceMap = new Map<string, { name: string; count: number; revenue: number; materialCost: number }>();
     sessions.forEach(session => {
       session.services.forEach(service => {
-        const existing = serviceMap.get(service.serviceId) || { count: 0, revenue: 0 };
+        const existing = serviceMap.get(service.serviceId) || { name: service.serviceName, count: 0, revenue: 0, materialCost: 0 };
+        const matCost = (service.materialsUsed || []).reduce((sum, m) => sum + m.cost, 0);
         serviceMap.set(service.serviceId, {
+          name: existing.name || service.serviceName,
           count: existing.count + 1,
           revenue: existing.revenue + service.price,
+          materialCost: existing.materialCost + matCost,
         });
       });
     });
 
     const topServices: ServiceMetric[] = Array.from(serviceMap.entries()).map(([serviceId, data]) => ({
       serviceId,
-      serviceName: '', // Fetch from service
-      ...data,
-      profitMargin: 0, // Calculate based on materials
+      serviceName: data.name || serviceId,
+      count: data.count,
+      revenue: data.revenue,
+      profitMargin: data.revenue > 0 ? ((data.revenue - data.materialCost) / data.revenue) * 100 : 0,
     }));
 
-    // Calculate staff metrics
+    // Load staff names for resolution
+    const staffList = await StaffRepository.getSalonStaff(salonId);
+    const staffNameMap = new Map(staffList.map(s => [s.id, `${s.firstName} ${s.lastName}`]));
+
+    // Calculate staff metrics using default commission rate minus material costs
     const staffMap = new Map<string, { sessionsCompleted: number; earnings: number }>();
     sessions.forEach(session => {
       session.services.forEach(service => {
+        const materialCost = (service.materialsUsed || []).reduce((sum, m) => sum + m.cost, 0);
         service.assignedStaff.forEach(staffId => {
           const existing = staffMap.get(staffId) || { sessionsCompleted: 0, earnings: 0 };
+          const rate = service.commissionRate ?? DEFAULT_COMMISSION_RATE;
+          const commission = (service.price * rate / 100) - materialCost;
           staffMap.set(staffId, {
             sessionsCompleted: existing.sessionsCompleted + 1,
-            earnings: existing.earnings + service.price * 0.2, // 20% commission
+            earnings: existing.earnings + Math.max(0, commission),
           });
         });
       });
@@ -49,7 +83,7 @@ export class AnalyticsService {
 
     const topStaff: StaffMetric[] = Array.from(staffMap.entries()).map(([staffId, data]) => ({
       staffId,
-      staffName: '', // Fetch from staff
+      staffName: staffNameMap.get(staffId) || staffId,
       ...data,
     }));
 
@@ -99,6 +133,7 @@ export class AnalyticsService {
     ]) as Session[];
 
     const serviceMetrics = new Map<string, {
+      serviceName: string;
       revenue: number;
       materialCost: number;
       count: number;
@@ -108,16 +143,17 @@ export class AnalyticsService {
       if (session.date >= startDate && session.date <= endDate) {
         session.services.forEach(service => {
           const existing = serviceMetrics.get(service.serviceId) || {
+            serviceName: service.serviceName,
             revenue: 0,
             materialCost: 0,
             count: 0,
           };
 
-          const materialCost = session.materialsUsed
-            .filter(m => m.usedAt >= session.startTime && (!session.endTime || m.usedAt <= session.endTime))
-            .reduce((sum, m) => sum + m.cost, 0);
+          // Use per-service materials instead of session-level (more accurate)
+          const materialCost = (service.materialsUsed || []).reduce((sum, m) => sum + m.cost, 0);
 
           serviceMetrics.set(service.serviceId, {
+            serviceName: existing.serviceName || service.serviceName,
             revenue: existing.revenue + service.price,
             materialCost: existing.materialCost + materialCost,
             count: existing.count + 1,
@@ -128,18 +164,26 @@ export class AnalyticsService {
 
     return Array.from(serviceMetrics.entries()).map(([serviceId, data]) => ({
       serviceId,
-      ...data,
+      serviceName: data.serviceName || serviceId,
+      revenue: data.revenue,
+      materialCost: data.materialCost,
+      count: data.count,
       profit: data.revenue - data.materialCost,
-      profitMargin: ((data.revenue - data.materialCost) / data.revenue) * 100,
-      averageProfit: (data.revenue - data.materialCost) / data.count,
+      profitMargin: data.revenue > 0 ? ((data.revenue - data.materialCost) / data.revenue) * 100 : 0,
+      averageProfit: data.count > 0 ? (data.revenue - data.materialCost) / data.count : 0,
     }));
   }
 
   static async getStaffPerformance(salonId: string, month: string) {
-    const sessions = await queryDocuments('sessions', [
-      firebaseConstraints.where('salonId', '==', salonId),
-      firebaseConstraints.where('status', '==', 'completed'),
-    ]) as Session[];
+    const [sessions, staffList] = await Promise.all([
+      queryDocuments('sessions', [
+        firebaseConstraints.where('salonId', '==', salonId),
+        firebaseConstraints.where('status', '==', 'completed'),
+      ]) as Promise<Session[]>,
+      StaffRepository.getSalonStaff(salonId),
+    ]);
+
+    const staffNameMap = new Map(staffList.map(s => [s.id, `${s.firstName} ${s.lastName}`]));
 
     const staffStats = new Map<string, {
       servicesCompleted: number;
@@ -157,10 +201,13 @@ export class AnalyticsService {
               earnings: 0,
             };
 
+            const materialCost = (service.materialsUsed || []).reduce((sum, m) => sum + m.cost, 0);
+            const rate = service.commissionRate ?? DEFAULT_COMMISSION_RATE;
+            const commission = (service.price * rate / 100) - materialCost;
             staffStats.set(staffId, {
               servicesCompleted: existing.servicesCompleted + 1,
               revenue: existing.revenue + service.price,
-              earnings: existing.earnings + (service.price * 0.2),
+              earnings: existing.earnings + Math.max(0, commission),
             });
           });
         });
@@ -169,7 +216,74 @@ export class AnalyticsService {
 
     return Array.from(staffStats.entries()).map(([staffId, data]) => ({
       staffId,
+      staffName: staffNameMap.get(staffId) || staffId,
       ...data,
     }));
+  }
+
+  static async getStaffPayroll(salonId: string, startDate: string, endDate: string): Promise<PayrollStaffEntry[]> {
+    const [sessions, staffList, clients] = await Promise.all([
+      queryDocuments('sessions', [
+        firebaseConstraints.where('salonId', '==', salonId),
+        firebaseConstraints.where('status', '==', 'completed'),
+      ]) as Promise<Session[]>,
+      StaffRepository.getSalonStaff(salonId),
+      ClientRepository.getSalonClients(salonId),
+    ]);
+
+    const staffNameMap = new Map(staffList.map(s => [s.id, `${s.firstName} ${s.lastName}`]));
+    const clientNameMap = new Map(clients.map(c => [c.id, `${c.firstName} ${c.lastName}`]));
+
+    const staffPayroll = new Map<string, {
+      servicesCompleted: number;
+      revenue: number;
+      materialCost: number;
+      totalCommission: number;
+      details: PayrollServiceDetail[];
+    }>();
+
+    sessions.forEach(session => {
+      if (session.date >= startDate && session.date <= endDate) {
+        session.services.forEach(service => {
+          service.assignedStaff.forEach(staffId => {
+            const existing = staffPayroll.get(staffId) || {
+              servicesCompleted: 0,
+              revenue: 0,
+              materialCost: 0,
+              totalCommission: 0,
+              details: [],
+            };
+
+            const matCost = (service.materialsUsed || []).reduce((sum, m) => sum + m.cost, 0);
+            const rate = service.commissionRate ?? DEFAULT_COMMISSION_RATE;
+            const commission = Math.max(0, (service.price * rate / 100) - matCost);
+
+            existing.servicesCompleted += 1;
+            existing.revenue += service.price;
+            existing.materialCost += matCost;
+            existing.totalCommission += commission;
+            existing.details.push({
+              date: session.date,
+              clientName: clientNameMap.get(session.clientId) || '-',
+              serviceName: service.serviceName,
+              price: service.price,
+              materialCost: matCost,
+              commissionRate: rate,
+              commission,
+            });
+
+            staffPayroll.set(staffId, existing);
+          });
+        });
+      }
+    });
+
+    return Array.from(staffPayroll.entries())
+      .map(([staffId, data]) => ({
+        staffId,
+        staffName: staffNameMap.get(staffId) || staffId,
+        ...data,
+      }))
+      .sort((a, b) => b.totalCommission - a.totalCommission);
   }
 }

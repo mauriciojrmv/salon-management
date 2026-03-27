@@ -1,20 +1,27 @@
 # Project Structure Summary
 
-## 📁 Complete File Structure
+## Complete File Structure
 
 ### Root Configuration Files
 ```
-salon-management/
+salon/
 ├── package.json                 # Project dependencies and scripts
-├── tsconfig.json               # TypeScript configuration
-├── next.config.js              # Next.js configuration
-├── tailwind.config.ts          # Tailwind CSS configuration
-├── postcss.config.js           # PostCSS configuration (for Tailwind)
-├── .gitignore                  # Git ignore rules
-├── .env.local.example          # Environment variables template
-├── README.md                   # Main documentation
-├── SETUP.md                    # Setup guide
-└── DEPLOYMENT.md               # Deployment guide
+├── package-lock.json            # Locked dependency versions
+├── tsconfig.json                # TypeScript configuration
+├── next.config.js               # Next.js configuration
+├── tailwind.config.ts           # Tailwind CSS configuration
+├── postcss.config.js            # PostCSS configuration (for Tailwind)
+├── next-env.d.ts                # Next.js TypeScript environment
+├── .npmrc                       # NPM configuration (legacy peer deps)
+├── .gitignore                   # Git ignore rules
+├── .env.local                   # Environment variables (not committed)
+├── .env.local.example           # Environment variables template
+├── CLAUDE.md                    # Claude AI project rules
+├── PROJECT_GUIDE.md             # Architecture decisions, known issues, UX patterns
+├── PROJECT_STRUCTURE.md         # This file
+├── README.md                    # Project overview
+├── SETUP.md                     # Setup guide
+└── DEPLOYMENT.md                # Deployment guide
 ```
 
 ### Source Code Structure
@@ -24,307 +31,174 @@ salon-management/
 src/app/
 ├── page.tsx                    # Home/redirect page
 ├── layout.tsx                  # Root layout with metadata
-├── globals.css                 # Global styles
+├── globals.css                 # Global styles (Tailwind imports)
 └── auth/
-    └── page.tsx                # Authentication page (login/register)
+    └── page.tsx                # Login page (no self-registration)
 ```
 
 #### App Routes (Protected)
 ```
 src/app/(app)/
-├── layout.tsx                  # App layout with sidebar navigation
+├── layout.tsx                  # App layout: sidebar navigation, RoleGuard, role-based nav filtering
 ├── dashboard/
-│   └── page.tsx               # Main dashboard with metrics
+│   └── page.tsx               # KPI cards, daily trabajos table, metrics
 ├── sessions/
-│   └── page.tsx               # Session management
+│   └── page.tsx               # Trabajo workflow: create, add services, materials, payment, close
 ├── appointments/
-│   └── page.tsx               # Appointment booking & management
+│   └── page.tsx               # Appointment booking, quick client creation
 ├── clients/
-│   └── page.tsx               # Client management
+│   └── page.tsx               # Client CRUD (phone-based identification)
 ├── services/
-│   └── page.tsx               # Service catalog management
+│   └── page.tsx               # Service catalog CRUD with Spanish category labels
 ├── staff/
-│   └── page.tsx               # Staff management
+│   └── page.tsx               # Staff CRUD with specialty + multi-service assignment
 ├── inventory/
-│   └── page.tsx               # Product/inventory management
-└── reports/
-    └── page.tsx               # Analytics & reporting
+│   └── page.tsx               # Product CRUD, stock tracking, low-stock alerts
+├── reports/
+│   └── page.tsx               # Analytics: service profitability, staff performance
+└── users/
+    └── page.tsx               # Admin-only: create admin/manager/staff users
 ```
 
 ### Components
 ```
 src/components/
-├── index.ts                    # Component exports barrel file
-├── Button.tsx                  # Button component (variants: primary, secondary, danger, ghost)
-├── Input.tsx                   # Input field component
-├── Select.tsx                  # Select dropdown component
-├── Card.tsx                    # Card components (Card, CardHeader, CardBody, CardFooter)
-├── Modal.tsx                   # Modal/dialog component
-├── Table.tsx                   # Data table component
-├── Alert.tsx                   # Alert/notification component (success, error, warning, info)
-└── Layout.tsx                  # Main layout wrapper
+├── index.ts                    # Barrel exports
+├── Button.tsx                  # Variants: primary, secondary, danger, ghost. Sizes: sm, md, lg. CSS spinner loading
+├── Input.tsx                   # Form input with label, error, required indicator
+├── Select.tsx                  # Native select dropdown with label
+├── SearchableSelect.tsx        # Custom searchable dropdown with secondary text, click-outside close
+├── Card.tsx                    # Card, CardHeader, CardBody, CardFooter
+├── Modal.tsx                   # Responsive modal: slides up on mobile, centered on desktop. Sizes: sm, md, lg
+├── Table.tsx                   # Generic data table with custom column renderers
+├── Alert.tsx                   # Alert variants: success, error, warning, info
+├── RoleGuard.tsx               # Route protection based on user role
+└── Layout.tsx                  # Main layout wrapper (legacy, sidebar is in app layout)
 ```
 
 ### Custom Hooks
 ```
 src/hooks/
-├── index.ts                    # Hooks exports barrel file
-├── useAuth.ts                  # Authentication hook (user, userData, loading, error)
-├── useAsync.ts                 # Data fetching hook (data, loading, error, refetch)
-└── useNotification.ts          # Notification/toast hook (success, error, warning, info)
+├── index.ts                    # Barrel exports
+├── useAuth.ts                  # Firebase auth state: user, userData, loading, error
+├── useAsync.ts                 # Data fetching: data, loading, error, refetch
+└── useNotification.ts          # Toast notifications: success, error, warning, info
 ```
 
 ### Firebase Integration
 ```
 src/lib/firebase/
-├── config.ts                   # Firebase initialization & configuration
-├── db.ts                       # Firestore CRUD utilities
-└── auth.ts                     # Firebase authentication utilities
+├── config.ts                   # Firebase init (HMR-safe), primary + secondary app, auth, db, storage exports
+├── db.ts                       # Generic Firestore CRUD: addDocument, getDocument, updateDocument, deleteDocument, queryDocuments
+└── auth.ts                     # loginUser, logoutUser, createUserWithoutSignIn (secondary app), createUserDocument
+```
+
+### Data Repositories
+```
+src/lib/repositories/
+├── clientRepository.ts         # Client CRUD, getSalonClients (client-side sort, no orderBy)
+├── serviceRepository.ts        # Service CRUD, getSalonServices (client-side sort, no orderBy)
+├── staffRepository.ts          # Staff CRUD with specialty + serviceIds, getSalonStaff
+└── productRepository.ts        # Product CRUD, getSalonProducts, getLowStockProducts, updateStock
 ```
 
 ### Business Logic Services
 ```
 src/lib/services/
-├── index.ts                    # Services exports barrel file
-├── sessionService.ts           # Session management (create, close, add services, payments)
-├── appointmentService.ts       # Appointment operations (create, confirm, cancel, check availability)
-├── inventoryService.ts         # Inventory management (products, stock, usage tracking)
-└── analyticsService.ts         # Analytics & reporting (daily metrics, profitability, staff performance)
+├── index.ts                    # Barrel exports
+├── sessionService.ts           # createSession, addServiceToSession (with materials), processPayment, closeSession, getSalonDailySessions
+├── appointmentService.ts       # createAppointment, updateStatus, cancel, confirm, checkAvailability, getClientAppointments
+├── inventoryService.ts         # Product operations, stock management, usage tracking, inventory value calculation
+├── analyticsService.ts         # getDailyMetrics, getMonthlyMetrics, getServiceProfitability, getStaffPerformance
+└── commissionService.ts        # Commission calculation and reporting
+```
+
+### Auth & Roles
+```
+src/lib/auth/
+└── roles.ts                    # UserRole type, ROLE_PERMISSIONS matrix, hasPermission(), canAccessRoute()
 ```
 
 ### Utilities
 ```
 src/lib/utils/
-└── helpers.ts                  # Utility functions (date, currency, calculations, validation)
+└── helpers.ts                  # Date formatting, currency, validation, calculations, groupBy/sumBy
 ```
 
 ### Type Definitions
 ```
 src/types/
-├── models.ts                   # Database models & entities (comprehensive type definitions)
-└── api.ts                      # API request/response types & form types
+├── models.ts                   # All entity types: Salon, User, Staff, Client, Service, Session, Appointment, Product, Payment, etc.
+└── api.ts                      # Request/response types: CreateClientRequest, AddServiceToSessionRequest (with materials), etc.
+```
+
+### Configuration
+```
+src/config/
+└── text.es.ts                  # ALL Spanish UI strings centralized. Sections: app, auth, nav, dashboard, sessions, appointments, services, staff, inventory, reports, clients, actions, messages, users, roles, status, material, payments
 ```
 
 ---
 
-## 📊 File Statistics
+## File Statistics
 
-- **Total Files**: 35+
-- **React Components**: 8
-- **Pages**: 10
-- **Services**: 4
-- **Hooks**: 3
-- **Configuration Files**: 7
-- **Documentation**: 3
-
----
-
-## 🗄️ Database Collections (Firestore)
-
-1. **users** - User profiles (admin, staff, clients)
-2. **salons** - Salon information
-3. **sessions** - Client sessions/visits
-4. **services** - Service catalog
-5. **products** - Inventory products
-6. **appointments** - Appointment bookings
-7. **payments** - Payment records
-8. **product_usage_history** - Material usage logs
+- **Total src/ files**: 46
+- **React Components**: 10 (+ 1 index)
+- **Pages**: 10 (+ 2 layouts + 1 home)
+- **Services**: 5 (+ 1 index)
+- **Repositories**: 4
+- **Hooks**: 3 (+ 1 index)
+- **Firebase files**: 3
+- **Type files**: 2
+- **Config files**: 1
 
 ---
 
-## 🎯 Core Features Implemented
+## Database Collections (Firestore)
 
-✅ Authentication (Firebase Auth)
-✅ Client Management
-✅ Session Management (create, add services, record payments)
-✅ Appointment Scheduling
-✅ Staff Management with commission tracking
-✅ Service Catalog
-✅ Inventory Management with low-stock alerts
-✅ Real-time Revenue Dashboard
-✅ Service Profitability Analysis
-✅ Staff Performance Metrics
-✅ Material Cost Tracking
-✅ Payment Processing
-✅ Responsive Mobile-First Design
+All scoped by `salonId` for multi-tenant isolation.
+
+1. **users** - User profiles (admin, manager, staff) + client records (role: 'client')
+2. **salons** - Salon information and settings
+3. **sessions** - Client sessions/trabajos (services[], payments[], materialsUsed[])
+4. **services** - Service catalog (name, category, price, duration)
+5. **products** - Inventory products (type: unit/measurable/service_cost, stock tracking)
+6. **appointments** - Appointment bookings (date, time, status)
 
 ---
 
-## 🚀 Quick Start Commands
-
-```bash
-# Install dependencies
-npm install
-
-# Setup environment
-cp .env.local.example .env.local
-# Edit .env.local with Firebase credentials
-
-# Development
-npm run dev
-
-# Build
-npm run build
-
-# Production
-npm start
-
-# Type check
-npm run type-check
-```
-
----
-
-## 📱 Pages Overview
+## Pages Overview
 
 | Page | Route | Purpose |
 |------|-------|---------|
 | Home | `/` | Redirect to dashboard or auth |
-| Auth | `/auth` | Login/Register |
-| Dashboard | `/dashboard` | Daily metrics & overview |
-| Sessions | `/sessions` | Manage active sessions |
+| Auth | `/auth` | Login only (no self-registration) |
+| Dashboard | `/dashboard` | Daily metrics, KPI cards, trabajos table |
+| Trabajos | `/sessions` | Full work session workflow |
 | Appointments | `/appointments` | Booking & scheduling |
-| Clients | `/clients` | Client database |
-| Services | `/services` | Service catalog |
-| Staff | `/staff` | Staff management |
-| Inventory | `/inventory` | Product tracking |
+| Clients | `/clients` | Client database with CRUD |
+| Services | `/services` | Service catalog with CRUD |
+| Staff | `/staff` | Staff management with specialty and services |
+| Inventory | `/inventory` | Product tracking with low-stock alerts |
 | Reports | `/reports` | Analytics & profitability |
+| Users | `/users` | Admin-only user creation |
 
 ---
 
-## 🧩 Component Library
+## Component Library
 
 | Component | Variants | Use Case |
 |-----------|----------|----------|
-| Button | primary, secondary, danger, ghost | Actions |
-| Input | text, email, password, number, date | Form inputs |
-| Select | single select | Dropdown options |
+| Button | primary, secondary, danger, ghost; sm, md, lg | Actions, CSS spinner on loading |
+| Input | text, email, password, number, date, tel | Form inputs with labels |
+| Select | single select | Native dropdown options |
+| SearchableSelect | — | Custom searchable dropdown with secondary text |
 | Card | Card, CardHeader, CardBody, CardFooter | Content containers |
-| Modal | sm, md, lg | Dialogs |
-| Table | generic with custom columns | Data display |
+| Modal | sm, md, lg | Responsive dialogs (bottom-sheet on mobile) |
+| Table | generic with custom column renderers | Data display |
 | Alert | success, error, warning, info | Notifications |
+| RoleGuard | — | Route protection by user role |
 
 ---
 
-## 🔧 Services & Utilities
-
-### Session Service
-- createSession()
-- getSession()
-- addServiceToSession()
-- recordMaterialUsage()
-- processPayment()
-- closeSession()
-- getUserSessions()
-- getSalonDailySessions()
-
-### Appointment Service
-- createAppointment()
-- getAppointment()
-- updateAppointmentStatus()
-- cancelAppointment()
-- confirmAppointment()
-- checkStaffAvailability()
-- getClientAppointments()
-- getStaffAppointments()
-- getUpcomingAppointments()
-
-### Inventory Service
-- createProduct()
-- getProduct()
-- updateStock()
-- restockProduct()
-- getSalonProducts()
-- getLowStockProducts()
-- getProductsByCategory()
-- getUsageHistory()
-- getInventoryValue()
-- calculateMaterialCost()
-
-### Analytics Service
-- getDailyMetrics()
-- getMonthlyMetrics()
-- getServiceProfitability()
-- getStaffPerformance()
-
-### Helper Functions
-- formatDate(), formatTime(), formatDateTime()
-- formatCurrency()
-- isValidEmail(), isValidPhone()
-- calculateCommission(), calculateTax(), calculateProfit()
-- groupBy(), sumBy(), averageBy()
-
----
-
-## 🔐 Security Features
-
-✅ Firebase Authentication
-✅ Role-Based Access Control (admin, staff, client)
-✅ Environment Variables
-✅ Input Validation
-✅ XSS Protection (React)
-✅ Firestore Security Rules (ready to implement)
-
----
-
-## 📈 Scalability
-
-- ✅ Multi-tenant ready (salon-based organization)
-- ✅ Firebase auto-scaling
-- ✅ Optimized Firestore queries
-- ✅ Component-based architecture
-- ✅ Service-based business logic
-- ✅ Type-safe throughout
-
----
-
-## 🎨 UI/UX Features
-
-- ✅ Mobile-first responsive design
-- ✅ Tailwind CSS styling
-- ✅ Consistent component library
-- ✅ Large buttons for non-technical users
-- ✅ Minimal typing required
-- ✅ Real-time notifications
-- ✅ Fast interactions (<2 seconds)
-- ✅ Dark sidebar navigation
-- ✅ Color-coded cards & alerts
-
----
-
-## 📚 Documentation
-
-- README.md - Overview & features
-- SETUP.md - Step-by-step setup guide
-- DEPLOYMENT.md - Production deployment guide
-- Inline code comments
-- Type definitions for documentation
-
----
-
-## 🎯 Next Steps After Setup
-
-1. Configure Firebase project
-2. Set environment variables
-3. Create service account for backend (if needed)
-4. Customize styling & branding
-5. Add more analytics dashboards
-6. Implement SMS/email notifications
-7. Add client loyalty program
-8. Setup automated backups
-9. Configure monitoring & alerts
-10. Customize business hours & settings
-
----
-
-## 📞 Support & Resources
-
-- **Firebase Docs**: https://firebase.google.com/docs
-- **Next.js Docs**: https://nextjs.org/docs
-- **TypeScript Docs**: https://www.typescriptlang.org/docs
-- **Tailwind CSS**: https://tailwindcss.com/docs
-- **React Hooks**: https://react.dev/reference/react/hooks
-
----
-
-This is a production-ready, enterprise-grade SaaS application skeleton. Customize and deploy with confidence! 🚀
+*Last updated: 2026-03-26*

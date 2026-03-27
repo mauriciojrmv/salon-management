@@ -7,29 +7,33 @@ import { Input } from '@/components/Input';
 import { Select } from '@/components/Select';
 import { Modal } from '@/components/Modal';
 import { Table, TableColumn } from '@/components/Table';
+import { Toast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { ProductRepository } from '@/lib/repositories/productRepository';
-import { Product } from '@/types/models';
+import { Product, ProductCategory } from '@/types/models';
 import ES from '@/config/text.es';
+
+const initialFormData = {
+  name: '',
+  sku: '',
+  category: 'hair_products' as ProductCategory,
+  type: 'unit' as 'unit' | 'measurable' | 'service_cost',
+  unit: 'pieces',
+  currentStock: 0,
+  minStock: 5,
+  maxStock: 100,
+  cost: 0,
+  price: 0,
+};
 
 export default function InventoryPage() {
   const { userData } = useAuth();
-  const { success, error } = useNotification();
+  const { notifications, removeNotification, success, error } = useNotification();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    sku: '',
-    category: 'hair_products' as const,
-    type: 'unit' as 'unit' | 'measurable' | 'service_cost',
-    unit: 'pieces',
-    currentStock: 0,
-    minStock: 5,
-    maxStock: 100,
-    cost: 0,
-    price: 0,
-  });
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [formData, setFormData] = useState({ ...initialFormData });
   const [loading, setLoading] = useState(false);
 
   const { data: productsData, refetch, loading: productsLoading } = useAsync(async () => {
@@ -46,7 +50,39 @@ export default function InventoryPage() {
 
   const lowStockProducts = lowStockData || [];
 
-  const handleCreateProduct = async () => {
+  const resetForm = () => {
+    setFormData({ ...initialFormData });
+    setEditingProduct(null);
+  };
+
+  const openCreateModal = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (product: Product) => {
+    setEditingProduct(product);
+    setFormData({
+      name: product.name,
+      sku: product.sku,
+      category: product.category,
+      type: product.type,
+      unit: product.unit || 'pieces',
+      currentStock: product.currentStock,
+      minStock: product.minStock,
+      maxStock: product.maxStock,
+      cost: product.cost,
+      price: product.price,
+    });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  const handleSaveProduct = async () => {
     if (!formData.name || !userData?.salonId) {
       error(ES.messages.fillRequiredFields);
       return;
@@ -54,37 +90,45 @@ export default function InventoryPage() {
 
     setLoading(true);
     try {
-      await ProductRepository.createProduct(userData.salonId, {
+      const productData = {
         name: formData.name,
         sku: formData.sku,
         category: formData.category,
         type: formData.type,
-        unit: formData.type !== 'service_cost' ? formData.unit : undefined,
+        unit: formData.type !== 'service_cost' ? formData.unit as Product['unit'] : undefined,
         currentStock: formData.currentStock,
         minStock: formData.minStock,
         maxStock: formData.maxStock,
         cost: formData.cost,
         price: formData.price,
-      });
-      success(ES.actions.success);
-      setIsModalOpen(false);
-      setFormData({
-        name: '',
-        sku: '',
-        category: 'hair_products',
-        type: 'unit',
-        unit: 'pieces',
-        currentStock: 0,
-        minStock: 5,
-        maxStock: 100,
-        cost: 0,
-        price: 0,
-      });
+      };
+
+      if (editingProduct) {
+        await ProductRepository.updateProduct(editingProduct.id, productData);
+        success(ES.inventory.updated);
+      } else {
+        await ProductRepository.createProduct(userData.salonId, productData);
+        success(ES.actions.success);
+      }
+
+      closeModal();
       refetch();
     } catch (err) {
-      error(err instanceof Error ? err.message : 'Falló al crear el producto');
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteProduct = async (product: Product) => {
+    if (!window.confirm(ES.inventory.deleteConfirm)) return;
+
+    try {
+      await ProductRepository.deleteProduct(product.id);
+      success(ES.inventory.deleted);
+      refetch();
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
     }
   };
 
@@ -109,13 +153,36 @@ export default function InventoryPage() {
     },
     { key: 'cost', label: ES.inventory.cost, render: (v) => `$${v?.toFixed(2)}` },
     { key: 'price', label: ES.inventory.price, render: (v) => `$${v?.toFixed(2)}` },
+    {
+      key: 'id',
+      label: ES.actions.edit,
+      render: (_value, item) => (
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => openEditModal(item)}
+          >
+            {ES.actions.edit}
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => handleDeleteProduct(item)}
+          >
+            {ES.actions.delete}
+          </Button>
+        </div>
+      ),
+    },
   ];
 
   return (
     <div className="space-y-6 p-6">
+      <Toast notifications={notifications} onDismiss={removeNotification} />
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">{ES.inventory.title}</h1>
-        <Button onClick={() => setIsModalOpen(true)} size="lg">
+        <Button onClick={openCreateModal} size="lg">
           {ES.inventory.add}
         </Button>
       </div>
@@ -154,11 +221,11 @@ export default function InventoryPage() {
         </CardBody>
       </Card>
 
-      {/* Add Product Modal */}
+      {/* Add/Edit Product Modal */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={ES.inventory.add}
+        onClose={closeModal}
+        title={editingProduct ? ES.inventory.editProduct : ES.inventory.add}
         size="lg"
       >
         <div className="space-y-4">
@@ -172,89 +239,89 @@ export default function InventoryPage() {
             label={ES.inventory.sku}
             value={formData.sku}
             onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-            required
           />
           <Select
             label={ES.inventory.category}
             value={formData.category}
-            onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+            onChange={(e) => setFormData({ ...formData, category: e.target.value as ProductCategory })}
             options={[
-              { value: 'hair_products', label: 'Productos Capilares' },
-              { value: 'skincare', label: 'Cuidado de Piel' },
-              { value: 'wax', label: 'Cera' },
-              { value: 'nail_products', label: 'Productos de Uñas' },
-              { value: 'tools', label: 'Herramientas' },
-              { value: 'supplies', label: 'Suministros' },
+              { value: 'hair_products', label: ES.inventory.catHairProducts },
+              { value: 'skincare', label: ES.inventory.catSkincare },
+              { value: 'wax', label: ES.inventory.catWax },
+              { value: 'nail_products', label: ES.inventory.catNailProducts },
+              { value: 'tools', label: ES.inventory.catTools },
+              { value: 'supplies', label: ES.inventory.catSupplies },
+              { value: 'other', label: ES.inventory.catOther },
             ]}
             required
           />
           <Select
-            label="Tipo"
+            label={ES.inventory.type}
             value={formData.type}
-            onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+            onChange={(e) => setFormData({ ...formData, type: e.target.value as 'unit' | 'measurable' | 'service_cost' })}
             options={[
-              { value: 'unit', label: 'Por Unidad' },
-              { value: 'measurable', label: 'Medible (ml/g)' },
-              { value: 'service_cost', label: 'Costo de Servicio' },
+              { value: 'unit', label: ES.inventory.typeUnit },
+              { value: 'measurable', label: ES.inventory.typeMeasurable },
+              { value: 'service_cost', label: ES.inventory.typeServiceCost },
             ]}
             required
           />
           {formData.type !== 'service_cost' && (
             <Select
-              label="Unidad"
+              label={ES.inventory.unit}
               value={formData.unit}
               onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
               options={[
-                { value: 'pieces', label: 'Piezas' },
-                { value: 'ml', label: 'Mililitros' },
-                { value: 'g', label: 'Gramos' },
-                { value: 'bottles', label: 'Botellas' },
-                { value: 'sachets', label: 'Sobres' },
+                { value: 'pieces', label: ES.inventory.unitPieces },
+                { value: 'ml', label: ES.inventory.unitMl },
+                { value: 'g', label: ES.inventory.unitG },
+                { value: 'bottles', label: ES.inventory.unitBottles },
+                { value: 'sachets', label: ES.inventory.unitSachets },
               ]}
               required
             />
           )}
           <Input
-            label={`${ES.inventory.stock} (${ES.actions.loading})`}
+            label={ES.inventory.currentStock}
             type="number"
             value={formData.currentStock}
             onChange={(e) => setFormData({ ...formData, currentStock: parseFloat(e.target.value) })}
             required
           />
           <Input
-            label="Stock Mínimo"
+            label={ES.inventory.minStock}
             type="number"
             value={formData.minStock}
             onChange={(e) => setFormData({ ...formData, minStock: parseFloat(e.target.value) })}
             required
           />
           <Input
-            label="Stock Máximo"
+            label={ES.inventory.maxStock}
             type="number"
             value={formData.maxStock}
             onChange={(e) => setFormData({ ...formData, maxStock: parseFloat(e.target.value) })}
             required
           />
           <Input
-            label={`${ES.inventory.cost} por Unidad`}
+            label={ES.inventory.costPerUnit}
             type="number"
             value={formData.cost}
             onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) })}
             required
           />
           <Input
-            label={`${ES.inventory.price} de Venta`}
+            label={ES.inventory.sellingPrice}
             type="number"
             value={formData.price}
             onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
             required
           />
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
+            <Button variant="secondary" onClick={closeModal}>
               {ES.actions.cancel}
             </Button>
-            <Button onClick={handleCreateProduct} loading={loading}>
-              {ES.inventory.add}
+            <Button onClick={handleSaveProduct} loading={loading}>
+              {editingProduct ? ES.actions.save : ES.inventory.add}
             </Button>
           </div>
         </div>

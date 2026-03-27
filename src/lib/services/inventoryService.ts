@@ -1,6 +1,7 @@
 import { addDocument, updateDocument, getDocument, queryDocuments, firebaseConstraints } from '@/lib/firebase/db';
 import { Product, ProductUsageHistory } from '@/types/models';
 import { CreateProductRequest } from '@/types/api';
+import { toDate } from '@/lib/utils/helpers';
 
 export class InventoryService {
   static async createProduct(salonId: string, data: CreateProductRequest): Promise<string> {
@@ -89,11 +90,11 @@ export class InventoryService {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    // Note: Firestore doesn't support >= in queries so we fetch and filter
-    return await queryDocuments('product_usage_history', [
-      firebaseConstraints.orderBy('usedAt', 'desc'),
-      firebaseConstraints.limit(500),
+    const results = await queryDocuments('product_usage_history', [
+      firebaseConstraints.where('usedAt', '>=', startDate),
     ]) as ProductUsageHistory[];
+
+    return results.sort((a, b) => toDate(b.usedAt).getTime() - toDate(a.usedAt).getTime());
   }
 
   static async getInventoryValue(salonId: string): Promise<number> {
@@ -104,7 +105,10 @@ export class InventoryService {
   static async calculateMaterialCost(salonId: string, dateRange: [Date, Date]): Promise<number> {
     const history = await this.getUsageHistory(salonId, 30);
     return history
-      .filter(h => h.usedAt >= dateRange[0] && h.usedAt <= dateRange[1])
+      .filter(h => {
+        const d = toDate(h.usedAt);
+        return d >= dateRange[0] && d <= dateRange[1];
+      })
       .reduce((total, h) => total + h.cost, 0);
   }
 }

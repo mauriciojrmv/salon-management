@@ -4,6 +4,19 @@ import { CreateAppointmentRequest } from '@/types/api';
 
 export class AppointmentService {
   static async createAppointment(data: CreateAppointmentRequest): Promise<string> {
+    // Check for double-booking
+    if (data.staffId) {
+      const isAvailable = await this.checkStaffAvailability(
+        data.staffId,
+        data.appointmentDate,
+        data.startTime,
+        data.endTime
+      );
+      if (!isAvailable) {
+        throw new Error('STAFF_DOUBLE_BOOKED');
+      }
+    }
+
     const appointmentId = await addDocument('appointments', {
       ...data,
       status: 'pending',
@@ -34,11 +47,13 @@ export class AppointmentService {
   }
 
   static async getClientAppointments(salonId: string, clientId: string): Promise<Appointment[]> {
-    return await queryDocuments('appointments', [
+    const results = await queryDocuments('appointments', [
       firebaseConstraints.where('salonId', '==', salonId),
       firebaseConstraints.where('clientId', '==', clientId),
-      firebaseConstraints.orderBy('appointmentDate', 'desc'),
     ]) as Appointment[];
+    return results.sort((a, b) => {
+      return new Date(b.appointmentDate).getTime() - new Date(a.appointmentDate).getTime();
+    });
   }
 
   static async getStaffAppointments(salonId: string, staffId: string, date: string): Promise<Appointment[]> {

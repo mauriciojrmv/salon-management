@@ -4,25 +4,53 @@ import React, { useState } from 'react';
 import { Card, CardBody, CardHeader } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
+import { Select } from '@/components/Select';
 import { Modal } from '@/components/Modal';
 import { Table, TableColumn } from '@/components/Table';
+import { Toast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
+import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { Staff } from '@/types/models';
 import ES from '@/config/text.es';
 
+const specialtyOptions = [
+  { value: 'stylist', label: ES.staff.stylist },
+  { value: 'colorist', label: ES.staff.colorist },
+  { value: 'nail_tech', label: ES.staff.nailTech },
+  { value: 'aesthetician', label: ES.staff.aesthetician },
+  { value: 'barber', label: ES.staff.barber },
+  { value: 'masseur', label: ES.staff.masseur },
+  { value: 'assistant', label: ES.staff.assistant },
+  { value: 'multi_service', label: ES.staff.multiService },
+];
+
+const specialtyLabels: Record<string, string> = {
+  stylist: ES.staff.stylist,
+  colorist: ES.staff.colorist,
+  nail_tech: ES.staff.nailTech,
+  aesthetician: ES.staff.aesthetician,
+  barber: ES.staff.barber,
+  masseur: ES.staff.masseur,
+  assistant: ES.staff.assistant,
+  multi_service: ES.staff.multiService,
+};
+
 export default function StaffPage() {
   const { userData } = useAuth();
-  const { success, error } = useNotification();
+  const { notifications, removeNotification, success, error } = useNotification();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
+    specialty: 'stylist',
+    serviceIds: [] as string[],
     commissionType: 'percentage' as 'percentage' | 'fixed',
     commissionValue: 20,
   });
@@ -32,9 +60,55 @@ export default function StaffPage() {
     return StaffRepository.getSalonStaff(userData.salonId);
   }, [userData?.salonId]);
 
-  const staff = staffData || [];
+  const { data: servicesData } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return ServiceRepository.getSalonServices(userData.salonId);
+  }, [userData?.salonId]);
 
-  const handleCreateStaff = async () => {
+  const staff = staffData || [];
+  const services = servicesData || [];
+
+  const resetForm = () => {
+    setFormData({
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      specialty: 'stylist',
+      serviceIds: [],
+      commissionType: 'percentage',
+      commissionValue: 20,
+    });
+    setEditingStaff(null);
+  };
+
+  const openCreateModal = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (member: Staff) => {
+    setEditingStaff(member);
+    const extMember = member as Staff & { specialty?: string; serviceIds?: string[] };
+    setFormData({
+      firstName: member.firstName,
+      lastName: member.lastName,
+      email: member.email,
+      phone: member.phone || '',
+      specialty: extMember.specialty || 'stylist',
+      serviceIds: extMember.serviceIds || [],
+      commissionType: member.commissionConfig?.type || 'percentage',
+      commissionValue: member.commissionConfig?.value || 20,
+    });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  const handleSaveStaff = async () => {
     if (!formData.firstName || !formData.email || !userData?.salonId) {
       error(ES.messages.fillRequiredFields);
       return;
@@ -42,58 +116,122 @@ export default function StaffPage() {
 
     setLoading(true);
     try {
-      await StaffRepository.createStaff(userData.salonId, {
+      const staffPayload = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
         phone: formData.phone,
-        commissionType: formData.commissionType,
-        commissionValue: formData.commissionValue,
-        skills: [],
-      });
-      success(ES.actions.success);
-      setIsModalOpen(false);
-      setFormData({
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        commissionType: 'percentage',
-        commissionValue: 20,
-      });
+        specialty: formData.specialty,
+        serviceIds: formData.serviceIds,
+        commissionConfig: {
+          type: formData.commissionType,
+          value: formData.commissionValue,
+        },
+      };
+
+      if (editingStaff) {
+        await StaffRepository.updateStaff(editingStaff.id, staffPayload as Partial<Staff>);
+        success(ES.staff.updated);
+      } else {
+        await StaffRepository.createStaff(userData.salonId, {
+          ...staffPayload,
+          commissionType: formData.commissionType,
+          commissionValue: formData.commissionValue,
+          skills: [],
+        });
+        success(ES.actions.success);
+      }
+      closeModal();
       refetch();
     } catch (err) {
-      error(err instanceof Error ? err.message : 'Failed to add staff member');
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteStaff = async (member: Staff) => {
+    if (!window.confirm(ES.staff.deleteConfirm)) return;
+
+    try {
+      await StaffRepository.deleteStaff(member.id);
+      success(ES.staff.deleted);
+      refetch();
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    }
+  };
+
+  // Resolve service names for display
+  const getServiceNames = (item: Staff) => {
+    const ids = (item as Staff & { serviceIds?: string[] }).serviceIds || [];
+    if (ids.length === 0) return '-';
+    const names = ids
+      .map((id) => services.find((s) => s.id === id)?.name)
+      .filter(Boolean);
+    if (names.length === 0) return '-';
+    if (names.length <= 2) return names.join(', ');
+    return `${names[0]}, ${names[1]} +${names.length - 2}`;
   };
 
   const staffColumns: TableColumn<Staff>[] = [
     {
       key: 'firstName',
       label: ES.staff.name,
-      render: (v, item) => `${item.firstName} ${item.lastName}`
+      render: (_v, item) => `${item.firstName} ${item.lastName}`,
     },
-    { key: 'email', label: ES.staff.email },
-    { key: 'phone', label: ES.staff.phone },
+    {
+      key: 'email' as keyof Staff,
+      label: ES.staff.specialty,
+      render: (_v, item) => specialtyLabels[(item as Staff & { specialty?: string }).specialty || ''] || '-',
+    },
+    {
+      key: 'phone' as keyof Staff,
+      label: ES.staff.servicesOffered,
+      render: (_v, item) => getServiceNames(item),
+    },
     {
       key: 'commissionConfig',
       label: ES.staff.commission,
-      render: (v) => v ? `${v.type === 'percentage' ? v.value + '%' : '$' + v.value}` : '-',
+      render: (v) =>
+        v ? `${v.type === 'percentage' ? v.value + '%' : '$' + v.value}` : '-',
     },
     {
-      key: 'totalEarnings',
-      label: ES.dashboard.myEarnings,
-      render: (v) => `$${v?.toFixed(2) || '0.00'}`
+      key: 'id',
+      label: '',
+      render: (_v, item) => (
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              openEditModal(item);
+            }}
+          >
+            {ES.actions.edit}
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={(e: React.MouseEvent) => {
+              e.stopPropagation();
+              handleDeleteStaff(item);
+            }}
+          >
+            {ES.actions.delete}
+          </Button>
+        </div>
+      ),
     },
   ];
 
   return (
     <div className="space-y-6 p-6">
+      <Toast notifications={notifications} onDismiss={removeNotification} />
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">{ES.staff.title}</h1>
-        <Button onClick={() => setIsModalOpen(true)} size="lg">
+        <Button onClick={openCreateModal} size="lg">
           {ES.staff.add}
         </Button>
       </div>
@@ -101,7 +239,9 @@ export default function StaffPage() {
       {/* Staff Table */}
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900">{ES.staff.teamMembers}</h2>
+          <h2 className="text-xl font-semibold text-gray-900">
+            {ES.staff.teamMembers}
+          </h2>
         </CardHeader>
         <CardBody>
           <Table
@@ -114,40 +254,94 @@ export default function StaffPage() {
         </CardBody>
       </Card>
 
-      {/* Add Staff Modal */}
+      {/* Add/Edit Staff Modal */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={ES.staff.add}
+        onClose={closeModal}
+        title={editingStaff ? ES.staff.editStaff : ES.staff.add}
         size="lg"
       >
         <div className="space-y-4">
-          <Input
-            label={ES.staff.name}
-            value={formData.firstName}
-            onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-            required
-          />
-          <Input
-            label={ES.staff.name}
-            placeholder={ES.staff.name}
-            value={formData.lastName}
-            onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-            required
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label={ES.auth.firstName}
+              value={formData.firstName}
+              onChange={(e) =>
+                setFormData({ ...formData, firstName: e.target.value })
+              }
+              required
+            />
+            <Input
+              label={ES.staff.lastName}
+              value={formData.lastName}
+              onChange={(e) =>
+                setFormData({ ...formData, lastName: e.target.value })
+              }
+              required
+            />
+          </div>
           <Input
             label={ES.staff.email}
             type="email"
             value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            onChange={(e) =>
+              setFormData({ ...formData, email: e.target.value })
+            }
             required
           />
           <Input
             label={ES.staff.phone}
             value={formData.phone}
-            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            onChange={(e) =>
+              setFormData({ ...formData, phone: e.target.value })
+            }
             required
           />
+
+          <Select
+            label={ES.staff.specialty}
+            value={formData.specialty}
+            onChange={(e) =>
+              setFormData({ ...formData, specialty: e.target.value })
+            }
+            options={specialtyOptions}
+            required
+          />
+
+          {/* Multi-service selection: what can this person do? */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {ES.staff.servicesOffered}
+            </label>
+            {services.length === 0 ? (
+              <p className="text-sm text-gray-400">{ES.staff.addServicesFirst}</p>
+            ) : (
+              <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                {services.map((svc) => (
+                  <label
+                    key={svc.id}
+                    className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={formData.serviceIds.includes(svc.id)}
+                      onChange={(e) => {
+                        const ids = e.target.checked
+                          ? [...formData.serviceIds, svc.id]
+                          : formData.serviceIds.filter((id) => id !== svc.id);
+                        setFormData({ ...formData, serviceIds: ids });
+                      }}
+                      className="rounded"
+                    />
+                    <span className="text-sm font-medium">{svc.name}</span>
+                    <span className="text-xs text-gray-400 ml-auto">
+                      ${svc.price} · {svc.duration}min
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -201,11 +395,11 @@ export default function StaffPage() {
           />
 
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
+            <Button variant="secondary" onClick={closeModal}>
               {ES.actions.cancel}
             </Button>
-            <Button onClick={handleCreateStaff} loading={loading}>
-              {ES.staff.add}
+            <Button onClick={handleSaveStaff} loading={loading}>
+              {editingStaff ? ES.actions.save : ES.staff.add}
             </Button>
           </div>
         </div>

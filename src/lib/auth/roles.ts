@@ -43,8 +43,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewAllSessions: true,
     canViewAllUsers: false,
     canManageStaff: false,
-    canManageServices: false,
-    canManageProducts: false,
+    canManageServices: true,
+    canManageProducts: true,
     canViewReports: true,
     canViewAllEarnings: true,
     canEditSettings: false,
@@ -79,12 +79,13 @@ export function canAccessRoute(role: UserRole, route: string): boolean {
     '/sessions': (r) => hasPermission(r, 'canViewAllSessions'),
     '/appointments': (r) => hasPermission(r, 'canCreateSessions'),
     '/clients': (r) => hasPermission(r, 'canViewAllSessions'),
-    '/services': (r) => hasPermission(r, 'canManageServices') || r === 'manager',
+    '/services': (r) => hasPermission(r, 'canManageServices'),
     '/staff': (r) => hasPermission(r, 'canManageStaff'),
     '/inventory': (r) => hasPermission(r, 'canManageProducts'),
     '/reports': (r) => hasPermission(r, 'canViewReports'),
     '/settings': (r) => hasPermission(r, 'canEditSettings'),
     '/my-earnings': () => true, // All staff can see their own
+    '/my-work': () => true, // All staff can see their own work
   };
 
   const checker = routePermissions[route];

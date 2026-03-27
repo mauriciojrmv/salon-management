@@ -3,6 +3,7 @@ import React from 'react';
 export interface TableColumn<T> {
   key: keyof T | string;
   label: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   render?: (value: any, item: T) => React.ReactNode;
   width?: string;
 }
@@ -69,8 +70,8 @@ export function Table<T>({
                   className="px-6 py-4 text-sm text-gray-700"
                 >
                   {column.render
-                    ? column.render((item as any)[column.key as string], item)
-                    : (item as any)[column.key as string]}
+                    ? column.render((item as Record<string, unknown>)[column.key as string], item)
+                    : String((item as Record<string, unknown>)[column.key as string] ?? '')}
                 </td>
               ))}
             </tr>

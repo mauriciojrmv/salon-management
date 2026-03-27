@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 export interface Notification {
   id: string;
@@ -10,6 +10,16 @@ export interface Notification {
 
 export function useNotification() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const timeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const removeNotification = useCallback((id: string) => {
+    const timeout = timeoutsRef.current.get(id);
+    if (timeout) {
+      clearTimeout(timeout);
+      timeoutsRef.current.delete(id);
+    }
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  }, []);
 
   const addNotification = useCallback(
     (notification: Omit<Notification, 'id'>) => {
@@ -19,20 +29,18 @@ export function useNotification() {
       setNotifications((prev) => [...prev, newNotification]);
 
       if (notification.duration !== 0) {
-        const timeout = notification.duration || 3000;
-        setTimeout(() => {
-          removeNotification(id);
-        }, timeout);
+        const duration = notification.duration || 3000;
+        const timeout = setTimeout(() => {
+          timeoutsRef.current.delete(id);
+          setNotifications((prev) => prev.filter((n) => n.id !== id));
+        }, duration);
+        timeoutsRef.current.set(id, timeout);
       }
 
       return id;
     },
     []
   );
-
-  const removeNotification = useCallback((id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  }, []);
 
   const success = useCallback(
     (message: string, title?: string) => {

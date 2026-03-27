@@ -10,12 +10,14 @@ import {
   where,
   limit,
   orderBy,
+  writeBatch,
+  onSnapshot,
   Query,
   QueryConstraint,
 } from 'firebase/firestore';
 import { db } from './config';
 
-export async function addDocument(collectionName: string, data: any, docId?: string) {
+export async function addDocument(collectionName: string, data: Record<string, unknown>, docId?: string) {
   try {
     const docRef = docId ? doc(db, collectionName, docId) : doc(collection(db, collectionName));
     await setDoc(docRef, {
@@ -44,7 +46,7 @@ export async function getDocument(collectionName: string, docId: string) {
   }
 }
 
-export async function updateDocument(collectionName: string, docId: string, data: any) {
+export async function updateDocument(collectionName: string, docId: string, data: Record<string, unknown>) {
   try {
     const docRef = doc(db, collectionName, docId);
     await updateDoc(docRef, {
@@ -89,6 +91,35 @@ export async function getAllDocuments(collectionName: string) {
     console.error(`Error getting all documents from ${collectionName}:`, error);
     throw error;
   }
+}
+
+export async function batchUpdate(updates: { collection: string; docId: string; data: Record<string, unknown> }[]) {
+  const batch = writeBatch(db);
+  for (const u of updates) {
+    const docRef = doc(db, u.collection, u.docId);
+    batch.update(docRef, { ...u.data, updatedAt: new Date() });
+  }
+  await batch.commit();
+}
+
+export function subscribeToQuery(
+  collectionName: string,
+  constraints: QueryConstraint[],
+  callback: (docs: Record<string, unknown>[]) => void,
+  onError?: (error: Error) => void,
+): () => void {
+  const q = query(collection(db, collectionName), ...constraints);
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      callback(docs);
+    },
+    (error) => {
+      console.error(`Error subscribing to ${collectionName}:`, error);
+      onError?.(error);
+    },
+  );
 }
 
 export const firebaseConstraints = {

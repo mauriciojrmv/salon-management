@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
@@ -12,8 +12,15 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-export const app = initializeApp(firebaseConfig);
+// Initialize Firebase (guard against HMR re-initialization)
+export const app = getApps().find(a => a.name === '[DEFAULT]')
+  ? getApp()
+  : initializeApp(firebaseConfig);
+
+// Secondary app for creating users without affecting current auth session
+export const secondaryApp = getApps().find(a => a.name === 'secondary')
+  || initializeApp(firebaseConfig, 'secondary');
+export const secondaryAuth = getAuth(secondaryApp);
 
 // Initialize Firebase services
 export const auth = getAuth(app);
