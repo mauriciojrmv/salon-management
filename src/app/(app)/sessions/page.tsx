@@ -22,6 +22,7 @@ import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { batchUpdate, firebaseConstraints } from '@/lib/firebase/db';
+import { fmtBs } from '@/lib/utils/helpers';
 import type { Session } from '@/types/models';
 import ES from '@/config/text.es';
 
@@ -121,7 +122,7 @@ export default function SessionsPage() {
   const serviceOptions: ServiceOption[] = (services || []).map((s) => ({
     value: s.id,
     label: s.name,
-    secondary: `$${s.price} · ${s.duration}min`,
+    secondary: `${fmtBs(s.price)} · ${s.duration}min`,
     category: s.category,
     categoryLabel: categoryLabels[s.category] || s.category,
   }));
@@ -154,7 +155,7 @@ export default function SessionsPage() {
   const productOptions = (products || []).map((p) => ({
     value: p.id,
     label: p.name,
-    secondary: `${ES.sessions.materialSellPrice}: $${p.price}/${p.unit || 'ud'} · Stock: ${p.currentStock}${p.currentStock <= p.minStock ? ' ⚠' : ''}`,
+    secondary: `${ES.sessions.materialSellPrice}: ${fmtBs(p.price)}/${p.unit || 'ud'} · Stock: ${p.currentStock}${p.currentStock <= p.minStock ? ' ⚠' : ''}`,
   }));
 
   // Low-stock products for alert banner
@@ -533,8 +534,8 @@ export default function SessionsPage() {
                       <div>
                         <p className="font-medium text-gray-900">{getClientName(session.clientId)}</p>
                         <p className="text-sm text-gray-500">
-                          {sessionServices.length} {ES.sessions.services.toLowerCase()} · ${session.totalAmount.toFixed(2)}
-                          {remaining > 0 && <span className="text-red-500 ml-1">({ES.payments.remaining}: ${remaining.toFixed(2)})</span>}
+                          {sessionServices.length} {ES.sessions.services.toLowerCase()} · {fmtBs(session.totalAmount)}
+                          {remaining > 0 && <span className="text-red-500 ml-1">({ES.payments.remaining}: {fmtBs(remaining)})</span>}
                         </p>
                       </div>
                       <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium shrink-0">
@@ -548,7 +549,7 @@ export default function SessionsPage() {
                         {sessionServices.map((svc) => (
                           <div key={svc.id} className="flex justify-between text-sm text-gray-600">
                             <span>{svc.serviceName}</span>
-                            <span>${svc.price.toFixed(2)}</span>
+                            <span>{fmtBs(svc.price)}</span>
                           </div>
                         ))}
                       </div>
@@ -635,7 +636,7 @@ export default function SessionsPage() {
                     <div>
                       <p className="font-medium text-gray-500 line-through">{getClientName(session.clientId)}</p>
                       <p className="text-sm text-gray-400">
-                        {(session.services || []).length} {ES.sessions.services.toLowerCase()} · ${session.totalAmount.toFixed(2)}
+                        {(session.services || []).length} {ES.sessions.services.toLowerCase()} · {fmtBs(session.totalAmount)}
                       </p>
                       {session.notes && (
                         <p className="text-xs text-red-400 mt-1">{session.notes}</p>
@@ -851,8 +852,8 @@ export default function SessionsPage() {
                           <span className="text-sm text-gray-500 pb-3">{mat.unit}</span>
                         )}
                         <div className="text-right pb-3">
-                          <p className="text-xs text-gray-400">${mat.pricePerUnit.toFixed(2)}/{mat.unit}</p>
-                          <p className="text-sm font-semibold">${mat.totalPrice.toFixed(2)}</p>
+                          <p className="text-xs text-gray-400">{fmtBs(mat.pricePerUnit)}/{mat.unit}</p>
+                          <p className="text-sm font-semibold">{fmtBs(mat.totalPrice)}</p>
                         </div>
                         <button
                           type="button"
@@ -874,17 +875,17 @@ export default function SessionsPage() {
             <div className="bg-gray-50 rounded-lg p-3 space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600">{ES.sessions.servicesSubtotal}</span>
-                <span className="font-semibold">${serviceForm.price.toFixed(2)}</span>
+                <span className="font-semibold">{fmtBs(serviceForm.price)}</span>
               </div>
               {totalMaterialsCost > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">{ES.sessions.materialsSubtotal}</span>
-                  <span className="text-gray-900 font-semibold">+${totalMaterialsCost.toFixed(2)}</span>
+                  <span className="text-gray-900 font-semibold">+{fmtBs(totalMaterialsCost)}</span>
                 </div>
               )}
               <div className="flex justify-between border-t border-gray-200 pt-1 mt-1">
                 <span className="text-gray-900 font-semibold">{ES.payments.total}</span>
-                <span className="text-gray-900 font-bold">${(serviceForm.price + totalMaterialsCost).toFixed(2)}</span>
+                <span className="text-gray-900 font-bold">{fmtBs(serviceForm.price + totalMaterialsCost)}</span>
               </div>
             </div>
           )}
@@ -969,7 +970,7 @@ export default function SessionsPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900">{svc.serviceName}</p>
                       </div>
-                      <span className="text-sm font-semibold text-gray-700">${svcRemaining > 0 ? svcRemaining.toFixed(2) : svcTotal.toFixed(2)}</span>
+                      <span className="text-sm font-semibold text-gray-700">{fmtBs(svcRemaining > 0 ? svcRemaining : svcTotal)}</span>
                     </label>
                   );
                 })}
@@ -987,7 +988,7 @@ export default function SessionsPage() {
               <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between">
                 <div>
                   <p className="text-xs text-green-600 font-medium">{ES.payments.creditBalance}</p>
-                  <p className="text-lg font-bold text-green-800">${creditBal.toFixed(2)}</p>
+                  <p className="text-lg font-bold text-green-800">{fmtBs(creditBal)}</p>
                 </div>
                 <button
                   type="button"
@@ -1014,7 +1015,7 @@ export default function SessionsPage() {
                   }}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700 transition-colors"
                 >
-                  {ES.payments.applyCredit} ${applyAmount.toFixed(2)}
+                  {ES.payments.applyCredit} {fmtBs(applyAmount)}
                 </button>
               </div>
             );
@@ -1023,7 +1024,7 @@ export default function SessionsPage() {
           {/* Big total display */}
           <div className="text-center py-3">
             <p className="text-sm text-gray-500 mb-1">{ES.payments.remaining}</p>
-            <p className="text-4xl font-bold text-gray-900">${sessionRemainingForPayment.toFixed(2)}</p>
+            <p className="text-4xl font-bold text-gray-900">{fmtBs(sessionRemainingForPayment)}</p>
           </div>
 
           {/* Payment entries */}
@@ -1123,7 +1124,7 @@ export default function SessionsPage() {
                       <div className="text-center pt-1">
                         <span className="text-sm text-yellow-700">{ES.payments.change}</span>
                         <p className={`text-3xl font-black ${change > 0 ? 'text-yellow-800' : 'text-gray-400'}`}>
-                          ${change.toFixed(2)}
+                          {fmtBs(change)}
                         </p>
                       </div>
                     )}
@@ -1160,13 +1161,13 @@ export default function SessionsPage() {
                       ES.payments.transfer
                     }
                   </span>
-                  <span className="font-semibold">${entry.amount.toFixed(2)}</span>
+                  <span className="font-semibold">{fmtBs(entry.amount)}</span>
                 </div>
               ))}
               <div className="flex justify-between border-t border-gray-300 pt-2 mt-1">
                 <span className="font-bold text-gray-900">{ES.payments.total}</span>
                 <span className="font-black text-gray-900">
-                  ${paymentEntries.reduce((sum, e) => sum + e.amount, 0).toFixed(2)}
+                  {fmtBs(paymentEntries.reduce((sum, e) => sum + e.amount, 0))}
                 </span>
               </div>
             </div>

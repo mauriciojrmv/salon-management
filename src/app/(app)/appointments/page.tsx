@@ -17,6 +17,7 @@ import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { Appointment } from '@/types/models';
+import { fmtBs } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 export default function AppointmentsPage() {
@@ -66,7 +67,7 @@ export default function AppointmentsPage() {
   const serviceOptions = (services || []).map((s) => ({
     value: s.id,
     label: s.name,
-    secondary: `$${s.price} · ${s.duration}min`,
+    secondary: `Bs. ${s.price} · ${s.duration}min`,
   }));
 
   const staffOptions = (staffList || []).map((s) => ({

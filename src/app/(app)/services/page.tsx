@@ -13,6 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
+import { fmtBs } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 const initialFormData = {
@@ -135,7 +136,7 @@ export default function ServicesPage() {
   const serviceColumns: TableColumn<Service>[] = [
     { key: 'name', label: ES.services.name },
     { key: 'category', label: ES.services.category, render: (v) => categoryLabels[v as string] || v },
-    { key: 'price', label: ES.services.price, render: (v) => `$${v?.toFixed(2)}` },
+    { key: 'price', label: ES.services.price, render: (v) => fmtBs(Number(v)) },
     { key: 'duration', label: ES.services.duration, render: (v) => `${v} min` },
     {
       key: 'isActive',
@@ -213,7 +214,7 @@ export default function ServicesPage() {
             required
           />
           <Input
-            label={`${ES.services.price} ($)`}
+            label={`${ES.services.price} (Bs.)`}
             type="number"
             value={formData.price}
             onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}

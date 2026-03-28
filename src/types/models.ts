@@ -8,7 +8,7 @@ export interface Salon {
   city: string;
   postalCode: string;
   country: string;
-  currency: 'USD' | 'EUR' | 'GBP' | 'INR' | 'BRL';
+  currency: 'BOB' | 'USD' | 'EUR' | 'GBP' | 'INR' | 'BRL';
   timezone: string;
   logo?: string;
   createdAt: Date;

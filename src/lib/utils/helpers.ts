@@ -41,11 +41,16 @@ export function getDayOfWeek(date: Date | string): string {
 }
 
 // Currency utilities
-export function formatCurrency(amount: number, currency = 'USD'): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-  }).format(amount);
+export const CURRENCY_SYMBOL = 'Bs.';
+export const LOYALTY_POINTS_RATE = 50; // 1 point per X currency units
+
+export function formatCurrency(amount: number): string {
+  return `Bs. ${amount.toFixed(2)}`;
+}
+
+// Short formatter for inline use in JSX templates
+export function fmtBs(amount: number): string {
+  return `Bs. ${amount.toFixed(2)}`;
 }
 
 // Validation utilities

@@ -82,7 +82,7 @@ export default function SalonsPage() {
           phone: formData.phone,
           email: formData.email,
           owner: user?.uid || '',
-          currency: 'USD',
+          currency: 'BOB',
           country: '',
           postalCode: '',
           timezone: '',

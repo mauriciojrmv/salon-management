@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal } from '@/components/Modal';
 import { Session } from '@/types/models';
 import { SessionService } from '@/lib/services/sessionService';
-import { toDate } from '@/lib/utils/helpers';
+import { toDate, fmtBs } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 interface ClientHistoryModalProps {
@@ -87,7 +87,7 @@ export function ClientHistoryModal({
                         </p>
                       )}
                     </div>
-                    <p className="text-sm font-semibold text-gray-700">${service.price.toFixed(2)}</p>
+                    <p className="text-sm font-semibold text-gray-700">{fmtBs(service.price)}</p>
                   </div>
 
                   {/* Materials used — critical for tint/color reference */}
@@ -111,7 +111,7 @@ export function ClientHistoryModal({
               {/* Session total */}
               <div className="pt-2 border-t border-gray-100 flex justify-between text-sm">
                 <span className="text-gray-500">{ES.payments.total}</span>
-                <span className="font-semibold">${session.totalAmount.toFixed(2)}</span>
+                <span className="font-semibold">{fmtBs(session.totalAmount)}</span>
               </div>
             </div>
           ))}

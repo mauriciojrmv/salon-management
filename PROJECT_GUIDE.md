@@ -158,7 +158,7 @@ Mistakes happen. Cancellation must:
 - **Client pays**: service price + material selling price
 - **Session totalAmount** = sum of service prices + sum of material selling prices
 - Materials are sold to client at retail/selling price (`product.price`), NOT at cost (`product.cost`)
-- Example: Corte $20 + Henna $60 + 2 units of henna product at $3/unit sell = $86 total
+- Example: Corte Bs. 150 + Henna Bs. 200 + 2 units of henna product at Bs. 25/unit sell = Bs. 400 total
 
 ### Commission Model (Internal — NOT shown to client)
 - Base: 50% of service price
@@ -241,9 +241,27 @@ Mistakes happen. Cancellation must:
 - [x] **Appointment → Trabajo conversion** — Fixed 2026-03-27: "Iniciar Trabajo" button on confirmed/pending appointments. Creates session pre-filled with client, adds each service with assigned staff, marks appointment as completed. One-tap conversion.
 - [x] **No service status progression** — Fixed 2026-03-27: `SessionService.updateServiceStatus()` updates individual service status. SessionCard shows tappable status badges (Pendiente → En Progreso → Completado) with arrow indicator. Tap to advance to next status. Color-coded: yellow (pending), blue (in_progress), green (completed).
 
+### P1.6 — HIGH (UX audit — elderly/mobile usability, 2026-03-27)
+
+- [ ] **Table component not mobile-responsive** — `Table.tsx` uses raw `<table>` with `px-6` padding. On 360px phones, 4+ column tables overflow with no scroll indicator. Dashboard, clients, reports all affected. Users see cropped data. Fix: card layout on mobile or `overflow-x-auto` with scroll hint.
+- [ ] **SessionCard action buttons too small and clustered** — 5 buttons (`size="sm"`, `px-3 py-1.5`) wrap into tight cluster on mobile. "Cerrar Trabajo" (irreversible) sits next to "Cancelar" (destructive). Wet/gloved hands will mis-tap. Fix: primary actions `size="md"` or full-width stacked; destructive actions separated with divider or overflow menu.
+- [ ] **`window.confirm()` shows English buttons on mobile** — All confirm dialogs ("OK"/"Cancel") display in browser default language (English). Non-technical Spanish speakers hesitate or tap wrong button. Fix: replace all `window.confirm()` with custom `Modal`-based confirmation with Spanish buttons and larger touch targets. NOTE: reopens P3 "confirmation dialogs" item which used `confirm()`.
+- [ ] **Payment modal too complex for simple payments** — Shows 5 concepts at once: per-service checkboxes, credit balance, method icons, split entries, cash calculator. 80% of payments are single-method. Elderly receptionist overwhelmed. Fix: default simple flow (total → tap method → done), advanced options behind "Opciones avanzadas" toggle.
+- [ ] **Number inputs don't auto-select on focus** — Price/quantity inputs default to `0`. User must select-all → delete → type (3+ taps). With wet hands, very frustrating. Fix: add `onFocus={(e) => e.target.select()}` to all number `<Input>` elements.
+- [ ] **SearchableSelect dropdown too short on mobile** — `max-h-48` (192px) shows ~5 options. With 30+ clients, nested scroll inside a modal is a usability nightmare. Fix: `max-h-[60vh]` on mobile, increase option `py` to 3.5 for fatter touch targets.
+- [ ] **Modal close button `×` too small** — Single character with no padding, fails 44px minimum touch target. Fix: add `p-2 min-w-[44px] min-h-[44px]` to close button in `Modal.tsx`.
+- [ ] **No loading feedback on card-level action buttons** — Tapping "Pagar"/"Agregar Servicio" on a card opens a modal, but the button shows no loading state. Slow connections → elderly users tap multiple times. Fix: debounce or show brief spinner on card action buttons.
+- [ ] **Auth page has hardcoded English text** — `auth/page.tsx:46`: "Salon Management SaaS" hardcoded in English. Line 81: hardcoded Spanish not from `text.es.ts`. First impression matters. Fix: move to `ES.app` keys.
+- [ ] **Toast notifications positioned top-right — invisible on mobile** — Overlaps with hamburger bar or gets cut off on small screens. Elderly users may never notice success/error messages. Fix: position bottom-center on mobile with larger text.
+- [ ] **Empty states too minimal — no call to action** — "No hay trabajos activos" as plain gray text. First-time user doesn't know what to do. Fix: add CTA text like "Toque + Nuevo Trabajo para comenzar" and/or illustration.
+- [ ] **No "Hoy"/"Ayer" quick buttons on dashboard date picker** — Raw `<input type="date">` renders differently per device, some Android devices show tiny picker. Fix: add "Hoy" / "Ayer" shortcut buttons next to date input.
+- [ ] **Sidebar uses emoji icons — inconsistent rendering across devices** — 📊💇📅 etc. render differently or as blank squares on older Android phones. Fix: replace with Lucide React icons (already in stack) for consistent rendering.
+- [ ] **"Nuevo Trabajo" button not reachable after scrolling** — On busy days with 8+ sessions, button at page top. Elderly user scrolls down, can't find it. Fix: sticky floating action button at bottom-right on mobile.
+- [ ] **No visual separation between service statuses in SessionCard** — 4 services all look similar, hard to scan which are done. Status badges are tiny. Fix: add left-border color coding (green=completed, blue=in_progress, yellow=pending).
+
 ### P3 — LOW (future hardening)
 
-- [x] **No confirmation dialogs for delete actions** — Verified 2026-03-27: All delete actions (clients, services, staff, inventory, cancel session, remove service) already have `window.confirm()` dialogs with Spanish messages.
+- [x] **No confirmation dialogs for delete actions** — Verified 2026-03-27: All delete actions use `window.confirm()` with Spanish messages. NOTE: P1.6 audit found `confirm()` buttons render in English on mobile — needs replacement with custom modal.
 - [x] **No date validation in `reports/page.tsx`** — Fixed 2026-03-27: Auto-swaps start/end dates if start > end. Shows orange warning message when dates are corrected. Reports use `validStartDate`/`validEndDate` computed from user input.
 - [x] **No export/print for reports** — Fixed 2026-03-27: Added "Exportar CSV" button (downloads service profitability as CSV with headers) and "Imprimir" button (`window.print()`) to reports page header.
 - [x] **No audit logging** — Fixed 2026-03-27: `auditLog()` function in SessionService logs structured `[AUDIT]` entries to console for: SESSION_CREATED, SERVICE_ADDED, PAYMENT_PROCESSED, SESSION_CLOSED, SESSION_CANCELLED, SERVICE_REMOVED, SESSION_REOPENED. Includes timestamp, IDs, amounts, and context.
@@ -280,7 +298,7 @@ Mistakes happen. Cancellation must:
 - [x] **2026-03-26** — `SessionRepository` created. `SessionService` now follows repository pattern like all other entities.
 - [x] **2026-03-26** — `SessionCard` extracted to `src/components/SessionCard.tsx`. Sessions page reduced from 758 to ~625 lines.
 - [x] **2026-03-26** — Users page hardcoded Spanish moved to `ES.users` keys (`accessDeniedUsers`, role descriptions).
-- [x] **2026-03-26** — Material price labels clarified: renamed `costPerUnit` → `pricePerUnit`, dropdown shows "P. Venta: $X/unit", material row shows price breakdown per unit.
+- [x] **2026-03-26** — Material price labels clarified: renamed `costPerUnit` → `pricePerUnit`, dropdown shows "P. Venta: Bs. X/unit", material row shows price breakdown per unit.
 - [x] **2026-03-26** — Service timestamps added to `SessionCard`: each service shows its `startTime` in HH:MM format (es-ES locale).
 - [x] **2026-03-26** — Client service history: `ClientHistoryModal` shows all past sessions with services, materials, staff, and notes. Accessible via "Ver Historial" button on active SessionCard.
 - [x] **2026-03-26** — Phone made optional for clients (walk-ins, one-timers, reservations for others). Phone uniqueness enforced when provided.
@@ -328,6 +346,10 @@ Mistakes happen. Cancellation must:
 ### Silent Notification Bug
 **Problem**: `useNotification()` creates state but no component renders it. All errors silently swallowed.
 **Solution**: Every page that uses `useNotification()` MUST render `<Toast notifications={notifications} onDismiss={removeNotification} />`. Destructure `notifications` and `removeNotification` alongside `success`/`error`.
+
+### `window.confirm()` Shows English Buttons on Mobile
+**Problem**: `confirm("¿Está seguro?")` shows Spanish message but browser-default "OK"/"Cancel" buttons in English. Non-technical Spanish-speaking users get confused.
+**Solution**: Never use `window.confirm()`. Always use a custom `Modal`-based confirmation with explicit Spanish button labels ("Confirmar"/"Cancelar") and large touch targets (min 44px).
 
 ### Multi-User Data Inconsistency
 **Problem**: Admin adds service, staff doesn't see it. Or both edit the same session simultaneously = last write wins.
@@ -442,8 +464,17 @@ Payment receipt generation (print/share), client birthday reminders with loyalty
 ### Phase 5A (DONE) - Multi-Location, Retail Sales, Expense Tracking
 Multi-location: `/salons` admin page for CRUD salon management + sidebar salon switcher dropdown (updates user's salonId, reloads). Retail product sales: `/sales` POS page with product picker, quantity, payment method, stock auto-deduction, daily sales summary. Expense tracking: `/expenses` page with CRUD, 8 categories (rent/utilities/salaries/supplies/marketing/maintenance/insurance/other), month filter, category breakdown cards, recurring expense support.
 
-### Phase 5B - Growth Features (Remaining)
-> **Scope**: Online booking widget, WhatsApp reminders, loyalty program. See **Section 8** for future items.
+### Phase 5B (DONE) - Loyalty Program
+Loyalty rewards system: `/rewards` admin page to create/manage redeemable rewards (discount, free service, free product, credit). Clients auto-earn loyalty points on session close (1 point per Bs. 50 spent). Clients page shows loyalty points column, "Canjear" modal with available rewards list, transaction history. `LoyaltyRepository` for rewards CRUD and transaction logging. `Client.loyaltyPoints` field. Credit-type rewards auto-add to `creditBalance`.
+
+### Phase 5C (DONE) - Currency Conversion to Bolivianos
+Full system currency conversion from USD ($) to Bolivianos (Bs.). `CURRENCY_SYMBOL = 'Bs.'` and `fmtBs()` helper in `helpers.ts`. Updated all ~15 page and component files to use `Bs.` formatting via `fmtBs()`. Loyalty points rate changed to 1 point per Bs. 50 (`LOYALTY_POINTS_RATE = 50`). Default salon currency set to `'BOB'`. Receipt, reports, dashboard, sessions, sales, expenses, rewards, inventory, services, appointments, my-work, clients — all converted.
+
+### Phase 6A - Mobile UX Hardening (Pending)
+> **Scope**: UX audit fixes for elderly/non-technical mobile users. 15 issues found via expert review (P1.6 in Section 8). Priority: table mobile layout, SessionCard button sizing, custom confirm modals replacing `window.confirm()`, payment modal simplification, number input auto-select, SearchableSelect mobile height, Modal close button sizing, Toast repositioning, empty state CTAs, Lucide icons replacing emoji, floating "Nuevo Trabajo" button.
+
+### Phase 6B - Growth Features (Remaining)
+> **Scope**: Online booking widget, WhatsApp reminders. See **Section 8** for future items.
 
 ---
 
@@ -471,13 +502,15 @@ src/
       salons/page.tsx      # Multi-location salon management (admin only)
       sales/page.tsx       # Retail product sales POS
       expenses/page.tsx    # Expense tracking CRUD with categories
+      rewards/page.tsx     # Loyalty rewards management (admin only)
   components/
     index.ts               # Barrel exports
     Button.tsx, Input.tsx, Select.tsx, Card.tsx,
     Modal.tsx, Table.tsx, Alert.tsx, Layout.tsx,
     SearchableSelect.tsx, RoleGuard.tsx,
     SessionCard.tsx, ClientHistoryModal.tsx,
-    CategoryServicePicker.tsx, Toast.tsx
+    CategoryServicePicker.tsx, Toast.tsx,
+    ReceiptModal.tsx
   hooks/
     index.ts, useAuth.ts, useAsync.ts, useNotification.ts, useRealtime.ts
   lib/
@@ -485,7 +518,8 @@ src/
     repositories/clientRepository.ts, serviceRepository.ts,
                   staffRepository.ts, productRepository.ts,
                   sessionRepository.ts, salonRepository.ts,
-                  retailSaleRepository.ts, expenseRepository.ts
+                  retailSaleRepository.ts, expenseRepository.ts,
+                  loyaltyRepository.ts
     services/index.ts, sessionService.ts, appointmentService.ts,
              inventoryService.ts, analyticsService.ts,
              commissionService.ts
@@ -507,4 +541,4 @@ src/
 
 ---
 
-*Last updated: 2026-03-27 | All phases through 5A done. All P0–P3 items resolved. Phase 5A: multi-location, retail sales, expense tracking. Next: Phase 5B (online booking, WhatsApp, loyalty program). See Section 8 for full issue tracker.*
+*Last updated: 2026-03-27 | All phases through 5C done. All P0–P3 items resolved. Phase 6A: 15 mobile UX hardening issues from elderly-user audit (P1.6). Phase 6B: growth features (online booking, WhatsApp). See Section 8 for full issue tracker.*

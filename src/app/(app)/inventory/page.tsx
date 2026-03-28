@@ -13,6 +13,7 @@ import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { Product, ProductCategory } from '@/types/models';
+import { fmtBs } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 const initialFormData = {
@@ -151,8 +152,8 @@ export default function InventoryPage() {
         </span>
       ),
     },
-    { key: 'cost', label: ES.inventory.cost, render: (v) => `$${v?.toFixed(2)}` },
-    { key: 'price', label: ES.inventory.price, render: (v) => `$${v?.toFixed(2)}` },
+    { key: 'cost', label: ES.inventory.cost, render: (v) => fmtBs(Number(v)) },
+    { key: 'price', label: ES.inventory.price, render: (v) => fmtBs(Number(v)) },
     {
       key: 'id',
       label: ES.actions.edit,

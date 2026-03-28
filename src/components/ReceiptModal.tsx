@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Modal } from '@/components/Modal';
 import { Button } from '@/components/Button';
 import { Session } from '@/types/models';
-import { toDate } from '@/lib/utils/helpers';
+import { toDate, fmtBs } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 interface ReceiptModalProps {
@@ -72,19 +72,19 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
       `${ES.sessions.client}: ${clientName}`,
       '',
       `--- ${ES.sessions.services} ---`,
-      ...services.map((s) => `${s.serviceName}: $${s.price.toFixed(2)}`),
+      ...services.map((s) => `${s.serviceName}: ${fmtBs(s.price)}`),
       ...(materialPrices > 0 ? [
         '',
         `--- ${ES.sessions.materialsUsed} ---`,
-        ...materials.map((m) => `${m.productName}: $${m.cost.toFixed(2)}`),
+        ...materials.map((m) => `${m.productName}: ${fmtBs(m.cost)}`),
       ] : []),
       '',
-      `${ES.payments.total}: $${total.toFixed(2)}`,
-      `${ES.payments.paid}: $${paidAmount.toFixed(2)}`,
+      `${ES.payments.total}: ${fmtBs(total)}`,
+      `${ES.payments.paid}: ${fmtBs(paidAmount)}`,
       ...(payments.length > 0 ? [
         '',
         `--- ${ES.receipt.paymentDetail} ---`,
-        ...payments.map((p) => `${methodLabels[p.method] || p.method}: $${p.amount.toFixed(2)}`),
+        ...payments.map((p) => `${methodLabels[p.method] || p.method}: ${fmtBs(p.amount)}`),
       ] : []),
       '',
       ES.receipt.thankYou,
@@ -125,7 +125,7 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
                   </span>
                 )}
               </span>
-              <span className="font-medium">${svc.price.toFixed(2)}</span>
+              <span className="font-medium">{fmtBs(svc.price)}</span>
             </div>
           ))}
         </div>
@@ -139,7 +139,7 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
               {materials.map((mat, i) => (
                 <div key={i} className="flex justify-between text-sm">
                   <span className="text-gray-600">{mat.productName} ({mat.quantity} {mat.unit})</span>
-                  <span className="font-medium">${mat.cost.toFixed(2)}</span>
+                  <span className="font-medium">{fmtBs(mat.cost)}</span>
                 </div>
               ))}
             </div>
@@ -152,17 +152,17 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
         <div className="space-y-1">
           <div className="flex justify-between text-sm">
             <span>{ES.sessions.servicesSubtotal}</span>
-            <span>${servicePrices.toFixed(2)}</span>
+            <span>{fmtBs(servicePrices)}</span>
           </div>
           {materialPrices > 0 && (
             <div className="flex justify-between text-sm">
               <span>{ES.sessions.materialsSubtotal}</span>
-              <span>${materialPrices.toFixed(2)}</span>
+              <span>{fmtBs(materialPrices)}</span>
             </div>
           )}
           <div className="flex justify-between text-base font-bold border-t border-gray-300 pt-1 mt-1">
             <span>{ES.payments.total}</span>
-            <span>${total.toFixed(2)}</span>
+            <span>{fmtBs(total)}</span>
           </div>
         </div>
 
@@ -174,12 +174,12 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
             {payments.map((p) => (
               <div key={p.id} className="flex justify-between text-sm">
                 <span className="text-gray-600">{methodLabels[p.method] || p.method}</span>
-                <span>${p.amount.toFixed(2)}</span>
+                <span>{fmtBs(p.amount)}</span>
               </div>
             ))}
             <div className="flex justify-between text-sm font-semibold mt-1">
               <span>{ES.payments.paid}</span>
-              <span className="text-green-600">${paidAmount.toFixed(2)}</span>
+              <span className="text-green-600">{fmtBs(paidAmount)}</span>
             </div>
           </>
         )}

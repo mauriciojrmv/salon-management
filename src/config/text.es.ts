@@ -621,7 +621,7 @@ export const ES = {
     title: 'Programa de Lealtad',
     points: 'Puntos',
     pointsBalance: 'Puntos Disponibles',
-    earnRate: '1 punto por cada $1',
+    earnRate: '1 punto por cada Bs. 50',
     earned: 'Ganados',
     redeemed: 'Canjeados',
     redeem: 'Canjear',

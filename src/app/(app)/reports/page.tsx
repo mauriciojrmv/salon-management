@@ -11,6 +11,7 @@ import { useNotification } from '@/hooks/useNotification';
 import { Button } from '@/components/Button';
 import { AnalyticsService, PayrollStaffEntry } from '@/lib/services/analyticsService';
 import ES from '@/config/text.es';
+import { fmtBs } from '@/lib/utils/helpers';
 
 function PayrollCard({ entry }: { entry: PayrollStaffEntry }) {
   const [expanded, setExpanded] = useState(false);
@@ -26,12 +27,12 @@ function PayrollCard({ entry }: { entry: PayrollStaffEntry }) {
           <div>
             <p className="font-semibold text-gray-900 text-lg">{entry.staffName}</p>
             <p className="text-sm text-gray-500">
-              {entry.servicesCompleted} {ES.reports.servicesCount.toLowerCase()} · {ES.reports.revenue}: ${entry.revenue.toFixed(2)}
+              {entry.servicesCompleted} {ES.reports.servicesCount.toLowerCase()} · {ES.reports.revenue}: {fmtBs(entry.revenue)}
             </p>
           </div>
           <div className="text-right">
             <p className="text-xs text-gray-500 uppercase tracking-wide">{ES.reports.totalToPay}</p>
-            <p className="text-2xl font-bold text-green-600">${entry.totalCommission.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-green-600">{fmtBs(entry.totalCommission)}</p>
           </div>
         </div>
 
@@ -39,15 +40,15 @@ function PayrollCard({ entry }: { entry: PayrollStaffEntry }) {
         <div className="mt-3 grid grid-cols-3 gap-3 text-center">
           <div className="bg-blue-50 rounded-lg p-2">
             <p className="text-xs text-blue-600">{ES.reports.serviceRevenue}</p>
-            <p className="font-semibold text-blue-900">${entry.revenue.toFixed(2)}</p>
+            <p className="font-semibold text-blue-900">{fmtBs(entry.revenue)}</p>
           </div>
           <div className="bg-red-50 rounded-lg p-2">
             <p className="text-xs text-red-600">{ES.reports.materialDeduction}</p>
-            <p className="font-semibold text-red-900">-${entry.materialCost.toFixed(2)}</p>
+            <p className="font-semibold text-red-900">-{fmtBs(entry.materialCost)}</p>
           </div>
           <div className="bg-green-50 rounded-lg p-2">
             <p className="text-xs text-green-600">{ES.reports.commissionEarned}</p>
-            <p className="font-semibold text-green-900">${entry.totalCommission.toFixed(2)}</p>
+            <p className="font-semibold text-green-900">{fmtBs(entry.totalCommission)}</p>
           </div>
         </div>
 
@@ -83,20 +84,20 @@ function PayrollCard({ entry }: { entry: PayrollStaffEntry }) {
                       <td className="py-2 pr-3 text-gray-600">{d.date}</td>
                       <td className="py-2 pr-3 text-gray-900">{d.clientName}</td>
                       <td className="py-2 pr-3 text-gray-900">{d.serviceName}</td>
-                      <td className="py-2 pr-3 text-right">${d.price.toFixed(2)}</td>
+                      <td className="py-2 pr-3 text-right">{fmtBs(d.price)}</td>
                       <td className="py-2 pr-3 text-right text-red-600">
-                        {d.materialCost > 0 ? `-$${d.materialCost.toFixed(2)}` : '-'}
+                        {d.materialCost > 0 ? `-${fmtBs(d.materialCost)}` : '-'}
                       </td>
-                      <td className="py-2 text-right font-medium text-green-600">${d.commission.toFixed(2)}</td>
+                      <td className="py-2 text-right font-medium text-green-600">{fmtBs(d.commission)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-300 font-semibold">
                     <td colSpan={3} className="py-2 text-gray-900">{ES.payments.total}</td>
-                    <td className="py-2 text-right">${entry.revenue.toFixed(2)}</td>
-                    <td className="py-2 text-right text-red-600">-${entry.materialCost.toFixed(2)}</td>
-                    <td className="py-2 text-right text-green-600">${entry.totalCommission.toFixed(2)}</td>
+                    <td className="py-2 text-right">{fmtBs(entry.revenue)}</td>
+                    <td className="py-2 text-right text-red-600">-{fmtBs(entry.materialCost)}</td>
+                    <td className="py-2 text-right text-green-600">{fmtBs(entry.totalCommission)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -133,11 +134,11 @@ export default function ReportsPage() {
   const profitabilityColumns = [
     { key: 'serviceName', label: ES.reports.service },
     { key: 'count', label: ES.reports.sessionsCount },
-    { key: 'revenue', label: ES.reports.revenue, render: (v: number) => `$${v?.toFixed(2)}` },
-    { key: 'materialCost', label: ES.reports.materialCost, render: (v: number) => `$${v?.toFixed(2)}` },
+    { key: 'revenue', label: ES.reports.revenue, render: (v: number) => fmtBs(v ?? 0) },
+    { key: 'materialCost', label: ES.reports.materialCost, render: (v: number) => fmtBs(v ?? 0) },
     { key: 'profit', label: ES.reports.profit, render: (v: number) => (
       <span className={v > 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-        ${v?.toFixed(2)}
+        {fmtBs(v ?? 0)}
       </span>
     )},
     { key: 'profitMargin', label: ES.reports.margin, render: (v: number) => `${v?.toFixed(1)}%` },
@@ -212,26 +213,26 @@ export default function ReportsPage() {
         <Card>
           <CardBody>
             <p className="text-gray-600 text-sm font-medium mb-1">{ES.reports.totalRevenue}</p>
-            <p className="text-2xl font-bold text-gray-900">${totalRevenue.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-gray-900">{fmtBs(totalRevenue)}</p>
           </CardBody>
         </Card>
         <Card>
           <CardBody>
             <p className="text-gray-600 text-sm font-medium mb-1">{ES.reports.totalPayroll}</p>
-            <p className="text-2xl font-bold text-orange-600">${totalPayroll.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-orange-600">{fmtBs(totalPayroll)}</p>
           </CardBody>
         </Card>
         <Card>
           <CardBody>
             <p className="text-gray-600 text-sm font-medium mb-1">{ES.reports.totalMaterialCost}</p>
-            <p className="text-2xl font-bold text-red-600">${totalMaterialCost.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-red-600">{fmtBs(totalMaterialCost)}</p>
           </CardBody>
         </Card>
         <Card>
           <CardBody>
             <p className="text-gray-600 text-sm font-medium mb-1">{ES.reports.salonProfit}</p>
             <p className={`text-2xl font-bold ${salonProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              ${salonProfit.toFixed(2)}
+              {fmtBs(salonProfit)}
             </p>
           </CardBody>
         </Card>

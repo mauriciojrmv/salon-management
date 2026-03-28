@@ -5,7 +5,7 @@ import { LoyaltyRepository } from '@/lib/repositories/loyaltyRepository';
 import { Session, SessionServiceItem, MaterialUsage, Payment } from '@/types/models';
 import { AddServiceToSessionRequest, ProcessPaymentRequest, CreateSessionRequest } from '@/types/api';
 import { batchUpdate } from '@/lib/firebase/db';
-import { DEFAULT_COMMISSION_RATE } from '@/lib/utils/helpers';
+import { DEFAULT_COMMISSION_RATE, LOYALTY_POINTS_RATE } from '@/lib/utils/helpers';
 
 function auditLog(action: string, details: Record<string, unknown>) {
   console.log(`[AUDIT] ${new Date().toISOString()} | ${action}`, details);
@@ -110,8 +110,8 @@ export class SessionService {
       totalAmount,
     });
 
-    // Award loyalty points: 1 point per $1 spent
-    const pointsEarned = Math.floor(totalAmount);
+    // Award loyalty points: 1 point per Bs. 50 spent
+    const pointsEarned = Math.floor(totalAmount / LOYALTY_POINTS_RATE);
     if (pointsEarned > 0 && session.clientId) {
       try {
         const client = await ClientRepository.getClient(session.clientId);
@@ -124,7 +124,7 @@ export class SessionService {
             clientId: session.clientId,
             type: 'earned',
             points: pointsEarned,
-            description: `Trabajo #${sessionId.slice(-6)} — $${totalAmount.toFixed(2)}`,
+            description: `Trabajo #${sessionId.slice(-6)} — Bs. ${totalAmount.toFixed(2)}`,
             sessionId,
           });
         }

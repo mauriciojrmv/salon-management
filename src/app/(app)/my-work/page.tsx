@@ -19,7 +19,7 @@ import { ProductRepository } from '@/lib/repositories/productRepository';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { batchUpdate, firebaseConstraints } from '@/lib/firebase/db';
 import type { Session, SessionServiceItem } from '@/types/models';
-import { toDate } from '@/lib/utils/helpers';
+import { toDate, fmtBs } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 interface MaterialEntry {
@@ -204,7 +204,7 @@ export default function MyWorkPage() {
   const productOptions = (products || []).map((p) => ({
     value: p.id,
     label: p.name,
-    secondary: `${ES.sessions.materialSellPrice}: $${p.price}/${p.unit || 'ud'} · Stock: ${p.currentStock}`,
+    secondary: `${ES.sessions.materialSellPrice}: Bs. ${p.price}/${p.unit || 'ud'} · Stock: ${p.currentStock}`,
   }));
 
   const handleAddMaterialRow = () => {
@@ -362,7 +362,7 @@ export default function MyWorkPage() {
                           {getClientName(session.clientId)} · {toDate(service.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
-                      <span className="text-lg font-bold text-gray-900">${service.price.toFixed(2)}</span>
+                      <span className="text-lg font-bold text-gray-900">{fmtBs(service.price)}</span>
                     </div>
 
                     {/* Materials already used */}
@@ -456,7 +456,7 @@ export default function MyWorkPage() {
                       <p className="text-xs text-gray-500">{getClientName(session.clientId)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-700">${service.price.toFixed(2)}</p>
+                      <p className="text-sm font-semibold text-gray-700">{fmtBs(service.price)}</p>
                       <span className="text-xs text-green-600">{ES.sessions.completed}</span>
                     </div>
                   </div>
@@ -499,8 +499,8 @@ export default function MyWorkPage() {
                     </div>
                     {mat.unit && <span className="text-sm text-gray-500 pb-3">{mat.unit}</span>}
                     <div className="text-right pb-3">
-                      <p className="text-xs text-gray-400">${mat.pricePerUnit.toFixed(2)}/{mat.unit}</p>
-                      <p className="text-sm font-semibold">${mat.totalPrice.toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">{fmtBs(mat.pricePerUnit)}/{mat.unit}</p>
+                      <p className="text-sm font-semibold">{fmtBs(mat.totalPrice)}</p>
                     </div>
                     <button
                       type="button"

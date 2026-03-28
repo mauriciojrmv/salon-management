@@ -15,7 +15,7 @@ import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { RetailSaleRepository } from '@/lib/repositories/retailSaleRepository';
 import { batchUpdate } from '@/lib/firebase/db';
 import type { RetailSale } from '@/types/models';
-import { toDate } from '@/lib/utils/helpers';
+import { toDate, fmtBs } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 interface SaleItem {
@@ -57,7 +57,7 @@ export default function SalesPage() {
   const productOptions = (products || []).map((p) => ({
     value: p.id,
     label: p.name,
-    secondary: `$${p.price} · Stock: ${p.currentStock} ${p.unit || 'un'}`,
+    secondary: `Bs. ${p.price} · Stock: ${p.currentStock} ${p.unit || 'un'}`,
   }));
 
   const clientOptions = (clients || []).map((c) => ({
@@ -198,7 +198,7 @@ export default function SalesPage() {
         <Card>
           <CardBody>
             <p className="text-gray-600 text-sm font-medium mb-1">{ES.retail.totalSales}</p>
-            <p className="text-2xl font-bold text-gray-900">${dailyTotal.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-gray-900">Bs. {dailyTotal.toFixed(2)}</p>
           </CardBody>
         </Card>
       </div>
@@ -225,13 +225,13 @@ export default function SalesPage() {
                       {' · '}{methodLabels[sale.payment?.method] || sale.payment?.method}
                     </p>
                   </div>
-                  <span className="text-lg font-bold text-gray-900">${sale.totalAmount.toFixed(2)}</span>
+                  <span className="text-lg font-bold text-gray-900">Bs. {sale.totalAmount.toFixed(2)}</span>
                 </div>
                 <div className="space-y-1">
                   {(sale.items || []).map((item, i) => (
                     <div key={i} className="flex justify-between text-sm text-gray-600">
                       <span>{item.productName} x{item.quantity}</span>
-                      <span>${item.total.toFixed(2)}</span>
+                      <span>Bs. {item.total.toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
@@ -283,8 +283,8 @@ export default function SalesPage() {
                       />
                     </div>
                     <div className="flex-1 text-right pb-3">
-                      <p className="text-xs text-gray-400">${item.unitPrice.toFixed(2)} c/u</p>
-                      <p className="text-sm font-semibold">${item.total.toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">Bs. {item.unitPrice.toFixed(2)} c/u</p>
+                      <p className="text-sm font-semibold">Bs. {item.total.toFixed(2)}</p>
                     </div>
                     <button type="button" onClick={() => handleRemoveItem(idx)} className="text-red-500 hover:text-red-700 text-xs pb-3">
                       {ES.retail.removeItem}
@@ -326,7 +326,7 @@ export default function SalesPage() {
           {/* Total */}
           <div className="bg-gray-50 rounded-lg p-3 text-center">
             <p className="text-sm text-gray-500">{ES.retail.total}</p>
-            <p className="text-3xl font-bold text-gray-900">${saleTotal.toFixed(2)}</p>
+            <p className="text-3xl font-bold text-gray-900">Bs. {saleTotal.toFixed(2)}</p>
           </div>
 
           <div className="flex gap-2 pt-2">

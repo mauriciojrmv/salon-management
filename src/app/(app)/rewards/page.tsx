@@ -12,6 +12,7 @@ import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { LoyaltyRepository } from '@/lib/repositories/loyaltyRepository';
 import type { LoyaltyReward } from '@/types/models';
+import { fmtBs } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 const rewardTypeOptions = [
@@ -163,7 +164,7 @@ export default function RewardsPage() {
                   </div>
                   <div className="text-center">
                     <p className="text-xl font-bold text-gray-900">
-                      {reward.type === 'discount' ? `${reward.value}%` : `$${reward.value}`}
+                      {reward.type === 'discount' ? `${reward.value}%` : fmtBs(reward.value)}
                     </p>
                     <p className="text-xs text-gray-500">{ES.loyalty.rewardValue}</p>
                   </div>
@@ -212,7 +213,7 @@ export default function RewardsPage() {
             options={rewardTypeOptions}
           />
           <Input
-            label={formData.type === 'discount' ? `${ES.loyalty.rewardValue} (%)` : `${ES.loyalty.rewardValue} ($)`}
+            label={formData.type === 'discount' ? `${ES.loyalty.rewardValue} (%)` : `${ES.loyalty.rewardValue} (Bs.)`}
             type="number"
             value={formData.value || ''}
             onChange={(e) => setFormData({ ...formData, value: parseFloat(e.target.value) || 0 })}

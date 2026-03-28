@@ -12,6 +12,7 @@ import { ProductRepository } from '@/lib/repositories/productRepository';
 import { firebaseConstraints } from '@/lib/firebase/db';
 import { Session, Client, Product } from '@/types/models';
 import ES from '@/config/text.es';
+import { fmtBs } from '@/lib/utils/helpers';
 
 export default function Dashboard() {
   const { userData, loading: authLoading } = useAuth();
@@ -101,7 +102,7 @@ export default function Dashboard() {
       label: ES.sessions.client,
       render: (v) => getClientName(v as string),
     },
-    { key: 'totalAmount', label: ES.sessions.totalAmount, render: (v) => `$${v?.toFixed(2)}` },
+    { key: 'totalAmount', label: ES.sessions.totalAmount, render: (v) => fmtBs(Number(v) || 0) },
     {
       key: 'status',
       label: ES.sessions.status || 'Estado',
@@ -138,7 +139,7 @@ export default function Dashboard() {
           <CardBody>
             <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.totalRevenue}</p>
             <p className="text-2xl font-bold text-gray-900">
-              ${metrics?.totalRevenue.toFixed(2) || '0.00'}
+              {fmtBs(metrics?.totalRevenue ?? 0)}
             </p>
           </CardBody>
         </Card>
@@ -158,7 +159,7 @@ export default function Dashboard() {
           <CardBody>
             <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.avgTransaction}</p>
             <p className="text-2xl font-bold text-gray-900">
-              ${metrics?.averageTransactionValue.toFixed(2) || '0.00'}
+              {fmtBs(metrics?.averageTransactionValue ?? 0)}
             </p>
           </CardBody>
         </Card>
@@ -259,30 +260,30 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                 <div className="bg-green-50 rounded-lg p-3 text-center">
                   <p className="text-xs text-green-600 font-medium">{ES.dashboard.totalCash}</p>
-                  <p className="text-xl font-bold text-green-800">${cash.toFixed(2)}</p>
+                  <p className="text-xl font-bold text-green-800">{fmtBs(cash)}</p>
                 </div>
                 <div className="bg-blue-50 rounded-lg p-3 text-center">
                   <p className="text-xs text-blue-600 font-medium">{ES.dashboard.totalCard}</p>
-                  <p className="text-xl font-bold text-blue-800">${card.toFixed(2)}</p>
+                  <p className="text-xl font-bold text-blue-800">{fmtBs(card)}</p>
                 </div>
                 <div className="bg-purple-50 rounded-lg p-3 text-center">
                   <p className="text-xs text-purple-600 font-medium">{ES.dashboard.totalQR}</p>
-                  <p className="text-xl font-bold text-purple-800">${qr.toFixed(2)}</p>
+                  <p className="text-xl font-bold text-purple-800">{fmtBs(qr)}</p>
                 </div>
                 <div className="bg-orange-50 rounded-lg p-3 text-center">
                   <p className="text-xs text-orange-600 font-medium">{ES.dashboard.totalTransfer}</p>
-                  <p className="text-xl font-bold text-orange-800">${transfer.toFixed(2)}</p>
+                  <p className="text-xl font-bold text-orange-800">{fmtBs(transfer)}</p>
                 </div>
               </div>
               <div className="flex justify-between items-center border-t border-gray-200 pt-3">
                 <div>
                   <p className="text-sm text-gray-500">{ES.dashboard.totalCollected}</p>
-                  <p className="text-2xl font-bold text-gray-900">${totalCollected.toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-gray-900">{fmtBs(totalCollected)}</p>
                 </div>
                 {activeTotal > 0 && (
                   <div className="text-right">
                     <p className="text-sm text-gray-500">{ES.dashboard.pendingCollection}</p>
-                    <p className="text-xl font-bold text-orange-600">${activeTotal.toFixed(2)}</p>
+                    <p className="text-xl font-bold text-orange-600">{fmtBs(activeTotal)}</p>
                   </div>
                 )}
               </div>
@@ -326,7 +327,7 @@ export default function Dashboard() {
                       {service.count} {ES.dashboard.sessionsCount}
                     </p>
                   </div>
-                  <p className="text-lg font-semibold text-gray-900">${service.revenue.toFixed(2)}</p>
+                  <p className="text-lg font-semibold text-gray-900">{fmtBs(service.revenue)}</p>
                 </div>
               ))}
             </div>
@@ -353,7 +354,7 @@ export default function Dashboard() {
                       {staff.sessionsCompleted} {ES.dashboard.sessionsCount}
                     </p>
                   </div>
-                  <p className="text-lg font-semibold text-gray-900">${staff.earnings.toFixed(2)}</p>
+                  <p className="text-lg font-semibold text-gray-900">{fmtBs(staff.earnings)}</p>
                 </div>
               ))}
             </div>

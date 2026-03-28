@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardBody, CardHeader } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Session } from '@/types/models';
-import { toDate } from '@/lib/utils/helpers';
+import { toDate, fmtBs } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 interface SessionCardProps {
@@ -54,7 +54,7 @@ export function SessionCard({
           <div>
             <h3 className="font-semibold text-gray-900 text-lg">{clientName}</h3>
             <p className="text-sm text-gray-500">
-              {sessionServices.length} {ES.sessions.services.toLowerCase()} · ${total.toFixed(2)}
+              {sessionServices.length} {ES.sessions.services.toLowerCase()} · {fmtBs(total)}
             </p>
           </div>
           <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
@@ -110,7 +110,7 @@ export function SessionCard({
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold">${service.price.toFixed(2)}</p>
+                        <p className="text-sm font-semibold">{fmtBs(service.price)}</p>
                         {onRemoveService && canCancel && (
                           <button
                             type="button"
@@ -132,7 +132,7 @@ export function SessionCard({
                       <div className="mt-1 pl-3 border-l-2 border-gray-200">
                         {service.materialsUsed.map((mat, i) => (
                           <p key={i} className="text-xs text-gray-400">
-                            {mat.productName}: {mat.quantity} {mat.unit} · ${mat.cost.toFixed(2)}
+                            {mat.productName}: {mat.quantity} {mat.unit} · {fmtBs(mat.cost)}
                           </p>
                         ))}
                       </div>
@@ -149,28 +149,28 @@ export function SessionCard({
           <div className="bg-gray-50 rounded-lg p-3 mb-4 space-y-1 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-600">{ES.sessions.servicesSubtotal}</span>
-              <span className="font-medium">${servicePrices.toFixed(2)}</span>
+              <span className="font-medium">{fmtBs(servicePrices)}</span>
             </div>
             {materialPrices > 0 && (
               <div className="flex justify-between">
                 <span className="text-gray-600">{ES.sessions.materialsSubtotal}</span>
-                <span className="font-medium">${materialPrices.toFixed(2)}</span>
+                <span className="font-medium">{fmtBs(materialPrices)}</span>
               </div>
             )}
             <div className="flex justify-between border-t border-gray-200 pt-1 mt-1">
               <span className="text-gray-900 font-semibold">{ES.payments.total}</span>
-              <span className="text-gray-900 font-bold">${total.toFixed(2)}</span>
+              <span className="text-gray-900 font-bold">{fmtBs(total)}</span>
             </div>
             {paidAmount > 0 && (
               <div className="flex justify-between">
                 <span className="text-gray-600">{ES.payments.paid}</span>
-                <span className="text-green-600 font-semibold">${paidAmount.toFixed(2)}</span>
+                <span className="text-green-600 font-semibold">{fmtBs(paidAmount)}</span>
               </div>
             )}
             {remaining > 0 && (
               <div className="flex justify-between">
                 <span className="text-gray-600">{ES.payments.remaining}</span>
-                <span className="text-red-600 font-semibold">${remaining.toFixed(2)}</span>
+                <span className="text-red-600 font-semibold">{fmtBs(remaining)}</span>
               </div>
             )}
           </div>

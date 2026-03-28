@@ -12,6 +12,7 @@ import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { ExpenseRepository } from '@/lib/repositories/expenseRepository';
 import type { Expense, ExpenseCategory } from '@/types/models';
+import { fmtBs } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 const categoryOptions: { value: ExpenseCategory; label: string }[] = [
@@ -189,7 +190,7 @@ export default function ExpensesPage() {
         <Card className="flex-1">
           <CardBody>
             <p className="text-gray-600 text-sm font-medium">{ES.expenses.totalExpenses}</p>
-            <p className="text-2xl font-bold text-red-600">${totalExpenses.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-red-600">Bs. {totalExpenses.toFixed(2)}</p>
           </CardBody>
         </Card>
       </div>
@@ -200,7 +201,7 @@ export default function ExpensesPage() {
           {categoryTotals.map(([cat, total]) => (
             <div key={cat} className={`rounded-lg p-3 text-center ${categoryColors[cat] || 'bg-gray-100 text-gray-700'}`}>
               <p className="text-xs font-medium">{categoryLabels[cat] || cat}</p>
-              <p className="text-lg font-bold">${total.toFixed(2)}</p>
+              <p className="text-lg font-bold">Bs. {total.toFixed(2)}</p>
             </div>
           ))}
         </div>
@@ -235,7 +236,7 @@ export default function ExpensesPage() {
                     {expense.paidTo && <p className="text-xs text-gray-500">{expense.paidTo}</p>}
                   </div>
                   <div className="text-right ml-3">
-                    <p className="text-lg font-bold text-red-600">${expense.amount.toFixed(2)}</p>
+                    <p className="text-lg font-bold text-red-600">Bs. {expense.amount.toFixed(2)}</p>
                     <p className="text-xs text-gray-400">{methodLabels[expense.paymentMethod || ''] || ''}</p>
                   </div>
                 </div>
