@@ -55,6 +55,7 @@ export default function SessionsPage() {
   const [historyClientId, setHistoryClientId] = useState<string | null>(null);
   const [cancelSessionId, setCancelSessionId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
+  const [reopenSessionId, setReopenSessionId] = useState<string | null>(null);
   const [noteSessionId, setNoteSessionId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
   const [receiptSession, setReceiptSession] = useState<Session | null>(null);
@@ -76,6 +77,7 @@ export default function SessionsPage() {
   const [sessionRemainingForPayment, setSessionRemainingForPayment] = useState(0);
   const [selectedPaymentServiceIds, setSelectedPaymentServiceIds] = useState<string[]>([]);
   const [paymentSessionRef, setPaymentSessionRef] = useState<Session | null>(null);
+  const [showAdvancedPayment, setShowAdvancedPayment] = useState(false);
 
   // Data — real-time sessions (syncs across admin/staff/manager instantly)
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -372,10 +374,10 @@ export default function SessionsPage() {
   };
 
   const handleReopenSession = async (sessionId: string) => {
-    if (!confirm(ES.sessions.confirmReopen)) return;
     try {
       await SessionService.reopenSession(sessionId);
       success(ES.sessions.sessionReopened);
+      setReopenSessionId(null);
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
     }
@@ -456,7 +458,10 @@ export default function SessionsPage() {
       {activeSessions.length === 0 ? (
         <Card>
           <CardBody>
-            <p className="text-center text-gray-500 py-4">{ES.sessions.noActiveSessions}</p>
+            <div className="text-center py-8">
+              <p className="text-gray-500 text-lg mb-2">{ES.sessions.noActiveSessions}</p>
+              <p className="text-gray-400 text-sm">{ES.sessions.noActiveSessionsCta}</p>
+            </div>
           </CardBody>
         </Card>
       ) : (
@@ -500,6 +505,7 @@ export default function SessionsPage() {
                 const remaining = session.totalAmount - paid;
                 setSessionRemainingForPayment(remaining);
                 setPaymentEntries([{ amount: remaining, method: 'cash', payerNote: '', amountGiven: 0 }]);
+                setShowAdvancedPayment(false);
                 setIsPaymentModalOpen(true);
               }}
               onCloseSession={() => handleCloseSession(session.id)}
@@ -595,7 +601,8 @@ export default function SessionsPage() {
                             setSelectedPaymentServiceIds(allSvcIds);
                             setSessionRemainingForPayment(remaining);
                             setPaymentEntries([{ amount: remaining, method: 'cash', payerNote: '', amountGiven: 0 }]);
-                            setIsPaymentModalOpen(true);
+                            setShowAdvancedPayment(false);
+                setIsPaymentModalOpen(true);
                           }}>
                             {ES.payments.processPayment}
                           </Button>
@@ -606,7 +613,7 @@ export default function SessionsPage() {
                         }}>
                           {ES.sessions.addNote}
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleReopenSession(session.id)}>
+                        <Button size="sm" variant="ghost" onClick={() => setReopenSessionId(session.id)}>
                           {ES.sessions.reopenSession}
                         </Button>
                       </div>
@@ -654,6 +661,21 @@ export default function SessionsPage() {
       )}
 
       {/* ==================== MODALS ==================== */}
+
+      {/* Reopen Session Confirm Modal */}
+      <Modal isOpen={!!reopenSessionId} onClose={() => setReopenSessionId(null)} title={ES.sessions.reopenSession}>
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">{ES.sessions.confirmReopen}</p>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setReopenSessionId(null)}>
+              {ES.actions.cancel}
+            </Button>
+            <Button onClick={() => reopenSessionId && handleReopenSession(reopenSessionId)}>
+              {ES.sessions.reopenSession}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Cancel Session Modal — requires reason */}
       <Modal isOpen={!!cancelSessionId} onClose={() => setCancelSessionId(null)} title={ES.sessions.cancelSession}>
@@ -901,11 +923,23 @@ export default function SessionsPage() {
         </div>
       </Modal>
 
-      {/* Payment Modal — restaurant-style: big total, tap method, done */}
+      {/* Payment Modal — simple default: big total → tap method → confirm. Advanced: split + per-service */}
       <Modal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} title={ES.payments.processPayment} size="lg">
         <div className="space-y-4">
-          {/* Per-service selection — pick which services to pay for */}
-          {paymentSessionRef && (paymentSessionRef.services || []).length > 1 && (
+
+          {/* Advanced toggle */}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowAdvancedPayment(!showAdvancedPayment)}
+              className="text-xs text-blue-600 font-medium flex items-center gap-1 py-1 px-2 rounded hover:bg-blue-50"
+            >
+              {showAdvancedPayment ? '▲' : '▼'} {ES.payments.advancedOptions}
+            </button>
+          </div>
+
+          {/* ADVANCED: Per-service selection — pick which services to pay for */}
+          {showAdvancedPayment && paymentSessionRef && (paymentSessionRef.services || []).length > 1 && (
             <div className="bg-gray-50 rounded-xl p-3">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{ES.payments.selectServices}</p>
@@ -1021,6 +1055,8 @@ export default function SessionsPage() {
             );
           })()}
 
+          {/* END advanced: per-service */}
+
           {/* Big total display */}
           <div className="text-center py-3">
             <p className="text-sm text-gray-500 mb-1">{ES.payments.remaining}</p>
@@ -1134,18 +1170,20 @@ export default function SessionsPage() {
             );
           })}
 
-          {/* Split/Add person button — big and obvious */}
-          <button
-            type="button"
-            onClick={() => {
-              const usedAmount = paymentEntries.reduce((sum, e) => sum + e.amount, 0);
-              const leftover = Math.max(0, sessionRemainingForPayment - usedAmount);
-              setPaymentEntries([...paymentEntries, { amount: leftover, method: 'cash', payerNote: '', amountGiven: 0 }]);
-            }}
-            className="w-full py-4 border-2 border-dashed border-gray-300 rounded-xl text-base text-blue-600 font-semibold hover:border-blue-400 hover:bg-blue-50 transition-colors"
-          >
-            👥 {ES.payments.splitPayment}
-          </button>
+          {/* ADVANCED: Split/Add person button */}
+          {showAdvancedPayment && (
+            <button
+              type="button"
+              onClick={() => {
+                const usedAmount = paymentEntries.reduce((sum, e) => sum + e.amount, 0);
+                const leftover = Math.max(0, sessionRemainingForPayment - usedAmount);
+                setPaymentEntries([...paymentEntries, { amount: leftover, method: 'cash', payerNote: '', amountGiven: 0 }]);
+              }}
+              className="w-full py-4 border-2 border-dashed border-gray-300 rounded-xl text-base text-blue-600 font-semibold hover:border-blue-400 hover:bg-blue-50 transition-colors"
+            >
+              👥 {ES.payments.splitPayment}
+            </button>
+          )}
 
           {/* Summary bar when split */}
           {paymentEntries.length > 1 && (

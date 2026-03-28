@@ -89,7 +89,7 @@ export function SearchableSelect({
       key={option.value}
       type="button"
       onClick={() => handleSelect(option.value)}
-      className={`w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 transition-colors flex items-center justify-between ${
+      className={`w-full text-left px-4 py-3.5 text-sm hover:bg-blue-50 transition-colors flex items-center justify-between ${
         option.value === value ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-900'
       }`}
     >
@@ -112,7 +112,7 @@ export function SearchableSelect({
       {/* Display selected value / trigger */}
       <div
         onClick={handleOpen}
-        className={`w-full px-4 py-2.5 border rounded-lg cursor-pointer flex items-center justify-between ${
+        className={`w-full px-4 py-3.5 border rounded-lg cursor-pointer flex items-center justify-between ${
           error ? 'border-red-500' : 'border-gray-300'
         } ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white hover:border-gray-400'}`}
       >
@@ -127,7 +127,7 @@ export function SearchableSelect({
       {/* Dropdown */}
       {isOpen && (
         <div className="relative z-50">
-          <div className="absolute top-1 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-hidden">
+          <div className="absolute top-1 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg max-h-[60vh] overflow-hidden">
             {/* Search input */}
             <div className="p-2 border-b border-gray-100">
               <input
@@ -141,7 +141,7 @@ export function SearchableSelect({
             </div>
 
             {/* Options list */}
-            <div className="max-h-48 overflow-y-auto">
+            <div className="max-h-[50vh] overflow-y-auto">
               {filtered.length === 0 ? (
                 <div className="px-4 py-3 text-sm text-gray-500 text-center">
                   {ES.app.noResults}

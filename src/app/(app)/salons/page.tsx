@@ -28,6 +28,7 @@ export default function SalonsPage() {
   const [editingSalon, setEditingSalon] = useState<Salon | null>(null);
   const [formData, setFormData] = useState(initialForm);
   const [loading, setLoading] = useState(false);
+  const [confirmDeleteSalonId, setConfirmDeleteSalonId] = useState<string | null>(null);
 
   const { data: salons, refetch } = useAsync(async () => {
     if (!user?.uid) return [];
@@ -100,10 +101,10 @@ export default function SalonsPage() {
   };
 
   const handleDelete = async (salonId: string) => {
-    if (!confirm(ES.salons.deleteConfirm)) return;
     try {
       await SalonRepository.updateSalon(salonId, { isActive: false } as Partial<Salon>);
       success(ES.salons.deleted);
+      setConfirmDeleteSalonId(null);
       refetch();
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
@@ -150,7 +151,7 @@ export default function SalonsPage() {
                     {ES.actions.edit}
                   </Button>
                   {salon.id !== activeSalonId && (
-                    <Button size="sm" variant="ghost" onClick={() => handleDelete(salon.id)}>
+                    <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteSalonId(salon.id)}>
                       {ES.actions.delete}
                     </Button>
                   )}
@@ -160,6 +161,20 @@ export default function SalonsPage() {
           ))}
         </div>
       )}
+
+      <Modal isOpen={!!confirmDeleteSalonId} onClose={() => setConfirmDeleteSalonId(null)} title={ES.actions.delete}>
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">{ES.salons.deleteConfirm}</p>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setConfirmDeleteSalonId(null)}>
+              {ES.actions.cancel}
+            </Button>
+            <Button variant="danger" onClick={() => confirmDeleteSalonId && handleDelete(confirmDeleteSalonId)}>
+              {ES.actions.delete}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingSalon ? ES.salons.editSalon : ES.salons.add}>
         <div className="space-y-4">

@@ -51,6 +51,7 @@ export default function ServicesPage() {
   const { notifications, removeNotification, success, error } = useNotification();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [formData, setFormData] = useState(initialFormData);
 
@@ -121,12 +122,11 @@ export default function ServicesPage() {
     }
   };
 
-  const handleDelete = async (service: Service) => {
-    if (!window.confirm(ES.services.deleteConfirm)) return;
-
+  const handleDelete = async (id: string) => {
     try {
-      await ServiceRepository.deleteService(service.id);
+      await ServiceRepository.deleteService(id);
       success(ES.services.deleted);
+      setConfirmDeleteId(null);
       refetch();
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
@@ -155,7 +155,7 @@ export default function ServicesPage() {
           <Button variant="secondary" size="sm" onClick={() => openEditModal(row)}>
             {ES.actions.edit}
           </Button>
-          <Button variant="danger" size="sm" onClick={() => handleDelete(row)}>
+          <Button variant="danger" size="sm" onClick={() => setConfirmDeleteId(row.id)}>
             {ES.actions.delete}
           </Button>
         </div>
@@ -233,6 +233,25 @@ export default function ServicesPage() {
             </Button>
             <Button onClick={handleSave} loading={loading}>
               {editingService ? ES.actions.save : ES.services.add}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={confirmDeleteId !== null}
+        onClose={() => setConfirmDeleteId(null)}
+        title={ES.services.deleteConfirm}
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">Esta acción no se puede deshacer.</p>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setConfirmDeleteId(null)}>
+              Cancelar
+            </Button>
+            <Button variant="danger" onClick={() => confirmDeleteId && handleDelete(confirmDeleteId)}>
+              Eliminar
             </Button>
           </div>
         </div>

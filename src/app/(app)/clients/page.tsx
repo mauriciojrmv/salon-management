@@ -27,6 +27,8 @@ export default function ClientsPage() {
   const [loyaltyClient, setLoyaltyClient] = useState<Client | null>(null);
   const [loyaltyRewards, setLoyaltyRewards] = useState<LoyaltyReward[]>([]);
   const [loyaltyHistory, setLoyaltyHistory] = useState<LoyaltyTransaction[]>([]);
+  const [confirmDeleteClientId, setConfirmDeleteClientId] = useState<string | null>(null);
+  const [confirmRedeemReward, setConfirmRedeemReward] = useState<LoyaltyReward | null>(null);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -119,11 +121,9 @@ export default function ClientsPage() {
     }
   };
 
-  const handleDelete = async (client: Client) => {
-    if (!window.confirm(ES.clients.deleteConfirm)) return;
-
+  const handleDelete = async (clientId: string) => {
     try {
-      await ClientRepository.deleteClient(client.id);
+      await ClientRepository.deleteClient(clientId);
       success(ES.clients.deleted);
       refetch();
     } catch (err) {
@@ -180,7 +180,12 @@ export default function ClientsPage() {
       error(ES.loyalty.insufficientPoints);
       return;
     }
-    if (!confirm(ES.loyalty.redeemConfirm)) return;
+    setConfirmRedeemReward(reward);
+  };
+
+  const executeRedeemReward = async (reward: LoyaltyReward) => {
+    if (!loyaltyClient || !userData?.salonId) return;
+    const clientPoints = loyaltyClient.loyaltyPoints || 0;
     setLoading(true);
     try {
       // Deduct points
@@ -265,7 +270,7 @@ export default function ClientsPage() {
           <Button variant="ghost" size="sm" onClick={() => openLoyaltyModal(item)}>
             {ES.loyalty.points}
           </Button>
-          <Button variant="danger" size="sm" onClick={() => handleDelete(item)}>
+          <Button variant="danger" size="sm" onClick={() => setConfirmDeleteClientId(item.id)}>
             {ES.actions.delete}
           </Button>
         </div>
@@ -471,6 +476,63 @@ export default function ClientsPage() {
             </Button>
           </div>
         )}
+      </Modal>
+
+      {/* Confirm Delete Client Modal */}
+      <Modal
+        isOpen={!!confirmDeleteClientId}
+        onClose={() => setConfirmDeleteClientId(null)}
+        title={ES.actions.delete}
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">{ES.clients.deleteConfirm}</p>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setConfirmDeleteClientId(null)}>
+              {ES.actions.cancel}
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                const id = confirmDeleteClientId!;
+                setConfirmDeleteClientId(null);
+                handleDelete(id);
+              }}
+            >
+              {ES.actions.delete}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirm Redeem Reward Modal */}
+      <Modal
+        isOpen={!!confirmRedeemReward}
+        onClose={() => setConfirmRedeemReward(null)}
+        title={ES.loyalty.redeem}
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">{ES.loyalty.redeemConfirm}</p>
+          {confirmRedeemReward && (
+            <p className="text-sm text-amber-700 font-medium">
+              {confirmRedeemReward.name} — {confirmRedeemReward.pointsCost} pts
+            </p>
+          )}
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setConfirmRedeemReward(null)}>
+              {ES.actions.cancel}
+            </Button>
+            <Button
+              onClick={() => {
+                const reward = confirmRedeemReward!;
+                setConfirmRedeemReward(null);
+                executeRedeemReward(reward);
+              }}
+              loading={loading}
+            >
+              {ES.loyalty.redeem}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

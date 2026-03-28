@@ -43,7 +43,7 @@ export default function AuthPage() {
             {ES.auth.signIn}
           </h1>
           <p className="text-center text-gray-600 text-sm mt-2">
-            Salon Management SaaS
+            {ES.app.tagline}
           </p>
         </CardHeader>
 
@@ -78,7 +78,7 @@ export default function AuthPage() {
           </form>
 
           <p className="mt-4 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
-            Contacte al administrador para obtener acceso.
+            {ES.app.contactAdmin}
           </p>
         </CardBody>
       </Card>

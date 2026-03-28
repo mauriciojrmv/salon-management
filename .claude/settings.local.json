@@ -4,7 +4,9 @@
       "Bash(curl -s http://localhost:3001/dashboard)",
       "Bash(curl -s http://localhost:3001/services)",
       "Bash(taskkill //f //im node.exe)",
-      "Bash(npx next:*)"
+      "Bash(npx next:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

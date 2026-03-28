@@ -241,27 +241,27 @@ Mistakes happen. Cancellation must:
 - [x] **Appointment → Trabajo conversion** — Fixed 2026-03-27: "Iniciar Trabajo" button on confirmed/pending appointments. Creates session pre-filled with client, adds each service with assigned staff, marks appointment as completed. One-tap conversion.
 - [x] **No service status progression** — Fixed 2026-03-27: `SessionService.updateServiceStatus()` updates individual service status. SessionCard shows tappable status badges (Pendiente → En Progreso → Completado) with arrow indicator. Tap to advance to next status. Color-coded: yellow (pending), blue (in_progress), green (completed).
 
-### P1.6 — HIGH (UX audit — elderly/mobile usability, 2026-03-27)
+### P1.6 — HIGH (UX audit — elderly/mobile usability, 2026-03-27) — DONE 2026-03-28
 
-- [ ] **Table component not mobile-responsive** — `Table.tsx` uses raw `<table>` with `px-6` padding. On 360px phones, 4+ column tables overflow with no scroll indicator. Dashboard, clients, reports all affected. Users see cropped data. Fix: card layout on mobile or `overflow-x-auto` with scroll hint.
-- [ ] **SessionCard action buttons too small and clustered** — 5 buttons (`size="sm"`, `px-3 py-1.5`) wrap into tight cluster on mobile. "Cerrar Trabajo" (irreversible) sits next to "Cancelar" (destructive). Wet/gloved hands will mis-tap. Fix: primary actions `size="md"` or full-width stacked; destructive actions separated with divider or overflow menu.
-- [ ] **`window.confirm()` shows English buttons on mobile** — All confirm dialogs ("OK"/"Cancel") display in browser default language (English). Non-technical Spanish speakers hesitate or tap wrong button. Fix: replace all `window.confirm()` with custom `Modal`-based confirmation with Spanish buttons and larger touch targets. NOTE: reopens P3 "confirmation dialogs" item which used `confirm()`.
-- [ ] **Payment modal too complex for simple payments** — Shows 5 concepts at once: per-service checkboxes, credit balance, method icons, split entries, cash calculator. 80% of payments are single-method. Elderly receptionist overwhelmed. Fix: default simple flow (total → tap method → done), advanced options behind "Opciones avanzadas" toggle.
-- [ ] **Number inputs don't auto-select on focus** — Price/quantity inputs default to `0`. User must select-all → delete → type (3+ taps). With wet hands, very frustrating. Fix: add `onFocus={(e) => e.target.select()}` to all number `<Input>` elements.
-- [ ] **SearchableSelect dropdown too short on mobile** — `max-h-48` (192px) shows ~5 options. With 30+ clients, nested scroll inside a modal is a usability nightmare. Fix: `max-h-[60vh]` on mobile, increase option `py` to 3.5 for fatter touch targets.
-- [ ] **Modal close button `×` too small** — Single character with no padding, fails 44px minimum touch target. Fix: add `p-2 min-w-[44px] min-h-[44px]` to close button in `Modal.tsx`.
-- [ ] **No loading feedback on card-level action buttons** — Tapping "Pagar"/"Agregar Servicio" on a card opens a modal, but the button shows no loading state. Slow connections → elderly users tap multiple times. Fix: debounce or show brief spinner on card action buttons.
-- [ ] **Auth page has hardcoded English text** — `auth/page.tsx:46`: "Salon Management SaaS" hardcoded in English. Line 81: hardcoded Spanish not from `text.es.ts`. First impression matters. Fix: move to `ES.app` keys.
-- [ ] **Toast notifications positioned top-right — invisible on mobile** — Overlaps with hamburger bar or gets cut off on small screens. Elderly users may never notice success/error messages. Fix: position bottom-center on mobile with larger text.
-- [ ] **Empty states too minimal — no call to action** — "No hay trabajos activos" as plain gray text. First-time user doesn't know what to do. Fix: add CTA text like "Toque + Nuevo Trabajo para comenzar" and/or illustration.
-- [ ] **No "Hoy"/"Ayer" quick buttons on dashboard date picker** — Raw `<input type="date">` renders differently per device, some Android devices show tiny picker. Fix: add "Hoy" / "Ayer" shortcut buttons next to date input.
-- [ ] **Sidebar uses emoji icons — inconsistent rendering across devices** — 📊💇📅 etc. render differently or as blank squares on older Android phones. Fix: replace with Lucide React icons (already in stack) for consistent rendering.
-- [ ] **"Nuevo Trabajo" button not reachable after scrolling** — On busy days with 8+ sessions, button at page top. Elderly user scrolls down, can't find it. Fix: sticky floating action button at bottom-right on mobile.
-- [ ] **No visual separation between service statuses in SessionCard** — 4 services all look similar, hard to scan which are done. Status badges are tiny. Fix: add left-border color coding (green=completed, blue=in_progress, yellow=pending).
+- [x] **Table component not mobile-responsive** — Fixed 2026-03-28: `Table.tsx` now renders stacked card layout on mobile (`md:hidden`) with label/value pairs, and original table on desktop (`hidden md:block`).
+- [x] **SessionCard action buttons too small and clustered** — Fixed 2026-03-28: Primary actions (Agregar Servicio, Pagar) in 2-column grid, `size="md"`. Destructive actions (Cerrar, Cancelar) separated by border-top in own row. "Ver Historial" as ghost secondary. All now `flex-1` full width.
+- [x] **`window.confirm()` shows English buttons on mobile** — Fixed 2026-03-28: All 9 remaining `confirm()`/`window.confirm()` calls replaced with custom `Modal`-based confirmations across clients, expenses, inventory, staff, services, salons, rewards, sessions pages. Zero `confirm()` calls remain. SessionCard also updated.
+- [x] **Payment modal too complex for simple payments** — Fixed 2026-03-28: "Opciones avanzadas" toggle (default hidden) wraps per-service selection and split payment button. Default view: big total → method buttons → cash calculator → confirm. Credit balance panel always visible when applicable.
+- [x] **Number inputs don't auto-select on focus** — Fixed 2026-03-28: `Input.tsx` now calls `e.target.select()` on focus for `number` and `text` types, forwarding any existing `onFocus` prop.
+- [x] **SearchableSelect dropdown too short on mobile** — Fixed 2026-03-28: Outer dropdown `max-h-[60vh]`, inner list `max-h-[50vh]`. Trigger button and option rows increased to `py-3.5` for fat-finger targets.
+- [x] **Modal close button `×` too small** — Fixed 2026-03-28: Close button now has `p-2 min-w-[44px] min-h-[44px]` with rounded hover state, meeting 44px touch target minimum.
+- [ ] **No loading feedback on card-level action buttons** — Deferred: lower impact than others; card buttons open modals instantly, no async delay at open time.
+- [x] **Auth page has hardcoded English/Spanish text** — Fixed 2026-03-28: `"Salon Management SaaS"` → `ES.app.tagline`, hardcoded contact text → `ES.app.contactAdmin`.
+- [x] **Toast notifications positioned top-right — invisible on mobile** — Fixed 2026-03-28: Toast now uses `bottom-center` on mobile (`fixed bottom-4 left-1/2 -translate-x-1/2`) and falls back to `top-right` on `sm:` and above.
+- [x] **Empty states too minimal — no call to action** — Fixed 2026-03-28: Sessions page active empty state now shows `noActiveSessions` + `noActiveSessionsCta` ("Toque + Nuevo Trabajo para comenzar") in larger centered block.
+- [x] **No "Hoy"/"Ayer" quick buttons on dashboard date picker** — Fixed 2026-03-28: "Hoy" (blue) and "Ayer" (gray) shortcut buttons added left of date input on dashboard.
+- [x] **Sidebar uses emoji icons — inconsistent rendering across devices** — Fixed 2026-03-28: All 14 nav item emojis replaced with Lucide React icon components (`LayoutDashboard`, `Scissors`, `Calendar`, `Users`, etc.).
+- [ ] **"Nuevo Trabajo" button not reachable after scrolling** — Pending: floating action button on sessions page mobile. Low priority for now.
+- [x] **No visual separation between service statuses in SessionCard** — Fixed 2026-03-28: Each service row now has `border-l-4` left-border color: yellow (pending), blue (in_progress), green (completed).
 
 ### P3 — LOW (future hardening)
 
-- [x] **No confirmation dialogs for delete actions** — Verified 2026-03-27: All delete actions use `window.confirm()` with Spanish messages. NOTE: P1.6 audit found `confirm()` buttons render in English on mobile — needs replacement with custom modal.
+- [x] **No confirmation dialogs for delete actions** — Fixed 2026-03-28: All `window.confirm()` calls replaced with custom `Modal` confirmations with Spanish buttons. Zero browser confirm dialogs remain.
 - [x] **No date validation in `reports/page.tsx`** — Fixed 2026-03-27: Auto-swaps start/end dates if start > end. Shows orange warning message when dates are corrected. Reports use `validStartDate`/`validEndDate` computed from user input.
 - [x] **No export/print for reports** — Fixed 2026-03-27: Added "Exportar CSV" button (downloads service profitability as CSV with headers) and "Imprimir" button (`window.print()`) to reports page header.
 - [x] **No audit logging** — Fixed 2026-03-27: `auditLog()` function in SessionService logs structured `[AUDIT]` entries to console for: SESSION_CREATED, SERVICE_ADDED, PAYMENT_PROCESSED, SESSION_CLOSED, SESSION_CANCELLED, SERVICE_REMOVED, SESSION_REOPENED. Includes timestamp, IDs, amounts, and context.
@@ -470,8 +470,8 @@ Loyalty rewards system: `/rewards` admin page to create/manage redeemable reward
 ### Phase 5C (DONE) - Currency Conversion to Bolivianos
 Full system currency conversion from USD ($) to Bolivianos (Bs.). `CURRENCY_SYMBOL = 'Bs.'` and `fmtBs()` helper in `helpers.ts`. Updated all ~15 page and component files to use `Bs.` formatting via `fmtBs()`. Loyalty points rate changed to 1 point per Bs. 50 (`LOYALTY_POINTS_RATE = 50`). Default salon currency set to `'BOB'`. Receipt, reports, dashboard, sessions, sales, expenses, rewards, inventory, services, appointments, my-work, clients — all converted.
 
-### Phase 6A - Mobile UX Hardening (Pending)
-> **Scope**: UX audit fixes for elderly/non-technical mobile users. 15 issues found via expert review (P1.6 in Section 8). Priority: table mobile layout, SessionCard button sizing, custom confirm modals replacing `window.confirm()`, payment modal simplification, number input auto-select, SearchableSelect mobile height, Modal close button sizing, Toast repositioning, empty state CTAs, Lucide icons replacing emoji, floating "Nuevo Trabajo" button.
+### Phase 6A (DONE) - Mobile UX Hardening
+13 of 15 P1.6 issues resolved. Key fixes: `Table.tsx` mobile card layout, SessionCard 2-col button grid with destructive separation, all `window.confirm()` replaced with custom Spanish modals (9 files), payment modal "Opciones avanzadas" toggle, `Input.tsx` auto-select on focus, `SearchableSelect` `max-h-[60vh]`, `Modal` 44px close button, Toast bottom-center on mobile, sessions empty-state CTA, dashboard Hoy/Ayer shortcuts, Lucide icons in sidebar (14 items), service left-border status colors. 2 items deferred: loading feedback on card buttons, floating "Nuevo Trabajo" button.
 
 ### Phase 6B - Growth Features (Remaining)
 > **Scope**: Online booking widget, WhatsApp reminders. See **Section 8** for future items.
@@ -541,4 +541,4 @@ src/
 
 ---
 
-*Last updated: 2026-03-27 | All phases through 5C done. All P0–P3 items resolved. Phase 6A: 15 mobile UX hardening issues from elderly-user audit (P1.6). Phase 6B: growth features (online booking, WhatsApp). See Section 8 for full issue tracker.*
+*Last updated: 2026-03-28 | All phases through 6A done. 13/15 P1.6 mobile UX issues resolved. Phase 6B: growth features (online booking, WhatsApp). See Section 8 for full issue tracker.*

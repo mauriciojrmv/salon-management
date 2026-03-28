@@ -125,12 +125,28 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold text-gray-900">{ES.dashboard.title}</h1>
           <p className="text-gray-600">{ES.dashboard.welcome}, {userData?.firstName}!</p>
         </div>
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
-        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+            className="px-3 py-2 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg font-medium hover:bg-blue-100 whitespace-nowrap"
+          >
+            Hoy
+          </button>
+          <button
+            type="button"
+            onClick={() => { const d = new Date(); d.setDate(d.getDate() - 1); setSelectedDate(d.toISOString().split('T')[0]); }}
+            className="px-3 py-2 text-sm bg-gray-50 text-gray-700 border border-gray-200 rounded-lg font-medium hover:bg-gray-100 whitespace-nowrap"
+          >
+            Ayer
+          </button>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+        </div>
       </div>
 
       {/* Key Metrics */}

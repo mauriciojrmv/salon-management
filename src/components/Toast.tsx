@@ -42,7 +42,7 @@ export function Toast({ notifications, onDismiss }: ToastProps) {
   if (notifications.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm w-full pointer-events-auto">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 space-y-2 w-full max-w-sm px-4 pointer-events-auto sm:bottom-auto sm:top-4 sm:right-4 sm:left-auto sm:translate-x-0 sm:px-0">
       {notifications.map((n) => (
         <ToastItem key={n.id} notification={n} onDismiss={() => onDismiss(n.id)} />
       ))}

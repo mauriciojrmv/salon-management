@@ -42,42 +42,67 @@ export function Table<T>({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <table className="w-full">
-        <thead className="bg-gray-50 border-b border-gray-200">
-          <tr>
+    <>
+      {/* Mobile: card list */}
+      <div className="md:hidden space-y-3">
+        {data.map((item) => (
+          <div
+            key={String(item[rowKey])}
+            className={`bg-white rounded-lg shadow p-4 space-y-2 ${onRowClick ? 'cursor-pointer active:bg-gray-50' : ''}`}
+            onClick={() => onRowClick?.(item)}
+          >
             {columns.map((column) => (
-              <th
-                key={String(column.key)}
-                className="px-6 py-3 text-left text-sm font-semibold text-gray-900"
-                style={{ width: column.width }}
-              >
-                {column.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200">
-          {data.map((item) => (
-            <tr
-              key={String(item[rowKey])}
-              onClick={() => onRowClick?.(item)}
-              className={`hover:bg-gray-50 ${onRowClick ? 'cursor-pointer' : ''}`}
-            >
-              {columns.map((column) => (
-                <td
-                  key={`${String(item[rowKey])}-${String(column.key)}`}
-                  className="px-6 py-4 text-sm text-gray-700"
-                >
+              <div key={String(column.key)} className="flex justify-between items-start gap-2">
+                <span className="text-xs text-gray-500 shrink-0">{column.label}</span>
+                <span className="text-sm text-gray-900 text-right font-medium">
                   {column.render
                     ? column.render((item as Record<string, unknown>)[column.key as string], item)
                     : String((item as Record<string, unknown>)[column.key as string] ?? '')}
-                </td>
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              {columns.map((column) => (
+                <th
+                  key={String(column.key)}
+                  className="px-6 py-3 text-left text-sm font-semibold text-gray-900"
+                  style={{ width: column.width }}
+                >
+                  {column.label}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {data.map((item) => (
+              <tr
+                key={String(item[rowKey])}
+                onClick={() => onRowClick?.(item)}
+                className={`hover:bg-gray-50 ${onRowClick ? 'cursor-pointer' : ''}`}
+              >
+                {columns.map((column) => (
+                  <td
+                    key={`${String(item[rowKey])}-${String(column.key)}`}
+                    className="px-6 py-4 text-sm text-gray-700"
+                  >
+                    {column.render
+                      ? column.render((item as Record<string, unknown>)[column.key as string], item)
+                      : String((item as Record<string, unknown>)[column.key as string] ?? '')}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }

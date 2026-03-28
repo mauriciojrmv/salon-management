@@ -37,6 +37,7 @@ export default function RewardsPage() {
   const [editingReward, setEditingReward] = useState<LoyaltyReward | null>(null);
   const [formData, setFormData] = useState(initialForm);
   const [loading, setLoading] = useState(false);
+  const [confirmDeleteRewardId, setConfirmDeleteRewardId] = useState<string | null>(null);
 
   const { data: rewards, refetch } = useAsync(async () => {
     if (!userData?.salonId) return [];
@@ -102,10 +103,10 @@ export default function RewardsPage() {
   };
 
   const handleDelete = async (rewardId: string) => {
-    if (!confirm(ES.loyalty.deleteRewardConfirm)) return;
     try {
       await LoyaltyRepository.updateReward(rewardId, { isActive: false });
       success(ES.loyalty.rewardDeleted);
+      setConfirmDeleteRewardId(null);
       refetch();
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
@@ -173,7 +174,7 @@ export default function RewardsPage() {
                   <Button size="sm" variant="secondary" onClick={() => openEdit(reward)}>
                     {ES.actions.edit}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => handleDelete(reward.id)}>
+                  <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteRewardId(reward.id)}>
                     {ES.actions.delete}
                   </Button>
                 </div>
@@ -182,6 +183,21 @@ export default function RewardsPage() {
           ))}
         </div>
       )}
+
+      {/* Delete Confirm Modal */}
+      <Modal isOpen={!!confirmDeleteRewardId} onClose={() => setConfirmDeleteRewardId(null)} title={ES.actions.delete}>
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">{ES.loyalty.deleteRewardConfirm}</p>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setConfirmDeleteRewardId(null)}>
+              {ES.actions.cancel}
+            </Button>
+            <Button variant="danger" onClick={() => confirmDeleteRewardId && handleDelete(confirmDeleteRewardId)}>
+              {ES.actions.delete}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Create/Edit Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingReward ? ES.loyalty.editReward : ES.loyalty.addReward}>

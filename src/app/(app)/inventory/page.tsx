@@ -36,6 +36,7 @@ export default function InventoryPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({ ...initialFormData });
   const [loading, setLoading] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const { data: productsData, refetch, loading: productsLoading } = useAsync(async () => {
     if (!userData?.salonId) return [];
@@ -121,12 +122,11 @@ export default function InventoryPage() {
     }
   };
 
-  const handleDeleteProduct = async (product: Product) => {
-    if (!window.confirm(ES.inventory.deleteConfirm)) return;
-
+  const handleDeleteProduct = async (id: string) => {
     try {
-      await ProductRepository.deleteProduct(product.id);
+      await ProductRepository.deleteProduct(id);
       success(ES.inventory.deleted);
+      setConfirmDeleteId(null);
       refetch();
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
@@ -169,7 +169,7 @@ export default function InventoryPage() {
           <Button
             variant="danger"
             size="sm"
-            onClick={() => handleDeleteProduct(item)}
+            onClick={() => setConfirmDeleteId(item.id)}
           >
             {ES.actions.delete}
           </Button>
@@ -323,6 +323,25 @@ export default function InventoryPage() {
             </Button>
             <Button onClick={handleSaveProduct} loading={loading}>
               {editingProduct ? ES.actions.save : ES.inventory.add}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={confirmDeleteId !== null}
+        onClose={() => setConfirmDeleteId(null)}
+        title={ES.inventory.deleteConfirm}
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">Esta acción no se puede deshacer.</p>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setConfirmDeleteId(null)}>
+              Cancelar
+            </Button>
+            <Button variant="danger" onClick={() => confirmDeleteId && handleDeleteProduct(confirmDeleteId)}>
+              Eliminar
             </Button>
           </div>
         </div>

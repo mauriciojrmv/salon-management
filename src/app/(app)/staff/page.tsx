@@ -43,6 +43,7 @@ export default function StaffPage() {
   const { notifications, removeNotification, success, error } = useNotification();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [formData, setFormData] = useState({
     firstName: '',
@@ -150,12 +151,11 @@ export default function StaffPage() {
     }
   };
 
-  const handleDeleteStaff = async (member: Staff) => {
-    if (!window.confirm(ES.staff.deleteConfirm)) return;
-
+  const handleDeleteStaff = async (id: string) => {
     try {
-      await StaffRepository.deleteStaff(member.id);
+      await StaffRepository.deleteStaff(id);
       success(ES.staff.deleted);
+      setConfirmDeleteId(null);
       refetch();
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
@@ -216,7 +216,7 @@ export default function StaffPage() {
             size="sm"
             onClick={(e: React.MouseEvent) => {
               e.stopPropagation();
-              handleDeleteStaff(item);
+              setConfirmDeleteId(item.id);
             }}
           >
             {ES.actions.delete}
@@ -400,6 +400,25 @@ export default function StaffPage() {
             </Button>
             <Button onClick={handleSaveStaff} loading={loading}>
               {editingStaff ? ES.actions.save : ES.staff.add}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={confirmDeleteId !== null}
+        onClose={() => setConfirmDeleteId(null)}
+        title={ES.staff.deleteConfirm}
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">Esta acción no se puede deshacer.</p>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setConfirmDeleteId(null)}>
+              Cancelar
+            </Button>
+            <Button variant="danger" onClick={() => confirmDeleteId && handleDeleteStaff(confirmDeleteId)}>
+              Eliminar
             </Button>
           </div>
         </div>

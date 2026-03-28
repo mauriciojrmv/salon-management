@@ -58,6 +58,7 @@ export default function ExpensesPage() {
   const [formData, setFormData] = useState(initialForm);
   const [loading, setLoading] = useState(false);
   const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [confirmDeleteExpenseId, setConfirmDeleteExpenseId] = useState<string | null>(null);
 
   const { data: expenses, refetch } = useAsync(async () => {
     if (!userData?.salonId) return [];
@@ -151,7 +152,6 @@ export default function ExpensesPage() {
   };
 
   const handleDelete = async (expenseId: string) => {
-    if (!confirm(ES.expenses.deleteConfirm)) return;
     try {
       await ExpenseRepository.deleteExpense(expenseId);
       success(ES.expenses.deleted);
@@ -244,7 +244,7 @@ export default function ExpensesPage() {
                   <Button size="sm" variant="ghost" onClick={() => openEdit(expense)}>
                     {ES.actions.edit}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => handleDelete(expense.id)}>
+                  <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteExpenseId(expense.id)}>
                     {ES.actions.delete}
                   </Button>
                 </div>
@@ -253,6 +253,32 @@ export default function ExpensesPage() {
           ))}
         </div>
       )}
+
+      {/* Confirm Delete Expense Modal */}
+      <Modal
+        isOpen={!!confirmDeleteExpenseId}
+        onClose={() => setConfirmDeleteExpenseId(null)}
+        title={ES.actions.delete}
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700">{ES.expenses.deleteConfirm}</p>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setConfirmDeleteExpenseId(null)}>
+              {ES.actions.cancel}
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                const id = confirmDeleteExpenseId!;
+                setConfirmDeleteExpenseId(null);
+                handleDelete(id);
+              }}
+            >
+              {ES.actions.delete}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Create/Edit Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingExpense ? ES.expenses.editExpense : ES.expenses.create}>

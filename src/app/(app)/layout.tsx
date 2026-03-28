@@ -14,29 +14,45 @@ import type { Salon } from '@/types/models';
 import type { UserRole } from '@/lib/auth/roles';
 import { RoleGuard } from '@/components/RoleGuard';
 import ES from '@/config/text.es';
+import {
+  LayoutDashboard,
+  Scissors,
+  Calendar,
+  Users,
+  ListChecks,
+  UserCheck,
+  Package,
+  ClipboardList,
+  ShoppingCart,
+  Receipt,
+  BarChart2,
+  Gift,
+  Building2,
+  UserCog,
+} from 'lucide-react';
 
 interface NavItem {
   name: string;
   href: string;
-  icon: string;
+  icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
 }
 
 const allNavItems: NavItem[] = [
-  { name: ES.nav.dashboard, href: '/dashboard', icon: '📊' },
-  { name: ES.nav.sessions, href: '/sessions', icon: '💇' },
-  { name: ES.nav.appointments, href: '/appointments', icon: '📅' },
-  { name: ES.nav.clients, href: '/clients', icon: '👥' },
-  { name: ES.nav.services, href: '/services', icon: '✂️' },
-  { name: ES.nav.staff, href: '/staff', icon: '👤' },
-  { name: ES.nav.inventory, href: '/inventory', icon: '📦' },
-  { name: ES.nav.myWork, href: '/my-work', icon: '🙋' },
-  { name: ES.retail.title, href: '/sales', icon: '🛒' },
-  { name: ES.expenses.title, href: '/expenses', icon: '💰' },
-  { name: ES.nav.reports, href: '/reports', icon: '📈' },
-  { name: ES.loyalty.rewards, href: '/rewards', icon: '⭐', adminOnly: true },
-  { name: ES.salons.title, href: '/salons', icon: '🏢', adminOnly: true },
-  { name: ES.users.title, href: '/users', icon: '🔑', adminOnly: true },
+  { name: ES.nav.dashboard, href: '/dashboard', icon: LayoutDashboard },
+  { name: ES.nav.sessions, href: '/sessions', icon: Scissors },
+  { name: ES.nav.appointments, href: '/appointments', icon: Calendar },
+  { name: ES.nav.clients, href: '/clients', icon: Users },
+  { name: ES.nav.services, href: '/services', icon: ListChecks },
+  { name: ES.nav.staff, href: '/staff', icon: UserCheck },
+  { name: ES.nav.inventory, href: '/inventory', icon: Package },
+  { name: ES.nav.myWork, href: '/my-work', icon: ClipboardList },
+  { name: ES.retail.title, href: '/sales', icon: ShoppingCart },
+  { name: ES.expenses.title, href: '/expenses', icon: Receipt },
+  { name: ES.nav.reports, href: '/reports', icon: BarChart2 },
+  { name: ES.loyalty.rewards, href: '/rewards', icon: Gift, adminOnly: true },
+  { name: ES.salons.title, href: '/salons', icon: Building2, adminOnly: true },
+  { name: ES.users.title, href: '/users', icon: UserCog, adminOnly: true },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -131,9 +147,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     : 'text-gray-300 hover:bg-gray-800 hover:text-white'
                 }`}
               >
-                <span className="w-5 h-5 flex items-center justify-center text-base">
-                  {item.icon}
-                </span>
+                <item.icon className="w-5 h-5 shrink-0" />
                 {showLabels && <span>{item.name}</span>}
               </Link>
             );
