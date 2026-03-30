@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Card, CardBody, CardHeader } from '@/components/Card';
 import { Input } from '@/components/Input';
+import { Modal } from '@/components/Modal';
 import { Table } from '@/components/Table';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,10 +11,11 @@ import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { Button } from '@/components/Button';
 import { AnalyticsService, PayrollStaffEntry } from '@/lib/services/analyticsService';
+import { ExpenseRepository } from '@/lib/repositories/expenseRepository';
 import ES from '@/config/text.es';
 import { fmtBs } from '@/lib/utils/helpers';
 
-function PayrollCard({ entry }: { entry: PayrollStaffEntry }) {
+function PayrollCard({ entry, onRegisterPayment }: { entry: PayrollStaffEntry; onRegisterPayment: (entry: PayrollStaffEntry) => void }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -52,14 +54,19 @@ function PayrollCard({ entry }: { entry: PayrollStaffEntry }) {
           </div>
         </div>
 
-        {/* Expand/collapse button */}
-        <button
-          type="button"
-          onClick={() => setExpanded(!expanded)}
-          className="w-full mt-3 py-2 text-sm text-blue-600 font-medium hover:bg-blue-50 rounded-lg transition-colors"
-        >
-          {expanded ? ES.reports.collapseDetail : ES.reports.expandDetail} ({entry.details.length})
-        </button>
+        {/* Actions */}
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="flex-1 py-2 text-sm text-blue-600 font-medium hover:bg-blue-50 rounded-lg transition-colors"
+          >
+            {expanded ? ES.reports.collapseDetail : ES.reports.expandDetail} ({entry.details.length})
+          </button>
+          <Button size="sm" variant="primary" onClick={() => onRegisterPayment(entry)}>
+            {ES.reports.registerPayment}
+          </Button>
+        </div>
 
         {/* Expanded detail — service-by-service breakdown */}
         {expanded && (
@@ -111,11 +118,37 @@ function PayrollCard({ entry }: { entry: PayrollStaffEntry }) {
 
 export default function ReportsPage() {
   const { userData } = useAuth();
-  const { notifications, removeNotification } = useNotification();
+  const { notifications, removeNotification, success, error } = useNotification();
   const [startDate, setStartDate] = useState(
     new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]
   );
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentEntry, setPaymentEntry] = useState<PayrollStaffEntry | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+
+  const handleRegisterPayment = async () => {
+    if (!paymentEntry || !userData?.salonId) return;
+    setPaymentLoading(true);
+    try {
+      await ExpenseRepository.createExpense({
+        salonId: userData.salonId,
+        category: 'salaries',
+        description: `${ES.reports.payrollPayment}: ${paymentEntry.staffName} (${validStartDate} – ${validEndDate})`,
+        amount: paymentEntry.totalCommission,
+        date: new Date().toISOString().split('T')[0],
+        recurring: false,
+        paidTo: paymentEntry.staffName,
+        paymentMethod: 'cash',
+        createdBy: '',
+      });
+      success(ES.reports.paymentRegistered);
+      setPaymentEntry(null);
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
 
   // Auto-correct: if start > end, swap them
   const validStartDate = startDate <= endDate ? startDate : endDate;
@@ -152,10 +185,18 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6 p-6">
+      <style>{`
+        @media print {
+          aside { display: none !important; }
+          .no-print { display: none !important; }
+          main { padding-top: 0 !important; overflow: visible !important; }
+          body { background: white !important; }
+        }
+      `}</style>
       <Toast notifications={notifications} onDismiss={removeNotification} />
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-3xl font-bold text-gray-900">{ES.reports.title}</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 no-print">
           <Button
             variant="secondary"
             size="sm"
@@ -184,7 +225,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Date Filter */}
-      <Card>
+      <Card className="no-print">
         <CardBody>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
@@ -257,10 +298,28 @@ export default function ReportsPage() {
       ) : (
         <div className="space-y-4">
           {payroll.map((entry) => (
-            <PayrollCard key={entry.staffId} entry={entry} />
+            <PayrollCard key={entry.staffId} entry={entry} onRegisterPayment={setPaymentEntry} />
           ))}
         </div>
       )}
+
+      {/* Confirm payroll payment modal */}
+      <Modal isOpen={!!paymentEntry} onClose={() => setPaymentEntry(null)} title={ES.reports.registerPayment}>
+        {paymentEntry && (
+          <div className="space-y-4">
+            <p className="text-gray-700">{ES.reports.registerPaymentConfirm}</p>
+            <div className="bg-green-50 rounded-lg p-4 text-center">
+              <p className="text-sm text-green-700 font-medium">{paymentEntry.staffName}</p>
+              <p className="text-3xl font-bold text-green-800 mt-1">{fmtBs(paymentEntry.totalCommission)}</p>
+              <p className="text-xs text-green-600 mt-1">{validStartDate} – {validEndDate}</p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setPaymentEntry(null)}>{ES.actions.cancel}</Button>
+              <Button onClick={handleRegisterPayment} loading={paymentLoading}>{ES.reports.registerPayment}</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* ==================== SERVICE PROFITABILITY ==================== */}
       <Card>

@@ -34,6 +34,7 @@ export default function SalesPage() {
   const [loading, setLoading] = useState(false);
   const [clientId, setClientId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [cashReceived, setCashReceived] = useState(0);
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<SaleItem[]>([]);
 
@@ -160,6 +161,7 @@ export default function SalesPage() {
       setClientId('');
       setNotes('');
       setPaymentMethod('cash');
+      setCashReceived(0);
       refetchSales();
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
@@ -315,6 +317,26 @@ export default function SalesPage() {
               ))}
             </div>
           </div>
+
+          {/* Cash change calculator */}
+          {paymentMethod === 'cash' && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 space-y-3">
+              <Input
+                label={ES.payments.amountGiven}
+                type="number"
+                value={cashReceived || ''}
+                onChange={(e) => setCashReceived(parseFloat(e.target.value) || 0)}
+              />
+              {cashReceived > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-yellow-800">{ES.payments.change}</span>
+                  <span className={`text-2xl font-bold ${cashReceived >= saleTotal ? 'text-green-700' : 'text-red-600'}`}>
+                    {fmtBs(Math.max(0, cashReceived - saleTotal))}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           <Input
             label={ES.retail.notes}

@@ -303,6 +303,13 @@ export default function AppointmentsPage() {
         title={ES.appointments.create}
       >
         <div className="space-y-4">
+          <Input
+            label={ES.appointments.date}
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            required
+          />
           <SearchableSelect
             label={ES.appointments.selectClient}
             options={clientOptions}

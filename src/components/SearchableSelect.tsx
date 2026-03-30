@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import ES from '@/config/text.es';
 
 export interface SearchableOption {
@@ -33,6 +33,7 @@ export function SearchableSelect({
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -78,8 +79,26 @@ export function SearchableSelect({
     setSearch('');
   };
 
+  const computeDropdownStyle = useCallback(() => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const openUpward = spaceBelow < 280 && spaceAbove > spaceBelow;
+    setDropdownStyle({
+      position: 'fixed',
+      left: rect.left,
+      width: rect.width,
+      zIndex: 9999,
+      ...(openUpward
+        ? { bottom: window.innerHeight - rect.top + 4, top: 'auto' }
+        : { top: rect.bottom + 4 }),
+    });
+  }, []);
+
   const handleOpen = () => {
     if (disabled) return;
+    computeDropdownStyle();
     setIsOpen(true);
     setTimeout(() => inputRef.current?.focus(), 0);
   };
@@ -124,10 +143,9 @@ export function SearchableSelect({
         </svg>
       </div>
 
-      {/* Dropdown */}
+      {/* Dropdown — fixed positioned to escape modal overflow */}
       {isOpen && (
-        <div className="relative z-50">
-          <div className="absolute top-1 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg max-h-[60vh] overflow-hidden">
+        <div style={dropdownStyle} className="bg-white border border-gray-200 rounded-lg shadow-xl max-h-[50vh] overflow-hidden">
             {/* Search input */}
             <div className="p-2 border-b border-gray-100">
               <input
@@ -161,7 +179,6 @@ export function SearchableSelect({
                 filtered.map(renderOption)
               )}
             </div>
-          </div>
         </div>
       )}
 

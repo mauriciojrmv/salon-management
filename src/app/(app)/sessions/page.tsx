@@ -22,7 +22,7 @@ import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { batchUpdate, firebaseConstraints } from '@/lib/firebase/db';
-import { fmtBs } from '@/lib/utils/helpers';
+import { fmtBs, unitLabel, toDate } from '@/lib/utils/helpers';
 import type { Session } from '@/types/models';
 import ES from '@/config/text.es';
 
@@ -157,7 +157,7 @@ export default function SessionsPage() {
   const productOptions = (products || []).map((p) => ({
     value: p.id,
     label: p.name,
-    secondary: `${ES.sessions.materialSellPrice}: ${fmtBs(p.price)}/${p.unit || 'ud'} · Stock: ${p.currentStock}${p.currentStock <= p.minStock ? ' ⚠' : ''}`,
+    secondary: `${ES.sessions.materialSellPrice}: ${fmtBs(p.price)}/${unitLabel(p.unit)} · Stock: ${p.currentStock}${p.currentStock <= p.minStock ? ' ⚠' : ''}`,
   }));
 
   // Low-stock products for alert banner
@@ -428,7 +428,8 @@ export default function SessionsPage() {
   const userRole = userData?.role || 'staff';
   const canCancel = userRole === 'admin' || userRole === 'manager';
   const activeSessions = sessions?.filter((s) => s.status === 'active') || [];
-  const completedSessions = sessions?.filter((s) => s.status === 'completed') || [];
+  const completedSessions = (sessions?.filter((s) => s.status === 'completed') || [])
+    .sort((a, b) => toDate(b.endTime ?? b.startTime).getTime() - toDate(a.endTime ?? a.startTime).getTime());
   const cancelledSessions = sessions?.filter((s) => s.status === 'cancelled') || [];
 
   return (
@@ -517,6 +518,7 @@ export default function SessionsPage() {
               onRemoveService={(serviceItemId) => handleRemoveService(session.id, serviceItemId)}
               onUpdateServiceStatus={(serviceItemId, newStatus) => handleUpdateServiceStatus(session.id, serviceItemId, newStatus)}
               canCancel={canCancel}
+              loading={loading}
             />
           ))}
         </div>
@@ -866,6 +868,8 @@ export default function SessionsPage() {
                           <Input
                             label={ES.sessions.quantity}
                             type="number"
+                            step="0.01"
+                            min="0"
                             value={mat.quantity}
                             onChange={(e) => handleMaterialQuantityChange(idx, parseFloat(e.target.value) || 0)}
                           />
@@ -1233,6 +1237,16 @@ export default function SessionsPage() {
         getStaffName={getStaffName}
       />
 
+      {/* FAB — mobile only, always-visible "+ Nuevo Trabajo" when scrolled */}
+      <button
+        type="button"
+        onClick={() => setIsCreateModalOpen(true)}
+        className="md:hidden fixed bottom-6 right-6 z-40 w-14 h-14 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-full shadow-lg flex items-center justify-center text-3xl leading-none transition-colors"
+        aria-label={ES.sessions.new}
+      >
+        +
+      </button>
+
       {/* Receipt Modal */}
       <ReceiptModal
         isOpen={!!receiptSession}
@@ -1241,6 +1255,7 @@ export default function SessionsPage() {
         clientName={receiptSession ? getClientName(receiptSession.clientId) : ''}
         getStaffName={getStaffName}
         salonName={ES.app.name}
+        clientPhone={receiptSession ? clients?.find((c) => c.id === receiptSession.clientId)?.phone : undefined}
       />
     </div>
   );

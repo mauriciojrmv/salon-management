@@ -18,6 +18,7 @@ interface SessionCardProps {
   onRemoveService?: (serviceItemId: string) => void;
   onUpdateServiceStatus?: (serviceItemId: string, newStatus: 'pending' | 'in_progress' | 'completed') => void;
   canCancel?: boolean; // admin/manager only
+  loading?: boolean;
 }
 
 // Left-border color by service status
@@ -39,6 +40,7 @@ export function SessionCard({
   onRemoveService,
   onUpdateServiceStatus,
   canCancel = false,
+  loading = false,
 }: SessionCardProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [confirmRemoveServiceId, setConfirmRemoveServiceId] = useState<string | null>(null);
@@ -189,10 +191,10 @@ export function SessionCard({
             {/* Primary actions — full width stacked on mobile */}
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary" onClick={onAddService} className="w-full">
+                <Button variant="secondary" onClick={onAddService} className="w-full" loading={loading}>
                   {ES.sessions.addService}
                 </Button>
-                <Button variant="primary" onClick={onProcessPayment} className="w-full">
+                <Button variant="primary" onClick={onProcessPayment} className="w-full" loading={loading}>
                   {ES.payments.processPayment}
                 </Button>
               </div>
@@ -200,7 +202,7 @@ export function SessionCard({
               {/* Secondary actions */}
               <div className="flex flex-wrap gap-2">
                 {onViewClientHistory && (
-                  <Button size="sm" variant="ghost" onClick={onViewClientHistory}>
+                  <Button size="sm" variant="ghost" onClick={onViewClientHistory} loading={loading}>
                     {ES.sessions.viewClientHistory}
                   </Button>
                 )}
@@ -209,11 +211,11 @@ export function SessionCard({
               {/* Destructive actions — separated with border */}
               {canCancel && (
                 <div className="flex gap-2 pt-2 border-t border-gray-100">
-                  <Button variant="danger" onClick={() => setConfirmClose(true)} className="flex-1">
+                  <Button variant="danger" onClick={() => setConfirmClose(true)} className="flex-1" loading={loading}>
                     {ES.sessions.closeSession}
                   </Button>
                   {onCancelSession && (
-                    <Button variant="ghost" onClick={() => setConfirmCancel(true)} className="flex-1 text-red-600 hover:bg-red-50">
+                    <Button variant="ghost" onClick={() => setConfirmCancel(true)} className="flex-1 text-red-600 hover:bg-red-50" loading={loading}>
                       {ES.sessions.cancelSession}
                     </Button>
                   )}
@@ -222,7 +224,7 @@ export function SessionCard({
 
               {/* Non-admin close button (no cancel shown) */}
               {!canCancel && (
-                <Button variant="danger" onClick={() => setConfirmClose(true)} className="w-full">
+                <Button variant="danger" onClick={() => setConfirmClose(true)} className="w-full" loading={loading}>
                   {ES.sessions.closeSession}
                 </Button>
               )}

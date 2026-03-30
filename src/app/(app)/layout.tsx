@@ -47,6 +47,8 @@ const allNavItems: NavItem[] = [
   { name: ES.nav.staff, href: '/staff', icon: UserCheck },
   { name: ES.nav.inventory, href: '/inventory', icon: Package },
   { name: ES.nav.myWork, href: '/my-work', icon: ClipboardList },
+  { name: ES.nav.myEarnings, href: '/my-earnings', icon: BarChart2 },
+  { name: ES.nav.myAppointments, href: '/my-appointments', icon: Calendar },
   { name: ES.retail.title, href: '/sales', icon: ShoppingCart },
   { name: ES.expenses.title, href: '/expenses', icon: Receipt },
   { name: ES.nav.reports, href: '/reports', icon: BarChart2 },
@@ -156,7 +158,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <div className="border-t border-gray-800 p-4 space-y-2">
           {/* Salon switcher for admins with multiple salons */}
-          {showLabels && userRole === 'admin' && (salons || []).length > 1 && (
+          {showLabels && userRole === 'admin' && (salons || []).length >= 1 && (
             <div className="pb-2 mb-2 border-b border-gray-700">
               <p className="text-xs text-gray-500 mb-1">{ES.salons.switchSalon}</p>
               <select

@@ -33,6 +33,7 @@ export const ES = {
     signInSuccess: '¡Sesión iniciada!',
     createAccountSuccess: '¡Cuenta creada!',
     loginFailed: 'Fallo al iniciar sesión',
+    invalidCredentials: 'Email o contraseña incorrectos. Intente de nuevo.',
     registerFailed: 'Fallo al registrarse',
   },
 
@@ -48,6 +49,8 @@ export const ES = {
     reports: 'Reportes',
     settings: 'Configuración',
     myWork: 'Mis Trabajos',
+    myEarnings: 'Mis Ganancias',
+    myAppointments: 'Mis Reservas',
   },
 
   // Dashboard
@@ -77,6 +80,8 @@ export const ES = {
     totalCollected: 'Total Cobrado',
     pendingCollection: 'Pendiente de Cobro',
     activeSessions: 'Trabajos Activos',
+    materialsConsumed: 'Materiales Usados',
+    materialsSold: 'Materiales Vendidos',
   },
 
   // Sessions (Trabajos)
@@ -254,6 +259,21 @@ export const ES = {
     materialAdded: 'Material registrado',
     newWork: '+ Nuevo Trabajo',
     createWork: 'Crear Trabajo',
+    tabWorks: 'Trabajos',
+    tabEarnings: 'Ganancias',
+    tabAppointments: 'Reservas',
+    myCommissionToday: 'Comisión del día',
+    noEarningsToday: 'Sin servicios completados hoy',
+    noAppointmentsToday: 'Sin reservas para hoy',
+    advancePending: 'Iniciar',
+    advanceInProgress: 'Completar',
+    statusPending: 'Pendiente',
+    statusInProgress: 'En Progreso',
+    statusCompleted: 'Completado',
+    walkInClient: 'Sin Cliente (Eventual)',
+    serviceStatusUpdated: 'Estado actualizado',
+    selectService: 'Seleccionar Servicio',
+    createAndAssign: 'Crear y Asignarme',
   },
 
   // Inventory
@@ -346,6 +366,10 @@ export const ES = {
     collapseDetail: 'Ocultar Detalle',
     print: 'Imprimir',
     exportCSV: 'Exportar CSV',
+    registerPayment: 'Registrar Pago',
+    registerPaymentConfirm: '¿Confirmar que se realizó el pago a este trabajador?',
+    paymentRegistered: 'Pago registrado en gastos.',
+    payrollPayment: 'Pago de nómina',
   },
 
   // Clients
@@ -374,6 +398,10 @@ export const ES = {
     totalSessions: 'Total Trabajos',
     phoneExists: 'Ya existe un cliente con ese número de teléfono',
     walkIn: 'Cliente sin registro',
+    deleteBlockedHasSessions: 'No se puede eliminar: este cliente tiene trabajos registrados.',
+    search: 'Buscar por nombre o teléfono...',
+    viewHistory: 'Ver Historial',
+    redeemPoints: 'Puntos / Canjear',
   },
 
   // Actions
@@ -505,6 +533,7 @@ export const ES = {
     title: 'Recibo',
     print: 'Imprimir Recibo',
     share: 'Compartir',
+    shareWhatsApp: 'WhatsApp',
     date: 'Fecha',
     paymentDetail: 'Detalle de Pagos',
     thankYou: 'Gracias por su preferencia',

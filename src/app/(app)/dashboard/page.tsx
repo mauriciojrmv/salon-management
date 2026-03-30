@@ -9,10 +9,11 @@ import { useRealtime } from '@/hooks/useRealtime';
 import { AnalyticsService } from '@/lib/services/analyticsService';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ProductRepository } from '@/lib/repositories/productRepository';
+import { RetailSaleRepository } from '@/lib/repositories/retailSaleRepository';
 import { firebaseConstraints } from '@/lib/firebase/db';
 import { Session, Client, Product } from '@/types/models';
 import ES from '@/config/text.es';
-import { fmtBs } from '@/lib/utils/helpers';
+import { fmtBs, unitLabel } from '@/lib/utils/helpers';
 
 export default function Dashboard() {
   const { userData, loading: authLoading } = useAuth();
@@ -42,6 +43,20 @@ export default function Dashboard() {
     if (!userData?.salonId) return [];
     return ProductRepository.getLowStockProducts(userData.salonId);
   }, [userData?.salonId]);
+
+  // Retail sales for selected date
+  const { data: retailSales } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return RetailSaleRepository.getSalonDailySales(userData.salonId, selectedDate);
+  }, [userData?.salonId, selectedDate]);
+
+  const retailTotal = (retailSales || []).reduce((sum, s) => sum + s.totalAmount, 0);
+  const retailCount = (retailSales || []).length;
+
+  // Materials used in services (sell price charged to client, embedded in session totals)
+  const materialsConsumed = (sessions || []).reduce((sum, s) => {
+    return sum + (s.materialsUsed || []).reduce((ms, m) => ms + (m.cost || 0), 0);
+  }, 0);
 
   // Birthday detection
   const birthdayClients = useMemo(() => {
@@ -92,6 +107,9 @@ export default function Dashboard() {
     return client ? `${client.firstName} ${client.lastName}` : '-';
   };
 
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split('T')[0]; })();
+
   if (authLoading) {
     return <div className="p-6 text-center">{ES.actions.loading}</div>;
   }
@@ -128,15 +146,23 @@ export default function Dashboard() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-            className="px-3 py-2 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg font-medium hover:bg-blue-100 whitespace-nowrap"
+            onClick={() => setSelectedDate(today)}
+            className={`px-3 py-2 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+              selectedDate === today
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+            }`}
           >
             Hoy
           </button>
           <button
             type="button"
-            onClick={() => { const d = new Date(); d.setDate(d.getDate() - 1); setSelectedDate(d.toISOString().split('T')[0]); }}
-            className="px-3 py-2 text-sm bg-gray-50 text-gray-700 border border-gray-200 rounded-lg font-medium hover:bg-gray-100 whitespace-nowrap"
+            onClick={() => setSelectedDate(yesterday)}
+            className={`px-3 py-2 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+              selectedDate === yesterday
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+            }`}
           >
             Ayer
           </button>
@@ -150,7 +176,7 @@ export default function Dashboard() {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         <Card>
           <CardBody>
             <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.totalRevenue}</p>
@@ -179,6 +205,24 @@ export default function Dashboard() {
             </p>
           </CardBody>
         </Card>
+        <Card>
+          <CardBody>
+            <p className="text-gray-600 text-sm font-medium mb-1">{ES.retail.todaySales}</p>
+            <p className="text-2xl font-bold text-gray-900">{retailCount}</p>
+          </CardBody>
+        </Card>
+        <Card>
+          <CardBody>
+            <p className="text-gray-600 text-sm font-medium mb-1">{ES.retail.totalSales}</p>
+            <p className="text-2xl font-bold text-purple-600">{fmtBs(retailTotal)}</p>
+          </CardBody>
+        </Card>
+        <Card>
+          <CardBody>
+            <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.materialsConsumed}</p>
+            <p className="text-2xl font-bold text-orange-600">{fmtBs(materialsConsumed)}</p>
+          </CardBody>
+        </Card>
       </div>
 
       {/* Low-Stock Alert */}
@@ -194,7 +238,7 @@ export default function Dashboard() {
               <div key={p.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-red-100">
                 <div>
                   <p className="text-sm font-medium text-gray-900">{p.name}</p>
-                  <p className="text-xs text-gray-500">{ES.stockAlert.currentStock}: {p.currentStock} {p.unit || 'un'} / {ES.stockAlert.minStock}: {p.minStock}</p>
+                  <p className="text-xs text-gray-500">{ES.stockAlert.currentStock}: {p.currentStock} {unitLabel(p.unit)} / {ES.stockAlert.minStock}: {p.minStock}</p>
                 </div>
                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.currentStock === 0 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
                   {p.currentStock === 0 ? ES.stockAlert.outOfStock : ES.stockAlert.lowStock}

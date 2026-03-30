@@ -11,10 +11,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
+import { StaffRepository } from '@/lib/repositories/staffRepository';
+import { SessionRepository } from '@/lib/repositories/sessionRepository';
 import { LoyaltyRepository } from '@/lib/repositories/loyaltyRepository';
+import { ClientHistoryModal } from '@/components/ClientHistoryModal';
 import { Client, LoyaltyReward, LoyaltyTransaction } from '@/types/models';
 import { toDate, fmtBs } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
+import { useMemo } from 'react';
 
 export default function ClientsPage() {
   const { userData } = useAuth();
@@ -29,6 +33,8 @@ export default function ClientsPage() {
   const [loyaltyHistory, setLoyaltyHistory] = useState<LoyaltyTransaction[]>([]);
   const [confirmDeleteClientId, setConfirmDeleteClientId] = useState<string | null>(null);
   const [confirmRedeemReward, setConfirmRedeemReward] = useState<LoyaltyReward | null>(null);
+  const [historyClient, setHistoryClient] = useState<Client | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -43,7 +49,28 @@ export default function ClientsPage() {
     return ClientRepository.getSalonClients(userData.salonId);
   }, [userData?.salonId]);
 
+  const { data: staffList } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return StaffRepository.getSalonStaff(userData.salonId);
+  }, [userData?.salonId]);
+
   const clients = clientsData || [];
+
+  const filteredClients = useMemo(() => {
+    if (!searchQuery.trim()) return clients;
+    const term = searchQuery.toLowerCase();
+    return clients.filter(
+      (c) =>
+        c.firstName.toLowerCase().includes(term) ||
+        c.lastName.toLowerCase().includes(term) ||
+        (c.phone && c.phone.includes(term))
+    );
+  }, [clients, searchQuery]);
+
+  const getStaffName = (id: string) => {
+    const s = (staffList || []).find((x) => x.id === id);
+    return s ? `${s.firstName} ${s.lastName}` : id;
+  };
 
   const resetForm = () => {
     setFormData({
@@ -123,6 +150,13 @@ export default function ClientsPage() {
 
   const handleDelete = async (clientId: string) => {
     try {
+      if (userData?.salonId) {
+        const sessions = await SessionRepository.getUserSessions(userData.salonId, clientId);
+        if (sessions.length > 0) {
+          error(ES.clients.deleteBlockedHasSessions);
+          return;
+        }
+      }
       await ClientRepository.deleteClient(clientId);
       success(ES.clients.deleted);
       refetch();
@@ -260,15 +294,18 @@ export default function ClientsPage() {
       key: 'id' as keyof Client,
       label: '',
       render: (_v, item) => (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-1.5">
           <Button variant="secondary" size="sm" onClick={() => openEditModal(item)}>
             {ES.actions.edit}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setHistoryClient(item)}>
+            {ES.clients.viewHistory}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => { setCreditModalClient(item); setCreditAmount(0); }}>
             {ES.payments.addCredit}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => openLoyaltyModal(item)}>
-            {ES.loyalty.points}
+            {ES.clients.redeemPoints}
           </Button>
           <Button variant="danger" size="sm" onClick={() => setConfirmDeleteClientId(item.id)}>
             {ES.actions.delete}
@@ -290,12 +327,21 @@ export default function ClientsPage() {
 
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900">{ES.clients.title}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold text-gray-900 shrink-0">{ES.clients.title}</h2>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={ES.clients.search}
+              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </CardHeader>
         <CardBody>
           <Table
             columns={clientColumns}
-            data={clients}
+            data={filteredClients}
             rowKey="id"
             loading={clientsLoading}
             emptyMessage={ES.clients.noClients}
@@ -503,6 +549,18 @@ export default function ClientsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Client Session History Modal */}
+      {historyClient && (
+        <ClientHistoryModal
+          isOpen={!!historyClient}
+          onClose={() => setHistoryClient(null)}
+          clientId={historyClient.id}
+          clientName={`${historyClient.firstName} ${historyClient.lastName}`}
+          salonId={userData?.salonId || ''}
+          getStaffName={getStaffName}
+        />
+      )}
 
       {/* Confirm Redeem Reward Modal */}
       <Modal

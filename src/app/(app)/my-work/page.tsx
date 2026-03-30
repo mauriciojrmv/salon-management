@@ -17,6 +17,7 @@ import { SessionRepository } from '@/lib/repositories/sessionRepository';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
+import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { batchUpdate, firebaseConstraints } from '@/lib/firebase/db';
 import type { Session, SessionServiceItem } from '@/types/models';
 import { toDate, fmtBs } from '@/lib/utils/helpers';
@@ -39,6 +40,7 @@ export default function MyWorkPage() {
   // Create trabajo modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [clientId, setClientId] = useState('');
+  const [selectedServiceId, setSelectedServiceId] = useState('');
   const [isQuickClientOpen, setIsQuickClientOpen] = useState(false);
   const [quickClient, setQuickClient] = useState({ firstName: '', lastName: '', phone: '' });
 
@@ -55,7 +57,6 @@ export default function MyWorkPage() {
 
   const staffId = user?.uid || '';
 
-  // Real-time sessions — syncs instantly when admin/manager adds services or materials
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
   const sessionConstraints = useMemo(() => [
     firebaseConstraints.where('salonId', '==', userData?.salonId || ''),
@@ -78,7 +79,13 @@ export default function MyWorkPage() {
     return StaffRepository.getSalonStaff(userData.salonId);
   }, [userData?.salonId]);
 
+  const { data: salonServices } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return ServiceRepository.getSalonServices(userData.salonId);
+  }, [userData?.salonId]);
+
   const getClientName = (id: string) => {
+    if (!id) return ES.staff.walkInClient;
     const c = clients?.find((x) => x.id === id);
     return c ? `${c.firstName} ${c.lastName}` : '-';
   };
@@ -88,13 +95,15 @@ export default function MyWorkPage() {
     return s ? `${s.firstName} ${s.lastName}` : id;
   };
 
-  const clientOptions = (clients || []).map((c) => ({
-    value: c.id,
-    label: `${c.firstName} ${c.lastName}`,
-    secondary: c.phone,
-  }));
+  const clientOptions = [
+    { value: '__walkin__', label: ES.staff.walkInClient, secondary: 'Sin datos de cliente' },
+    ...(clients || []).map((c) => ({
+      value: c.id,
+      label: `${c.firstName} ${c.lastName}`,
+      secondary: c.phone,
+    })),
+  ];
 
-  // Create a new trabajo (staff self-service)
   const handleCreateTrabajo = async () => {
     if (!clientId || !userData?.salonId) {
       error(ES.messages.fillRequiredFields);
@@ -102,17 +111,31 @@ export default function MyWorkPage() {
     }
     setLoading(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
-      await SessionService.createSession({
-        clientId,
+      const resolvedClientId = clientId === '__walkin__' ? '' : clientId;
+      const sessionId = await SessionService.createSession({
+        clientId: resolvedClientId,
         date: today,
         startTime: new Date(),
         salonId: userData.salonId,
       });
+      // If a service was selected, add it and auto-assign to the creator
+      if (selectedServiceId) {
+        const svc = salonServices?.find((s) => s.id === selectedServiceId);
+        if (svc) {
+          await SessionService.addServiceToSession({
+            sessionId,
+            serviceId: svc.id,
+            serviceName: svc.name,
+            price: svc.price,
+            staffIds: [staffId],
+            materials: [],
+          });
+        }
+      }
       success(ES.sessions.sessionCreated);
       setIsCreateModalOpen(false);
       setClientId('');
-
+      setSelectedServiceId('');
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
     } finally {
@@ -150,7 +173,6 @@ export default function MyWorkPage() {
   const allSessions = sessions || [];
   const activeSessions = allSessions.filter((s) => s.status === 'active');
 
-  // My services: services assigned to me in active sessions
   const myActiveServices: { session: Session; service: SessionServiceItem }[] = [];
   activeSessions.forEach((session) => {
     (session.services || []).forEach((svc) => {
@@ -160,7 +182,6 @@ export default function MyWorkPage() {
     });
   });
 
-  // Available services: unassigned services in active sessions I could take
   const availableServices: { session: Session; service: SessionServiceItem }[] = [];
   activeSessions.forEach((session) => {
     (session.services || []).forEach((svc) => {
@@ -170,7 +191,6 @@ export default function MyWorkPage() {
     });
   });
 
-  // My completed today
   const myCompletedServices: { session: Session; service: SessionServiceItem }[] = [];
   allSessions.forEach((session) => {
     (session.services || []).forEach((svc) => {
@@ -180,7 +200,6 @@ export default function MyWorkPage() {
     });
   });
 
-  // Self-assign to a service
   const handleSelfAssign = async (session: Session, service: SessionServiceItem) => {
     setLoading(true);
     try {
@@ -192,7 +211,6 @@ export default function MyWorkPage() {
       });
       await SessionRepository.updateSession(session.id, { services: updatedServices });
       success(ES.sessions.serviceAdded);
-
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
     } finally {
@@ -200,7 +218,30 @@ export default function MyWorkPage() {
     }
   };
 
-  // Material helpers
+  const handleAdvanceStatus = async (session: Session, service: SessionServiceItem) => {
+    if (service.status === 'completed') return;
+    const nextStatus = service.status === 'pending' ? 'in_progress' : 'completed';
+    setLoading(true);
+    try {
+      const updatedServices = (session.services || []).map((svc) => {
+        if (svc.id === service.id) {
+          return {
+            ...svc,
+            status: nextStatus,
+            ...(nextStatus === 'completed' ? { endTime: new Date() } : {}),
+          };
+        }
+        return svc;
+      });
+      await SessionRepository.updateSession(session.id, { services: updatedServices });
+      success(ES.staff.serviceStatusUpdated);
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const productOptions = (products || []).map((p) => ({
     value: p.id,
     label: p.name,
@@ -247,13 +288,11 @@ export default function MyWorkPage() {
       error(ES.messages.fillRequiredFields);
       return;
     }
-
     setLoading(true);
     try {
       const session = await SessionService.getSession(materialModal.sessionId);
       if (!session) throw new Error('Session not found');
 
-      // Add materials to the specific service
       const updatedServices = (session.services || []).map((svc) => {
         if (svc.id === materialModal.serviceId) {
           const newMats = validMaterials.map((m) => ({
@@ -264,15 +303,11 @@ export default function MyWorkPage() {
             cost: m.totalPrice,
             usedAt: new Date(),
           }));
-          return {
-            ...svc,
-            materialsUsed: [...(svc.materialsUsed || []), ...newMats],
-          };
+          return { ...svc, materialsUsed: [...(svc.materialsUsed || []), ...newMats] };
         }
         return svc;
       });
 
-      // Also add to session-level materials
       const sessionMats = validMaterials.map((m) => ({
         productId: m.productId,
         productName: m.productName,
@@ -281,10 +316,7 @@ export default function MyWorkPage() {
         cost: m.totalPrice,
         usedAt: new Date(),
       }));
-
       const allMaterials = [...(session.materialsUsed || []), ...sessionMats];
-
-      // Recalculate totalAmount = service prices + material sell prices
       const servicePrices = (session.services || []).reduce((sum, s) => sum + s.price, 0);
       const materialSellPrices = allMaterials.reduce((sum, m) => sum + m.cost, 0);
 
@@ -294,7 +326,6 @@ export default function MyWorkPage() {
         totalAmount: servicePrices + materialSellPrices,
       });
 
-      // Deduct stock atomically
       const stockUpdates = await Promise.all(
         validMaterials.map(async (m) => {
           const product = await ProductRepository.getProduct(m.productId);
@@ -309,7 +340,6 @@ export default function MyWorkPage() {
       success(ES.staff.materialAdded);
       setMaterialModal(null);
       setMaterials([]);
-
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
     } finally {
@@ -317,10 +347,15 @@ export default function MyWorkPage() {
     }
   };
 
+  const statusBadge = (status: string) => {
+    if (status === 'pending') return { label: ES.staff.statusPending, cls: 'bg-yellow-100 text-yellow-700' };
+    if (status === 'in_progress') return { label: ES.staff.statusInProgress, cls: 'bg-blue-100 text-blue-700' };
+    return { label: ES.staff.statusCompleted, cls: 'bg-green-100 text-green-700' };
+  };
+
   return (
     <div className="space-y-6 p-4 max-w-lg mx-auto">
       <Toast notifications={notifications} onDismiss={removeNotification} />
-      {/* Header */}
       <div className="pt-2">
         <div className="flex items-center justify-between">
           <div>
@@ -329,11 +364,7 @@ export default function MyWorkPage() {
               {userData?.firstName} · {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
           </div>
-          <Button
-            size="lg"
-            className="py-3 px-4 text-sm"
-            onClick={() => setIsCreateModalOpen(true)}
-          >
+          <Button size="lg" className="py-3 px-4 text-sm" onClick={() => setIsCreateModalOpen(true)}>
             {ES.staff.newWork}
           </Button>
         </div>
@@ -350,62 +381,70 @@ export default function MyWorkPage() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {myActiveServices.map(({ session, service }) => (
-              <Card key={`${session.id}-${service.id}`}>
-                <CardBody>
-                  <div className="space-y-3">
-                    {/* Service info */}
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-semibold text-gray-900 text-base">{service.serviceName}</p>
-                        <p className="text-sm text-gray-500">
-                          {getClientName(session.clientId)} · {toDate(service.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                      <span className="text-lg font-bold text-gray-900">{fmtBs(service.price)}</span>
-                    </div>
-
-                    {/* Materials already used */}
-                    {service.materialsUsed?.length > 0 && (
-                      <div className="bg-gray-50 rounded-lg p-2">
-                        {service.materialsUsed.map((mat, i) => (
-                          <p key={i} className="text-xs text-gray-500">
-                            {mat.productName}: {mat.quantity} {mat.unit}
+            {myActiveServices.map(({ session, service }) => {
+              const badge = statusBadge(service.status);
+              return (
+                <Card key={`${session.id}-${service.id}`}>
+                  <CardBody>
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-semibold text-gray-900 text-base">{service.serviceName}</p>
+                          <p className="text-sm text-gray-500">
+                            {getClientName(session.clientId)} · {toDate(service.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                           </p>
-                        ))}
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="text-lg font-bold text-gray-900">{fmtBs(service.price)}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.cls}`}>{badge.label}</span>
+                        </div>
                       </div>
-                    )}
 
-                    {/* Action buttons — large touch targets */}
-                    <div className="flex gap-2">
-                      <Button
-                        size="lg"
-                        variant="secondary"
-                        className="flex-1 py-3.5 text-base"
-                        onClick={() => {
-                          setMaterialModal({
-                            sessionId: session.id,
-                            serviceId: service.id,
-                            serviceName: service.serviceName,
-                          });
-                          setMaterials([]);
-                        }}
-                      >
-                        {ES.staff.addMyMaterial}
-                      </Button>
-                      <Button
-                        size="lg"
-                        variant="ghost"
-                        className="py-3.5"
-                        onClick={() => setHistoryClientId(session.clientId)}
-                      >
-                        {ES.sessions.viewClientHistory}
-                      </Button>
+                      {service.materialsUsed?.length > 0 && (
+                        <div className="bg-gray-50 rounded-lg p-2">
+                          {service.materialsUsed.map((mat, i) => (
+                            <p key={i} className="text-xs text-gray-500">
+                              {mat.productName}: {mat.quantity} {mat.unit}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
+                        <Button
+                          size="lg"
+                          variant="primary"
+                          className="flex-1 py-3 text-sm"
+                          onClick={() => handleAdvanceStatus(session, service)}
+                          loading={loading}
+                        >
+                          {service.status === 'pending' ? ES.staff.advancePending : ES.staff.advanceInProgress}
+                        </Button>
+                        <Button
+                          size="lg"
+                          variant="secondary"
+                          className="py-3 px-3 text-sm"
+                          onClick={() => {
+                            setMaterialModal({ sessionId: session.id, serviceId: service.id, serviceName: service.serviceName });
+                            setMaterials([]);
+                          }}
+                        >
+                          {ES.staff.addMyMaterial}
+                        </Button>
+                        <Button
+                          size="lg"
+                          variant="ghost"
+                          className="py-3 px-3"
+                          onClick={() => setHistoryClientId(session.clientId)}
+                        >
+                          {ES.sessions.viewClientHistory}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
+                  </CardBody>
+                </Card>
+              );
+            })}
           </div>
         )}
       </section>
@@ -493,6 +532,8 @@ export default function MyWorkPage() {
                       <Input
                         label={ES.sessions.quantity}
                         type="number"
+                        step="0.01"
+                        min="0"
                         value={mat.quantity}
                         onChange={(e) => handleMaterialQuantityChange(idx, parseFloat(e.target.value) || 0)}
                       />
@@ -502,11 +543,7 @@ export default function MyWorkPage() {
                       <p className="text-xs text-gray-400">{fmtBs(mat.pricePerUnit)}/{mat.unit}</p>
                       <p className="text-sm font-semibold">{fmtBs(mat.totalPrice)}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveMaterial(idx)}
-                      className="text-red-500 hover:text-red-700 text-sm pb-3 font-medium"
-                    >
+                    <button type="button" onClick={() => handleRemoveMaterial(idx)} className="text-red-500 hover:text-red-700 text-sm pb-3 font-medium">
                       ✕
                     </button>
                   </div>
@@ -535,7 +572,7 @@ export default function MyWorkPage() {
       </Modal>
 
       {/* === CREATE TRABAJO MODAL === */}
-      <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title={ES.staff.createWork}>
+      <Modal isOpen={isCreateModalOpen} onClose={() => { setIsCreateModalOpen(false); setClientId(''); setSelectedServiceId(''); }} title={ES.staff.createWork}>
         <div className="space-y-4">
           <SearchableSelect
             label={ES.sessions.selectClient}
@@ -545,15 +582,22 @@ export default function MyWorkPage() {
             placeholder={ES.actions.search}
             required
           />
-          <button
-            type="button"
-            onClick={() => setIsQuickClientOpen(true)}
-            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-          >
+          <button type="button" onClick={() => setIsQuickClientOpen(true)} className="text-sm text-blue-600 hover:text-blue-800 font-medium">
             {ES.clients.addQuick}
           </button>
+          <SearchableSelect
+            label={`${ES.staff.selectService} (opcional)`}
+            options={(salonServices || []).filter((s) => s.isActive).map((s) => ({
+              value: s.id,
+              label: s.name,
+              secondary: `Bs. ${s.price}`,
+            }))}
+            value={selectedServiceId}
+            onChange={setSelectedServiceId}
+            placeholder={ES.actions.search}
+          />
           <div className="flex gap-2 pt-2">
-            <Button variant="secondary" className="flex-1 py-3" onClick={() => setIsCreateModalOpen(false)}>
+            <Button variant="secondary" className="flex-1 py-3" onClick={() => { setIsCreateModalOpen(false); setClientId(''); setSelectedServiceId(''); }}>
               {ES.actions.cancel}
             </Button>
             <Button className="flex-1 py-3" onClick={handleCreateTrabajo} loading={loading}>
@@ -566,23 +610,9 @@ export default function MyWorkPage() {
       {/* Quick Client Modal */}
       <Modal isOpen={isQuickClientOpen} onClose={() => setIsQuickClientOpen(false)} title={ES.clients.quickAddTitle}>
         <div className="space-y-4">
-          <Input
-            label={ES.clients.name}
-            value={quickClient.firstName}
-            onChange={(e) => setQuickClient({ ...quickClient, firstName: e.target.value })}
-            required
-          />
-          <Input
-            label={ES.clients.lastName}
-            value={quickClient.lastName}
-            onChange={(e) => setQuickClient({ ...quickClient, lastName: e.target.value })}
-          />
-          <Input
-            label={ES.clients.phoneOptional}
-            type="tel"
-            value={quickClient.phone}
-            onChange={(e) => setQuickClient({ ...quickClient, phone: e.target.value })}
-          />
+          <Input label={ES.clients.name} value={quickClient.firstName} onChange={(e) => setQuickClient({ ...quickClient, firstName: e.target.value })} required />
+          <Input label={ES.clients.lastName} value={quickClient.lastName} onChange={(e) => setQuickClient({ ...quickClient, lastName: e.target.value })} />
+          <Input label={ES.clients.phoneOptional} type="tel" value={quickClient.phone} onChange={(e) => setQuickClient({ ...quickClient, phone: e.target.value })} />
           <div className="flex gap-2 pt-2">
             <Button variant="secondary" className="flex-1 py-3" onClick={() => setIsQuickClientOpen(false)}>
               {ES.actions.cancel}

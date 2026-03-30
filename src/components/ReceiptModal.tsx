@@ -12,9 +12,10 @@ interface ReceiptModalProps {
   clientName: string;
   getStaffName: (id: string) => string;
   salonName?: string;
+  clientPhone?: string;
 }
 
-export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffName, salonName }: ReceiptModalProps) {
+export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffName, salonName, clientPhone }: ReceiptModalProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
 
   if (!session) return null;
@@ -65,7 +66,7 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
     printWindow.document.close();
   };
 
-  const handleShare = async () => {
+  const buildReceiptText = () => {
     const lines = [
       salonName || ES.app.name,
       `${ES.receipt.date}: ${session.date}`,
@@ -89,8 +90,11 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
       '',
       ES.receipt.thankYou,
     ];
-    const text = lines.join('\n');
+    return lines.join('\n');
+  };
 
+  const handleShare = async () => {
+    const text = buildReceiptText();
     if (navigator.share) {
       try {
         await navigator.share({ title: ES.receipt.title, text });
@@ -100,6 +104,13 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
     } else {
       await navigator.clipboard.writeText(text);
     }
+  };
+
+  const handleWhatsApp = () => {
+    if (!clientPhone) return;
+    const phone = clientPhone.replace(/\D/g, '');
+    const text = encodeURIComponent(buildReceiptText());
+    window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
   };
 
   return (
@@ -193,13 +204,18 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
         )}
       </div>
 
-      <div className="flex gap-2 mt-4 pt-3 border-t border-gray-200">
+      <div className="flex gap-2 mt-4 pt-3 border-t border-gray-200 flex-wrap">
         <Button size="sm" variant="primary" onClick={handlePrint}>
           {ES.receipt.print}
         </Button>
         <Button size="sm" variant="secondary" onClick={handleShare}>
           {ES.receipt.share}
         </Button>
+        {clientPhone && (
+          <Button size="sm" variant="secondary" onClick={handleWhatsApp}>
+            {ES.receipt.shareWhatsApp}
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={onClose}>
           {ES.actions.close}
         </Button>

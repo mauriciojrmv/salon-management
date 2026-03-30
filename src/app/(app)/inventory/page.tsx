@@ -13,7 +13,7 @@ import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { Product, ProductCategory } from '@/types/models';
-import { fmtBs } from '@/lib/utils/helpers';
+import { fmtBs, unitLabel } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 const initialFormData = {
@@ -148,7 +148,7 @@ export default function InventoryPage() {
               : 'text-green-600 font-semibold'
           }
         >
-          {value} {item.unit || 'un'}
+          {value} {unitLabel(item.unit)}
         </span>
       ),
     },
@@ -198,7 +198,7 @@ export default function InventoryPage() {
             <div className="space-y-2">
               {lowStockProducts.map((product) => (
                 <div key={product.id} className="text-sm text-red-800">
-                  {product.name}: {product.currentStock} {product.unit || 'un'} (min: {product.minStock})
+                  {product.name}: {product.currentStock} {unitLabel(product.unit)} (min: {product.minStock})
                 </div>
               ))}
             </div>

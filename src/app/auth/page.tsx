@@ -28,7 +28,17 @@ export default function AuthPage() {
       success(ES.auth.signInSuccess);
       setTimeout(() => router.push('/dashboard'), 500);
     } catch (err) {
-      error(err instanceof Error ? err.message : ES.auth.loginFailed);
+      const code = (err as { code?: string }).code || '';
+      if (
+        code === 'auth/invalid-credential' ||
+        code === 'auth/wrong-password' ||
+        code === 'auth/user-not-found' ||
+        code === 'auth/invalid-email'
+      ) {
+        error(ES.auth.invalidCredentials);
+      } else {
+        error(err instanceof Error ? err.message : ES.auth.loginFailed);
+      }
     } finally {
       setLoading(false);
     }

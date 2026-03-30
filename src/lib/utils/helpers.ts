@@ -87,6 +87,20 @@ export function calculateDuration(startTime: Date, endTime: Date): number {
   return Math.floor((endTime.getTime() - startTime.getTime()) / (1000 * 60));
 }
 
+// Unit label map: translates stored English keys to Spanish display labels
+const UNIT_LABEL_MAP: Record<string, string> = {
+  pieces: 'Piezas',
+  ml: 'ml',
+  g: 'g',
+  bottles: 'Botellas',
+  sachets: 'Sobres',
+};
+
+export function unitLabel(unit: string | undefined): string {
+  if (!unit) return 'un';
+  return UNIT_LABEL_MAP[unit] || unit;
+}
+
 // Business constants
 export const DEFAULT_COMMISSION_RATE = 50; // 50% default commission
 

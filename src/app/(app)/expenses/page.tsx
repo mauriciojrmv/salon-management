@@ -241,10 +241,10 @@ export default function ExpensesPage() {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-2 pt-2 border-t border-gray-100">
-                  <Button size="sm" variant="ghost" onClick={() => openEdit(expense)}>
+                  <Button size="sm" variant="secondary" onClick={() => openEdit(expense)}>
                     {ES.actions.edit}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteExpenseId(expense.id)}>
+                  <Button size="sm" variant="danger" onClick={() => setConfirmDeleteExpenseId(expense.id)}>
                     {ES.actions.delete}
                   </Button>
                 </div>

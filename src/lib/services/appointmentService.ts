@@ -89,11 +89,10 @@ export class AppointmentService {
     startTime: string,
     endTime: string
   ): Promise<boolean> {
-    const appointments = await queryDocuments('appointments', [
+    const appointments = (await queryDocuments('appointments', [
       firebaseConstraints.where('staffId', '==', staffId),
       firebaseConstraints.where('appointmentDate', '==', date),
-      firebaseConstraints.where('status', '!=', 'cancelled'),
-    ]) as Appointment[];
+    ]) as Appointment[]).filter(apt => apt.status !== 'cancelled');
 
     return !appointments.some(apt => {
       const overlaps = !(endTime <= apt.startTime || startTime >= apt.endTime);
