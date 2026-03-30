@@ -49,6 +49,8 @@
 
 ## MÓDULO 3 — Panel (Dashboard)
 
+### 3A. Admin / Gerente
+
 | # | Acción | Resultado | Notas |
 |---|--------|-----------|-------|
 | 3.1 | Ver métricas del día — ingresos, transacciones, clientes, promedio | | |
@@ -59,6 +61,17 @@
 | 3.6 | Ver sección "Cierre de Caja" con totales por método de pago | | |
 | 3.7 | Si hay cumpleaños hoy → aparece alerta rosada con nombre del cliente | | |
 | 3.8 | Si hay stock bajo → aparece alerta roja con nombres de productos y unidades en español | | |
+| 3.9 | Tabla "Trabajos de Hoy" → cada fila muestra columna "Servicios" con nombre del servicio y personal asignado (ej: "Corte — Ana García") | | |
+| 3.10 | Ver sección "Top Servicios" y "Top Personal" para Admin/Gerente | | |
+
+### 3B. Personal (rol staff)
+
+| # | Acción | Resultado | Notas |
+|---|--------|-----------|-------|
+| 3B.1 | Entrar al dashboard con cuenta Personal — NO ver métricas del salón completo | | |
+| 3B.2 | Ver 3 tarjetas de KPI: "Servicios Completados", "Mi Comisión", ingresos propios | | |
+| 3B.3 | Tabla "Trabajos de Hoy" muestra SOLO los trabajos donde yo tengo servicios asignados | | |
+| 3B.4 | NO ver secciones "Top Servicios" ni "Top Personal" | | |
 
 ---
 
@@ -124,6 +137,7 @@
 | 4.34 | Si el cliente tiene teléfono → aparece botón "WhatsApp" en el recibo | | |
 | 4.35 | Tocar "WhatsApp" → abre WhatsApp con el recibo pre-llenado en el chat del cliente | | |
 | 4.36 | Si el cliente NO tiene teléfono → botón WhatsApp NO aparece | | |
+| 4.37b | En la sección "Completados" cada servicio muestra el nombre del personal asignado debajo del nombre del servicio | | |
 
 ### 4F. Cancelar trabajo (Solo Admin/Gerente)
 
@@ -165,11 +179,15 @@
 | # | Acción | Resultado | Notas |
 |---|--------|-----------|-------|
 | 5B.1 | Entrar a "Mis Ganancias" desde el menú | | |
-| 5B.2 | Ver cantidad de servicios completados hoy | | |
-| 5B.3 | Ver comisión total del día | | |
-| 5B.4 | Ver desglose por servicio: nombre, precio, deducción material, comisión | | |
-| 5B.5 | Ver fila de total al fondo de la lista | | |
-| 5B.6 | Sin servicios completados → mensaje "Sin servicios completados hoy" | | |
+| 5B.2 | Ver selector de fecha: botones "Hoy" y "Ayer" + campo de fecha | | |
+| 5B.3 | Tocar "Hoy" → se resalta en azul, carga datos de hoy | | |
+| 5B.4 | Tocar "Ayer" → carga datos de ayer | | |
+| 5B.5 | Cambiar fecha manualmente → datos actualizan | | |
+| 5B.6 | Ver cantidad de servicios completados para la fecha seleccionada | | |
+| 5B.7 | Ver comisión total para la fecha seleccionada | | |
+| 5B.8 | Ver desglose por servicio: nombre, precio, deducción material, comisión | | |
+| 5B.9 | Ver fila de total al fondo de la lista | | |
+| 5B.10 | Sin servicios completados → mensaje "Sin servicios completados hoy" | | |
 
 ---
 
@@ -180,11 +198,15 @@
 | # | Acción | Resultado | Notas |
 |---|--------|-----------|-------|
 | 5C.1 | Entrar a "Mis Reservas" desde el menú | | |
-| 5C.2 | Ver solo las citas asignadas a mí para hoy | | |
-| 5C.3 | Citas ordenadas por hora de inicio | | |
-| 5C.4 | Ver badge de estado por cita (Pendiente, Confirmada, etc.) | | |
-| 5C.5 | Citas canceladas NO aparecen en la lista | | |
-| 5C.6 | Sin citas para hoy → mensaje "Sin reservas para hoy" | | |
+| 5C.2 | Ver selector de fecha: botones "Hoy" y "Ayer" + campo de fecha | | |
+| 5C.3 | Tocar "Hoy" → se resalta en azul, carga citas de hoy | | |
+| 5C.4 | Tocar "Ayer" → carga citas de ayer | | |
+| 5C.5 | Cambiar fecha manualmente → lista de citas actualiza | | |
+| 5C.6 | Ver solo las citas asignadas a mí para la fecha seleccionada | | |
+| 5C.7 | Citas ordenadas por hora de inicio | | |
+| 5C.8 | Ver badge de estado por cita (Pendiente, Confirmada, etc.) | | |
+| 5C.9 | Citas canceladas NO aparecen en la lista | | |
+| 5C.10 | Sin citas → mensaje "Sin reservas para hoy" | | |
 
 ---
 

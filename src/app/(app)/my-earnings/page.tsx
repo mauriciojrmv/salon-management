@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardBody } from '@/components/Card';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,11 +17,15 @@ export default function MyEarningsPage() {
 
   const staffId = user?.uid || '';
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const yesterday = useMemo(() => {
+    const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split('T')[0];
+  }, []);
+  const [selectedDate, setSelectedDate] = useState<string>(today);
 
   const sessionConstraints = useMemo(() => [
     firebaseConstraints.where('salonId', '==', userData?.salonId || ''),
-    firebaseConstraints.where('date', '==', today),
-  ], [userData?.salonId, today]);
+    firebaseConstraints.where('date', '==', selectedDate),
+  ], [userData?.salonId, selectedDate]);
   const { data: sessions } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId);
 
   const myCompletedServices = useMemo(() => {
@@ -48,9 +52,39 @@ export default function MyEarningsPage() {
       <Toast notifications={notifications} onDismiss={removeNotification} />
       <div className="pt-2">
         <h1 className="text-2xl font-bold text-gray-900">{ES.nav.myEarnings}</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          {userData?.firstName} · {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-        </p>
+        <p className="text-sm text-gray-500 mt-1">{userData?.firstName}</p>
+      </div>
+
+      {/* Date selector */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setSelectedDate(today)}
+          className={`px-3 py-2 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+            selectedDate === today
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+          }`}
+        >
+          Hoy
+        </button>
+        <button
+          type="button"
+          onClick={() => setSelectedDate(yesterday)}
+          className={`px-3 py-2 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+            selectedDate === yesterday
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+          }`}
+        >
+          Ayer
+        </button>
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex-1"
+        />
       </div>
 
       {/* Summary cards */}

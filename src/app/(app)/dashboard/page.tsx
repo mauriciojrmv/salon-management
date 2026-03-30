@@ -11,12 +11,14 @@ import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { RetailSaleRepository } from '@/lib/repositories/retailSaleRepository';
 import { firebaseConstraints } from '@/lib/firebase/db';
+import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { Session, Client, Product } from '@/types/models';
 import ES from '@/config/text.es';
 import { fmtBs, unitLabel } from '@/lib/utils/helpers';
 
 export default function Dashboard() {
-  const { userData, loading: authLoading } = useAuth();
+  const { user, userData, loading: authLoading } = useAuth();
+  const isStaff = userData?.role === 'staff';
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
@@ -36,6 +38,12 @@ export default function Dashboard() {
   const { data: clients } = useAsync(async () => {
     if (!userData?.salonId) return [];
     return ClientRepository.getSalonClients(userData.salonId);
+  }, [userData?.salonId]);
+
+  // Load staff to resolve names
+  const { data: staffList } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return StaffRepository.getSalonStaff(userData.salonId);
   }, [userData?.salonId]);
 
   // Low-stock products
@@ -107,6 +115,38 @@ export default function Dashboard() {
     return client ? `${client.firstName} ${client.lastName}` : '-';
   };
 
+  const getStaffName = (id: string) => {
+    const s = staffList?.find((x) => x.id === id);
+    return s ? `${s.firstName} ${s.lastName}` : id;
+  };
+
+  // For staff role: filter sessions to only those with services assigned to this staff
+  const staffSessions = useMemo(() => {
+    if (!isStaff || !user?.uid) return sessions || [];
+    return (sessions || []).filter((s) =>
+      (s.services || []).some((svc) => svc.assignedStaff?.includes(user.uid))
+    );
+  }, [isStaff, user?.uid, sessions]);
+
+  // Staff-specific KPIs (only when role === 'staff')
+  const staffKPIs = useMemo(() => {
+    if (!isStaff || !user?.uid) return null;
+    let completedCount = 0;
+    let totalRevenue = 0;
+    let totalCommission = 0;
+    staffSessions.forEach((session) => {
+      (session.services || []).forEach((svc) => {
+        if (svc.assignedStaff?.includes(user.uid) && svc.status === 'completed') {
+          completedCount++;
+          totalRevenue += svc.price;
+          const matCost = (svc.materialsUsed || []).reduce((s, m) => s + (m.cost || 0), 0);
+          totalCommission += Math.max(0, (svc.price - matCost) * ((svc.commissionRate || 50) / 100));
+        }
+      });
+    });
+    return { completedCount, totalRevenue, totalCommission };
+  }, [isStaff, user?.uid, staffSessions]);
+
   const today = new Date().toISOString().split('T')[0];
   const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split('T')[0]; })();
 
@@ -119,6 +159,23 @@ export default function Dashboard() {
       key: 'clientId',
       label: ES.sessions.client,
       render: (v) => getClientName(v as string),
+    },
+    {
+      key: 'services',
+      label: ES.sessions.services,
+      render: (_, row) => (
+        <div className="space-y-0.5">
+          {(row.services || []).map((svc) => (
+            <div key={svc.id} className="text-xs text-gray-600">
+              <span className="font-medium">{svc.serviceName}</span>
+              {svc.assignedStaff?.length > 0 && (
+                <span className="text-gray-400"> — {svc.assignedStaff.map(getStaffName).join(', ')}</span>
+              )}
+            </div>
+          ))}
+          {(row.services || []).length === 0 && <span className="text-xs text-gray-400">-</span>}
+        </div>
+      ),
     },
     { key: 'totalAmount', label: ES.sessions.totalAmount, render: (v) => fmtBs(Number(v) || 0) },
     {
@@ -176,54 +233,77 @@ export default function Dashboard() {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-        <Card>
-          <CardBody>
-            <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.totalRevenue}</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {fmtBs(metrics?.totalRevenue ?? 0)}
-            </p>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.sessions}</p>
-            <p className="text-2xl font-bold text-gray-900">{metrics?.totalSessions || 0}</p>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.clients}</p>
-            <p className="text-2xl font-bold text-gray-900">{metrics?.totalClients || 0}</p>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.avgTransaction}</p>
-            <p className="text-2xl font-bold text-gray-900">
-              {fmtBs(metrics?.averageTransactionValue ?? 0)}
-            </p>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <p className="text-gray-600 text-sm font-medium mb-1">{ES.retail.todaySales}</p>
-            <p className="text-2xl font-bold text-gray-900">{retailCount}</p>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <p className="text-gray-600 text-sm font-medium mb-1">{ES.retail.totalSales}</p>
-            <p className="text-2xl font-bold text-purple-600">{fmtBs(retailTotal)}</p>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.materialsConsumed}</p>
-            <p className="text-2xl font-bold text-orange-600">{fmtBs(materialsConsumed)}</p>
-          </CardBody>
-        </Card>
-      </div>
+      {isStaff ? (
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <Card>
+            <CardBody>
+              <p className="text-gray-600 text-sm font-medium mb-1">{ES.staff.myCompletedToday}</p>
+              <p className="text-2xl font-bold text-gray-900">{staffKPIs?.completedCount ?? 0}</p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <p className="text-gray-600 text-sm font-medium mb-1">{ES.staff.myCommissionToday}</p>
+              <p className="text-2xl font-bold text-green-600">{fmtBs(staffKPIs?.totalCommission ?? 0)}</p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.totalRevenue}</p>
+              <p className="text-2xl font-bold text-gray-900">{fmtBs(staffKPIs?.totalRevenue ?? 0)}</p>
+            </CardBody>
+          </Card>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+          <Card>
+            <CardBody>
+              <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.totalRevenue}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {fmtBs(metrics?.totalRevenue ?? 0)}
+              </p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.sessions}</p>
+              <p className="text-2xl font-bold text-gray-900">{metrics?.totalSessions || 0}</p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.clients}</p>
+              <p className="text-2xl font-bold text-gray-900">{metrics?.totalClients || 0}</p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.avgTransaction}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {fmtBs(metrics?.averageTransactionValue ?? 0)}
+              </p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <p className="text-gray-600 text-sm font-medium mb-1">{ES.retail.todaySales}</p>
+              <p className="text-2xl font-bold text-gray-900">{retailCount}</p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <p className="text-gray-600 text-sm font-medium mb-1">{ES.retail.totalSales}</p>
+              <p className="text-2xl font-bold text-purple-600">{fmtBs(retailTotal)}</p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.materialsConsumed}</p>
+              <p className="text-2xl font-bold text-orange-600">{fmtBs(materialsConsumed)}</p>
+            </CardBody>
+          </Card>
+        </div>
+      )}
 
       {/* Low-Stock Alert */}
       {(lowStockProducts || []).length > 0 && (
@@ -360,7 +440,7 @@ export default function Dashboard() {
         <CardBody>
           <Table
             columns={sessionColumns}
-            data={sessions || []}
+            data={staffSessions}
             rowKey="id"
             loading={sessionsLoading}
             emptyMessage={ES.dashboard.noSessions}
@@ -368,8 +448,8 @@ export default function Dashboard() {
         </CardBody>
       </Card>
 
-      {/* Top Services */}
-      {metrics?.topServices && metrics.topServices.length > 0 && (
+      {/* Top Services — admin/manager only */}
+      {!isStaff && metrics?.topServices && metrics.topServices.length > 0 && (
         <Card>
           <CardHeader>
             <h2 className="text-xl font-semibold text-gray-900">{ES.dashboard.topServices}</h2>
@@ -395,8 +475,8 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Top Staff */}
-      {metrics?.topStaff && metrics.topStaff.length > 0 && (
+      {/* Top Staff — admin/manager only */}
+      {!isStaff && metrics?.topStaff && metrics.topStaff.length > 0 && (
         <Card>
           <CardHeader>
             <h2 className="text-xl font-semibold text-gray-900">{ES.dashboard.topStaff}</h2>

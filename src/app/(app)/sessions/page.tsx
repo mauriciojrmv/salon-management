@@ -556,7 +556,12 @@ export default function SessionsPage() {
                       <div className="mt-2 space-y-1">
                         {sessionServices.map((svc) => (
                           <div key={svc.id} className="flex justify-between text-sm text-gray-600">
-                            <span>{svc.serviceName}</span>
+                            <div>
+                              <span>{svc.serviceName}</span>
+                              {svc.assignedStaff?.length > 0 && (
+                                <p className="text-xs text-gray-400">{svc.assignedStaff.map((id) => getStaffName(id)).join(', ')}</p>
+                              )}
+                            </div>
                             <span>{fmtBs(svc.price)}</span>
                           </div>
                         ))}

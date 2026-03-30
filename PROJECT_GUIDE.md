@@ -299,6 +299,42 @@ Mistakes happen. Cancellation must:
 - [x] **Materials: support partial product usage (fractions)** — Fixed 2026-03-30: Material quantity inputs in `/sessions` and `/my-work` now have `step="0.01" min="0"`. `parseFloat` was already used for parsing — the HTML input constraint was the only missing piece (8.2 note).
 - [x] **Dashboard: add materials used metrics** — Fixed 2026-03-30: Added "Materiales Usados" KPI card to dashboard showing total sell cost of materials consumed in services for the selected day. Computed from `session.materialsUsed` across all sessions. Grid expanded to 7 columns on xl (3.1 note).
 
+### P4 — Code Review Findings (2026-03-30) — Future Work
+
+Identified during engineering + UX + product + end-user review. Target audience: salon staff aged 35–70, non-technical.
+
+#### P4-DONE (2026-03-30)
+
+- [x] **Staff dashboard shows global sessions/metrics** — Fixed 2026-03-30: When `role === 'staff'`, dashboard filters sessions to only those containing services assigned to that staff UID. KPI cards replaced with staff-specific: "Servicios Completados", "Mi Comisión", "Ingresos Generados". Admin-only sections (Top Servicios, Top Personal) hidden for staff. `staffSessions` + `staffKPIs` useMemo added, computed from `session.services[].assignedStaff`.
+- [x] **Mis Ganancias has no date selector** — Fixed 2026-03-30: Added Hoy/Ayer shortcut buttons + date input to `/my-earnings`. `selectedDate` useState replaces hardcoded `today`. `useRealtime` constraints keyed to `selectedDate` so data re-fetches reactively on date change.
+- [x] **Mis Reservas has no date selector** — Fixed 2026-03-30: Same Hoy/Ayer + date picker pattern added to `/my-appointments`. `useAsync` deps include `selectedDate`, so `AppointmentService.getStaffAppointments()` re-queries on date change.
+- [x] **Dashboard "Trabajos de Hoy" table missing staff names per service** — Fixed 2026-03-30: Added "Servicios" column to `sessionColumns` table rendering each service name with assigned staff names (`staffName — StaffName`). Added `StaffRepository` import + `staffList` useAsync + `getStaffName` helper to dashboard.
+- [x] **Sessions page completed section missing staff names per service** — Fixed 2026-03-30: In completed sessions card, each service row now shows assigned staff names as a secondary line below the service name using existing `getStaffName()`.
+
+#### P4-HIGH — Bugs / Correctness
+
+- [ ] **Loyalty points not deducting on payment** — When a client redeems a reward, the discount is not reflected in the session payment total and `loyaltyPoints` is not decremented. `executeRedeemReward()` logic in `/clients` is correct but the deduction path in payment processing is missing. Must deduct from client's `loyaltyPoints` and apply discount from salon's commission share (not from staff commission). (14.4 from manual testing)
+- [ ] **Appointments module still requires Firebase composite index in production** — `AppointmentService.getStaffAppointments()` queries by `salonId` + `staffId` + `appointmentDate` — three equality clauses which Firestore allows, but the appointments list page may still have other compound queries. Verify all appointment queries in production and create any missing indexes. Entire module is unusable until confirmed. (7.1 from manual testing)
+- [ ] **`loading` state in sessions/page.tsx is shared across all active SessionCards** — A single `loading` boolean disables ALL card buttons when any one card's async operation is running. Should be `Record<string, boolean>` keyed by `session.id` so only the card being operated on is locked.
+- [ ] **"Materiales Usados" dashboard metric shows sell revenue, not cost** — `materialsConsumed` is computed from `session.materialsUsed[].cost` which stores the client-facing sell price, not the salon's buy cost. Label is misleading. Either rename to "Materiales Vendidos (ingresos)" or compute actual cost from `product.costPrice` instead.
+
+#### P4-MEDIUM — UX for non-technical users aged 35–70
+
+- [ ] **Touch targets below 44px minimum** — Two confirmed violations: (1) SessionCard remove-service ✕ button: `min-w-[36px] min-h-[36px]` — increase to `min-w-[44px] min-h-[44px]`. (2) Dashboard Hoy/Ayer buttons: `px-3 py-2 text-sm` ≈ 38px tall — increase padding to `py-2.5` or `py-3`.
+- [ ] **Low contrast gray text fails WCAG AA** — `text-gray-400` (contrast ~3:1) and `text-gray-500` (~4.5:1 borderline) used on white backgrounds throughout for timestamps, secondary labels, empty states. Replace with `text-gray-600` minimum across all components. Key files: `SessionCard.tsx` line 100, `Dashboard` line 241, `Toast.tsx` line 36.
+- [ ] **Sidebar navigation has no visual grouping** — 16 flat items with no separation. Should group into 3 sections: (1) Operaciones diarias: Trabajos, Citas, Clientes, Ventas; (2) Gestión: Inventario, Servicios, Personal, Gastos, Reportes; (3) Sistema: Sucursales, Usuarios, Recompensas. Use a subtle divider + small section label.
+- [ ] **Nested modals confuse non-technical users** — "Nuevo Trabajo" → "Nuevo Cliente Rápido" creates two stacked modals with no clear back navigation. Inline the quick-client form as an expandable section within the main modal instead of a second modal.
+- [ ] **Commission formula never explained to staff** — "Mis Ganancias" shows a number with no explanation of how it was calculated. Add a small info line per service: "Bs. 80 servicio - Bs. 10 materiales × 50% = Bs. 35". Staff distrust unexplained numbers.
+- [ ] **"Iniciar" / "Completar" status buttons lack context** — New staff don't know these buttons change the service state. Add a subtle subtitle or tooltip: "Toca para marcar En Progreso" / "Toca para marcar Completado".
+- [ ] **`/my-appointments` page has no loading skeleton** — Page shows blank white while `useAsync` fetches appointments. Add a loading state (`ES.actions.loading`) consistent with other pages.
+
+#### P4-LOW — Terminology & Polish
+
+- [ ] **"Trabajos" terminology may confuse new users** — Consider renaming to "Atenciones" or "Servicios del Día" in the nav and page titles. "Trabajo" has a construction/labor connotation. Low risk change — only affects `text.es.ts` nav/sessions keys and one page title.
+- [ ] **Confirmation modal text too long for anxious users** — "Esta acción no se puede deshacer" combined with long explanations causes some users to either skip reading entirely or panic. Shorten to 1 sentence + a clear consequence. E.g. "¿Anular este trabajo? Se restaurará el stock." rather than the current multi-sentence version.
+- [ ] **Print report is a browser screenshot, not a formatted document** — `window.print()` captures the entire page including nav remnants. Already has `@media print` CSS hiding sidebar and filter card, but the result is still a raw page dump. Consider generating a dedicated print layout with salon name, date range header, and clean table-only output.
+- [ ] **"Materiales Usados" vs "Materiales Vendidos" — mixed framing** — Dashboard mixes material sell revenue with operational metrics. Clarify throughout the app: materials used in services are a revenue line (charged to client), not a cost line. The reports page already separates this correctly; dashboard should match.
+
 ### P3 — LOW (future hardening)
 
 - [x] **No confirmation dialogs for delete actions** — Fixed 2026-03-28: All `window.confirm()` calls replaced with custom `Modal` confirmations with Spanish buttons. Zero browser confirm dialogs remain.
@@ -581,4 +617,4 @@ src/
 
 ---
 
-*Last updated: 2026-03-30 | All phases through 6A done. Manual testing round 1 complete — all P0, P1.7, P2.7, P3.7 items resolved. Staff flow now has dedicated pages: /my-work, /my-earnings, /my-appointments. Phase 6B: growth features. See Section 8 for full issue tracker.*
+*Last updated: 2026-03-30 | All phases through 6A done. P0/P1.7/P2.7/P3.7 all resolved. Staff flow has dedicated pages: /my-work, /my-earnings, /my-appointments. P4 added from engineering + UX + end-user review (35–70 age target). Manual testing round 2 in progress. See Section 8 for full issue tracker.*
