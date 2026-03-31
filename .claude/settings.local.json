@@ -6,7 +6,10 @@
       "Bash(taskkill //f //im node.exe)",
       "Bash(npx next:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(git push:*)"
     ]
   }
 }
