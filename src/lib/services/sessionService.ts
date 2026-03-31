@@ -5,7 +5,7 @@ import { LoyaltyRepository } from '@/lib/repositories/loyaltyRepository';
 import { Session, SessionServiceItem, MaterialUsage, Payment } from '@/types/models';
 import { AddServiceToSessionRequest, ProcessPaymentRequest, CreateSessionRequest } from '@/types/api';
 import { batchUpdate } from '@/lib/firebase/db';
-import { DEFAULT_COMMISSION_RATE, LOYALTY_POINTS_RATE } from '@/lib/utils/helpers';
+import { DEFAULT_COMMISSION_RATE, LOYALTY_POINTS_RATE, getBoliviaDate } from '@/lib/utils/helpers';
 
 function auditLog(action: string, details: Record<string, unknown>) {
   console.log(`[AUDIT] ${new Date().toISOString()} | ${action}`, details);
@@ -50,15 +50,13 @@ export class SessionService {
     const updatedServices = [...(session.services || []), newService];
     const updatedSessionMaterials = [...(session.materialsUsed || []), ...materials];
 
-    // totalAmount = service prices + material sell prices (what client pays)
+    // totalAmount = service prices only — materials are internal cost tracking, NOT charged to client
     const servicePrices = updatedServices.reduce((sum, s) => sum + s.price, 0);
-    const materialSellPrices = updatedSessionMaterials.reduce((sum, m) => sum + m.cost, 0);
-    const newTotal = servicePrices + materialSellPrices;
 
     await SessionRepository.updateSession(data.sessionId, {
       services: updatedServices,
       materialsUsed: updatedSessionMaterials,
-      totalAmount: newTotal,
+      totalAmount: servicePrices,
     });
     auditLog('SERVICE_ADDED', { sessionId: data.sessionId, serviceId: data.serviceId, serviceName: data.serviceName, price: data.price, materials: materials.length });
   }
@@ -99,10 +97,9 @@ export class SessionService {
     const session = await SessionRepository.getSession(sessionId);
     if (!session) throw new Error('Session not found');
 
-    // totalAmount = service prices + material sell prices
+    // totalAmount = service prices only — materials are internal cost tracking, NOT charged to client
     const servicePrices = (session.services || []).reduce((sum, s) => sum + s.price, 0);
-    const materialSellPrices = (session.materialsUsed || []).reduce((sum, m) => sum + m.cost, 0);
-    const totalAmount = servicePrices + materialSellPrices;
+    const totalAmount = servicePrices;
 
     await SessionRepository.updateSession(sessionId, {
       status: 'completed',
@@ -110,26 +107,31 @@ export class SessionService {
       totalAmount,
     });
 
-    // Award loyalty points: 1 point per Bs. 50 spent
+    // Update client totalSpent and award loyalty points
     const pointsEarned = Math.floor(totalAmount / LOYALTY_POINTS_RATE);
-    if (pointsEarned > 0 && session.clientId) {
+    if (session.clientId) {
       try {
         const client = await ClientRepository.getClient(session.clientId);
         if (client) {
           await ClientRepository.updateClient(session.clientId, {
-            loyaltyPoints: (client.loyaltyPoints || 0) + pointsEarned,
+            totalSpent: (client.totalSpent || 0) + totalAmount,
+            totalSessions: (client.totalSessions || 0) + 1,
+            lastVisit: new Date(),
+            ...(pointsEarned > 0 ? { loyaltyPoints: (client.loyaltyPoints || 0) + pointsEarned } : {}),
           });
-          await LoyaltyRepository.addTransaction({
-            salonId: session.salonId,
-            clientId: session.clientId,
-            type: 'earned',
-            points: pointsEarned,
-            description: `Trabajo #${sessionId.slice(-6)} — Bs. ${totalAmount.toFixed(2)}`,
-            sessionId,
-          });
+          if (pointsEarned > 0) {
+            await LoyaltyRepository.addTransaction({
+              salonId: session.salonId,
+              clientId: session.clientId,
+              type: 'earned',
+              points: pointsEarned,
+              description: `Trabajo #${sessionId.slice(-6)} — Bs. ${totalAmount.toFixed(2)}`,
+              sessionId,
+            });
+          }
         }
       } catch (err) {
-        console.error('Failed to award loyalty points:', err);
+        console.error('Failed to update client stats:', err);
       }
     }
 
@@ -217,14 +219,13 @@ export class SessionService {
       if (idx !== -1) remainingMaterials.splice(idx, 1);
     }
 
-    // Recalculate total
+    // Recalculate total — service prices only
     const servicePrices = updatedServices.reduce((sum, s) => sum + s.price, 0);
-    const materialSellPrices = remainingMaterials.reduce((sum, m) => sum + m.cost, 0);
 
     await SessionRepository.updateSession(sessionId, {
       services: updatedServices,
       materialsUsed: remainingMaterials,
-      totalAmount: servicePrices + materialSellPrices,
+      totalAmount: servicePrices,
     });
     auditLog('SERVICE_REMOVED', { sessionId, serviceItemId, serviceName: serviceToRemove.serviceName, materialsRestored: materialsToRestore.length });
   }

@@ -113,6 +113,17 @@ export default function ClientsPage() {
       return;
     }
 
+    // Client-side phone uniqueness check (fallback in case Firestore index is missing)
+    if (formData.phone?.trim()) {
+      const duplicate = clients.find(
+        (c) => c.phone === formData.phone.trim() && c.id !== editingClient?.id
+      );
+      if (duplicate) {
+        error(ES.clients.phoneExists);
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       if (editingClient) {

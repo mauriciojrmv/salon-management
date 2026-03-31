@@ -14,14 +14,12 @@ import { firebaseConstraints } from '@/lib/firebase/db';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { Session, Client, Product } from '@/types/models';
 import ES from '@/config/text.es';
-import { fmtBs, unitLabel } from '@/lib/utils/helpers';
+import { fmtBs, unitLabel, getBoliviaDate } from '@/lib/utils/helpers';
 
 export default function Dashboard() {
   const { user, userData, loading: authLoading } = useAuth();
   const isStaff = userData?.role === 'staff';
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(getBoliviaDate());
 
   const { data: metrics } = useAsync(async () => {
     if (!userData?.salonId) return null;
@@ -147,8 +145,8 @@ export default function Dashboard() {
     return { completedCount, totalRevenue, totalCommission };
   }, [isStaff, user?.uid, staffSessions]);
 
-  const today = new Date().toISOString().split('T')[0];
-  const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split('T')[0]; })();
+  const today = getBoliviaDate();
+  const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' }); })();
 
   if (authLoading) {
     return <div className="p-6 text-center">{ES.actions.loading}</div>;

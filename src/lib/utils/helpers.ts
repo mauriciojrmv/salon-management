@@ -13,6 +13,12 @@ export function sortByCreatedAtDesc<T extends { createdAt: unknown }>(a: T, b: T
   return toDate(b.createdAt).getTime() - toDate(a.createdAt).getTime();
 }
 
+// Returns today's date in YYYY-MM-DD format in Bolivia timezone (UTC-4)
+// Critical: Bolivia is UTC-4; using ISO string would return the wrong date after 8PM local time
+export function getBoliviaDate(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+}
+
 // Date utilities
 export function formatDate(date: Date | string): string {
   const d = new Date(date);

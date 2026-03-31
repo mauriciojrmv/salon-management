@@ -22,7 +22,7 @@ import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { batchUpdate, firebaseConstraints } from '@/lib/firebase/db';
-import { fmtBs, unitLabel, toDate } from '@/lib/utils/helpers';
+import { fmtBs, unitLabel, toDate, getBoliviaDate } from '@/lib/utils/helpers';
 import type { Session } from '@/types/models';
 import ES from '@/config/text.es';
 
@@ -80,7 +80,7 @@ export default function SessionsPage() {
   const [showAdvancedPayment, setShowAdvancedPayment] = useState(false);
 
   // Data — real-time sessions (syncs across admin/staff/manager instantly)
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const today = useMemo(() => getBoliviaDate(), []);
   const sessionConstraints = useMemo(() => [
     firebaseConstraints.where('salonId', '==', userData?.salonId || ''),
     firebaseConstraints.where('date', '==', today),
@@ -107,12 +107,15 @@ export default function SessionsPage() {
     return ProductRepository.getSalonProducts(userData.salonId);
   }, [userData?.salonId]);
 
-  // Dropdown options
-  const clientOptions = (clients || []).map((c) => ({
-    value: c.id,
-    label: `${c.firstName} ${c.lastName}`,
-    secondary: c.phone,
-  }));
+  // Dropdown options — walk-in sentinel first
+  const clientOptions = [
+    { value: '__walkin__', label: ES.staff.walkInClient, secondary: '' },
+    ...(clients || []).map((c) => ({
+      value: c.id,
+      label: `${c.firstName} ${c.lastName}`,
+      secondary: c.phone,
+    })),
+  ];
 
   const categoryLabels: Record<string, string> = {
     haircut: ES.services.haircut, coloring: ES.services.coloring,
@@ -227,10 +230,10 @@ export default function SessionsPage() {
     }
     setLoading(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const resolvedClientId = clientId === '__walkin__' ? '' : clientId;
       await SessionService.createSession({
-        clientId,
-        date: today,
+        clientId: resolvedClientId,
+        date: getBoliviaDate(),
         startTime: new Date(),
         salonId: userData.salonId,
       });
@@ -426,7 +429,7 @@ export default function SessionsPage() {
   };
 
   const userRole = userData?.role || 'staff';
-  const canCancel = userRole === 'admin' || userRole === 'manager';
+  const canCancel = userRole === 'admin'; // only admin can void/cancel sessions
   const activeSessions = sessions?.filter((s) => s.status === 'active') || [];
   const completedSessions = (sessions?.filter((s) => s.status === 'completed') || [])
     .sort((a, b) => toDate(b.endTime ?? b.startTime).getTime() - toDate(a.endTime ?? a.startTime).getTime());
@@ -901,23 +904,16 @@ export default function SessionsPage() {
             </div>
           )}
 
-          {/* 5. Summary — service price + materials = total to charge client */}
+          {/* 5. Summary — client pays service price only; materials tracked internally */}
           {serviceForm.serviceId && (
             <div className="bg-gray-50 rounded-lg p-3 space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">{ES.sessions.servicesSubtotal}</span>
-                <span className="font-semibold">{fmtBs(serviceForm.price)}</span>
+              <div className="flex justify-between border-gray-200">
+                <span className="text-gray-900 font-semibold">{ES.payments.total} {ES.sessions.client.toLowerCase()}</span>
+                <span className="text-gray-900 font-bold">{fmtBs(serviceForm.price)}</span>
               </div>
               {totalMaterialsCost > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">{ES.sessions.materialsSubtotal}</span>
-                  <span className="text-gray-900 font-semibold">+{fmtBs(totalMaterialsCost)}</span>
-                </div>
+                <p className="text-xs text-gray-400 pt-1">{ES.sessions.materialsInternal}: {fmtBs(totalMaterialsCost)}</p>
               )}
-              <div className="flex justify-between border-t border-gray-200 pt-1 mt-1">
-                <span className="text-gray-900 font-semibold">{ES.payments.total}</span>
-                <span className="text-gray-900 font-bold">{fmtBs(serviceForm.price + totalMaterialsCost)}</span>
-              </div>
             </div>
           )}
 
@@ -1046,10 +1042,17 @@ export default function SessionsPage() {
                         method: 'credit',
                         serviceIds: selectedPaymentServiceIds.length > 0 ? selectedPaymentServiceIds : undefined,
                       });
+                      const newRemaining = Math.max(0, sessionRemainingForPayment - applyAmount);
                       success(ES.payments.creditApplied);
-                      setSessionRemainingForPayment(Math.max(0, sessionRemainingForPayment - applyAmount));
-                      setPaymentEntries([{ amount: Math.max(0, sessionRemainingForPayment - applyAmount), method: 'cash', payerNote: '', amountGiven: 0 }]);
                       refetchClients();
+                      if (newRemaining <= 0) {
+                        // Saldo covered full amount — close modal
+                        setIsPaymentModalOpen(false);
+                        setPaymentEntries([]);
+                      } else {
+                        setSessionRemainingForPayment(newRemaining);
+                        setPaymentEntries([{ amount: newRemaining, method: 'cash', payerNote: '', amountGiven: 0 }]);
+                      }
                     } catch (err) {
                       error(err instanceof Error ? err.message : ES.messages.operationFailed);
                     } finally {
@@ -1074,9 +1077,7 @@ export default function SessionsPage() {
 
           {/* Payment entries */}
           {paymentEntries.map((entry, idx) => {
-            const change = entry.method === 'cash' && entry.amountGiven > entry.amount
-              ? entry.amountGiven - entry.amount
-              : 0;
+            const change = entry.method === 'cash' ? entry.amountGiven - entry.amount : 0;
             const methodLabels: Record<string, string> = {
               cash: `💵 ${ES.payments.cash}`,
               card: `💳 ${ES.payments.card}`,
@@ -1167,9 +1168,11 @@ export default function SessionsPage() {
                     />
                     {entry.amountGiven > 0 && (
                       <div className="text-center pt-1">
-                        <span className="text-sm text-yellow-700">{ES.payments.change}</span>
-                        <p className={`text-3xl font-black ${change > 0 ? 'text-yellow-800' : 'text-gray-400'}`}>
-                          {fmtBs(change)}
+                        <span className="text-sm text-yellow-700">
+                          {change >= 0 ? ES.payments.change : 'Falta'}
+                        </span>
+                        <p className={`text-3xl font-black ${change > 0 ? 'text-yellow-800' : change < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                          {fmtBs(Math.abs(change))}
                         </p>
                       </div>
                     )}
@@ -1179,14 +1182,19 @@ export default function SessionsPage() {
             );
           })}
 
-          {/* ADVANCED: Split/Add person button */}
+          {/* ADVANCED: Split/Add person button — auto-splits total evenly */}
           {showAdvancedPayment && (
             <button
               type="button"
               onClick={() => {
-                const usedAmount = paymentEntries.reduce((sum, e) => sum + e.amount, 0);
-                const leftover = Math.max(0, sessionRemainingForPayment - usedAmount);
-                setPaymentEntries([...paymentEntries, { amount: leftover, method: 'cash', payerNote: '', amountGiven: 0 }]);
+                const newCount = paymentEntries.length + 1;
+                const perPerson = Math.floor((sessionRemainingForPayment / newCount) * 100) / 100;
+                const lastAmount = Math.round((sessionRemainingForPayment - perPerson * (newCount - 1)) * 100) / 100;
+                const updated = [
+                  ...paymentEntries.map((e, i) => ({ ...e, amount: i < paymentEntries.length - 1 ? perPerson : perPerson })),
+                  { amount: lastAmount, method: 'cash', payerNote: '', amountGiven: 0 },
+                ].map((e, i) => ({ ...e, amount: i < newCount - 1 ? perPerson : lastAmount }));
+                setPaymentEntries(updated);
               }}
               className="w-full py-4 border-2 border-dashed border-gray-300 rounded-xl text-base text-blue-600 font-semibold hover:border-blue-400 hover:bg-blue-50 transition-colors"
             >

@@ -51,9 +51,8 @@ export function SessionCard({
   const sessionPayments = session.payments || [];
   const sessionMaterials = session.materialsUsed || [];
 
-  const servicePrices = sessionServices.reduce((sum, s) => sum + s.price, 0);
-  const materialPrices = sessionMaterials.reduce((sum, m) => sum + m.cost, 0);
-  const total = servicePrices + materialPrices;
+  // Client-facing total: service prices only — materials are internal cost tracking
+  const total = sessionServices.reduce((sum, s) => sum + s.price, 0);
   const paidAmount = sessionPayments.reduce((sum, p) => sum + p.amount, 0);
   const remaining = total - paidAmount;
 
@@ -158,19 +157,9 @@ export function SessionCard({
               <p className="text-sm text-gray-400 mb-4">{ES.sessions.noServices}</p>
             )}
 
-            {/* Summary — client-facing: Servicios + Materiales = Total */}
+            {/* Summary — client-facing: Servicios = Total only */}
             <div className="bg-gray-50 rounded-lg p-3 mb-4 space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">{ES.sessions.servicesSubtotal}</span>
-                <span className="font-medium">{fmtBs(servicePrices)}</span>
-              </div>
-              {materialPrices > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">{ES.sessions.materialsSubtotal}</span>
-                  <span className="font-medium">{fmtBs(materialPrices)}</span>
-                </div>
-              )}
-              <div className="flex justify-between border-t border-gray-200 pt-1 mt-1">
+              <div className="flex justify-between border-gray-200">
                 <span className="text-gray-900 font-semibold">{ES.payments.total}</span>
                 <span className="text-gray-900 font-bold">{fmtBs(total)}</span>
               </div>

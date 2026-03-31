@@ -52,6 +52,7 @@ const initialForm = {
 
 export default function ExpensesPage() {
   const { user, userData } = useAuth();
+  const isAdmin = userData?.role === 'admin';
   const { notifications, removeNotification, success, error } = useNotification();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
@@ -240,14 +241,16 @@ export default function ExpensesPage() {
                     <p className="text-xs text-gray-400">{methodLabels[expense.paymentMethod || ''] || ''}</p>
                   </div>
                 </div>
-                <div className="flex gap-2 mt-2 pt-2 border-t border-gray-100">
-                  <Button size="sm" variant="secondary" onClick={() => openEdit(expense)}>
-                    {ES.actions.edit}
-                  </Button>
-                  <Button size="sm" variant="danger" onClick={() => setConfirmDeleteExpenseId(expense.id)}>
-                    {ES.actions.delete}
-                  </Button>
-                </div>
+                {isAdmin && (
+                  <div className="flex gap-2 mt-2 pt-2 border-t border-gray-100">
+                    <Button size="sm" variant="secondary" onClick={() => openEdit(expense)}>
+                      {ES.actions.edit}
+                    </Button>
+                    <Button size="sm" variant="danger" onClick={() => setConfirmDeleteExpenseId(expense.id)}>
+                      {ES.actions.delete}
+                    </Button>
+                  </div>
+                )}
               </CardBody>
             </Card>
           ))}

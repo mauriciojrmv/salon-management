@@ -22,11 +22,9 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
 
   const services = session.services || [];
   const payments = (session.payments || []).filter((p) => p.status === 'completed');
-  const materials = session.materialsUsed || [];
 
-  const servicePrices = services.reduce((sum, s) => sum + s.price, 0);
-  const materialPrices = materials.reduce((sum, m) => sum + m.cost, 0);
-  const total = servicePrices + materialPrices;
+  // Client receipt: services only — materials are internal cost tracking, NOT shown to client
+  const total = services.reduce((sum, s) => sum + s.price, 0);
   const paidAmount = payments.reduce((sum, p) => sum + p.amount, 0);
 
   const methodLabels: Record<string, string> = {
@@ -74,18 +72,13 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
       '',
       `--- ${ES.sessions.services} ---`,
       ...services.map((s) => `${s.serviceName}: ${fmtBs(s.price)}`),
-      ...(materialPrices > 0 ? [
-        '',
-        `--- ${ES.sessions.materialsUsed} ---`,
-        ...materials.map((m) => `${m.productName}: ${fmtBs(m.cost)}`),
-      ] : []),
       '',
       `${ES.payments.total}: ${fmtBs(total)}`,
-      `${ES.payments.paid}: ${fmtBs(paidAmount)}`,
       ...(payments.length > 0 ? [
         '',
         `--- ${ES.receipt.paymentDetail} ---`,
         ...payments.map((p) => `${methodLabels[p.method] || p.method}: ${fmtBs(p.amount)}`),
+        `${ES.payments.paid}: ${fmtBs(paidAmount)}`,
       ] : []),
       '',
       ES.receipt.thankYou,
@@ -141,40 +134,12 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
           ))}
         </div>
 
-        {/* Materials */}
-        {materialPrices > 0 && (
-          <>
-            <div className="border-t border-dashed border-gray-300 my-2" />
-            <p className="text-xs text-gray-500 mb-1">{ES.sessions.materialsUsed}</p>
-            <div className="space-y-1 mb-2">
-              {materials.map((mat, i) => (
-                <div key={i} className="flex justify-between text-sm">
-                  <span className="text-gray-600">{mat.productName} ({mat.quantity} {mat.unit})</span>
-                  <span className="font-medium">{fmtBs(mat.cost)}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
         <div className="border-t border-dashed border-gray-300 my-2" />
 
-        {/* Totals */}
-        <div className="space-y-1">
-          <div className="flex justify-between text-sm">
-            <span>{ES.sessions.servicesSubtotal}</span>
-            <span>{fmtBs(servicePrices)}</span>
-          </div>
-          {materialPrices > 0 && (
-            <div className="flex justify-between text-sm">
-              <span>{ES.sessions.materialsSubtotal}</span>
-              <span>{fmtBs(materialPrices)}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-base font-bold border-t border-gray-300 pt-1 mt-1">
-            <span>{ES.payments.total}</span>
-            <span>{fmtBs(total)}</span>
-          </div>
+        {/* Total */}
+        <div className="flex justify-between text-base font-bold">
+          <span>{ES.payments.total}</span>
+          <span>{fmtBs(total)}</span>
         </div>
 
         {/* Payment breakdown */}

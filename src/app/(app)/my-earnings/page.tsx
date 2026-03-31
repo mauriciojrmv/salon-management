@@ -8,7 +8,7 @@ import { useRealtime } from '@/hooks/useRealtime';
 import { useNotification } from '@/hooks/useNotification';
 import { firebaseConstraints } from '@/lib/firebase/db';
 import type { Session } from '@/types/models';
-import { fmtBs } from '@/lib/utils/helpers';
+import { fmtBs, getBoliviaDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 export default function MyEarningsPage() {
@@ -16,9 +16,10 @@ export default function MyEarningsPage() {
   const { notifications, removeNotification } = useNotification();
 
   const staffId = user?.uid || '';
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const today = useMemo(() => getBoliviaDate(), []);
   const yesterday = useMemo(() => {
-    const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split('T')[0];
+    const d = new Date(); d.setDate(d.getDate() - 1);
+    return d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
   }, []);
   const [selectedDate, setSelectedDate] = useState<string>(today);
 

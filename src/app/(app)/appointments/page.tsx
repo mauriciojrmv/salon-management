@@ -17,7 +17,7 @@ import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { Appointment } from '@/types/models';
-import { fmtBs } from '@/lib/utils/helpers';
+import { fmtBs, getBoliviaDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 export default function AppointmentsPage() {
@@ -25,7 +25,8 @@ export default function AppointmentsPage() {
   const { notifications, removeNotification, success, error } = useNotification();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isQuickClientOpen, setIsQuickClientOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getBoliviaDate());
+  const [cancelApptId, setCancelApptId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     clientId: '',
     serviceIds: [] as string[],
@@ -155,11 +156,22 @@ export default function AppointmentsPage() {
     }
   };
 
+  const handleCancelAppointment = async (appointmentId: string) => {
+    try {
+      await AppointmentService.updateAppointmentStatus(appointmentId, 'cancelled');
+      success(ES.appointments.cancelled);
+      setCancelApptId(null);
+      refetch();
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.appointments.cancelFailed || ES.messages.operationFailed);
+    }
+  };
+
   const handleConvertToWork = async (appointment: Appointment) => {
     if (!userData?.salonId) return;
     setLoading(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getBoliviaDate();
       const sessionId = await SessionService.createSession({
         clientId: appointment.clientId,
         date: today,
@@ -238,7 +250,7 @@ export default function AppointmentsPage() {
       key: 'id',
       label: '',
       render: (value, item) => (
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {item.status === 'pending' && (
             <Button size="sm" onClick={() => handleConfirmAppointment(value as string)}>
               {ES.appointments.confirm}
@@ -247,6 +259,11 @@ export default function AppointmentsPage() {
           {(item.status === 'confirmed' || item.status === 'pending') && (
             <Button size="sm" variant="primary" onClick={() => handleConvertToWork(item)}>
               {ES.appointments.convertToWork}
+            </Button>
+          )}
+          {(item.status === 'pending' || item.status === 'confirmed') && (
+            <Button size="sm" variant="danger" onClick={() => setCancelApptId(value as string)}>
+              {ES.actions.cancel}
             </Button>
           )}
         </div>
@@ -384,6 +401,17 @@ export default function AppointmentsPage() {
             <Button onClick={handleCreateAppointment} loading={loading}>
               {ES.appointments.create}
             </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Cancel Appointment Confirmation */}
+      <Modal isOpen={!!cancelApptId} onClose={() => setCancelApptId(null)} title={ES.appointments.cancelTitle} size="sm">
+        <div className="space-y-4">
+          <p className="text-gray-700">{ES.appointments.confirmCancel}</p>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setCancelApptId(null)} className="flex-1">{ES.actions.cancel}</Button>
+            <Button variant="danger" onClick={() => cancelApptId && handleCancelAppointment(cancelApptId)} className="flex-1">{ES.appointments.cancelTitle}</Button>
           </div>
         </div>
       </Modal>

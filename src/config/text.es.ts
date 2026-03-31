@@ -131,6 +131,7 @@ export const ES = {
     materialSellPrice: 'P. Venta',
     servicesSubtotal: 'Servicios',
     materialsSubtotal: 'Materiales',
+    materialsInternal: 'Materiales (costo interno)',
     cancelSession: 'Anular Trabajo',
     cancelReason: 'Motivo de Anulación',
     cancelReasonPlaceholder: 'Ej: Error de captura, cliente canceló...',
@@ -184,6 +185,9 @@ export const ES = {
     converted: '¡Cita convertida a trabajo!',
     convertFailed: 'Error al convertir cita',
     staffDoubleBooked: 'El personal ya tiene una cita en ese horario',
+    cancelTitle: 'Cancelar Cita',
+    cancelFailed: 'Error al cancelar cita',
+    confirmCancel: '¿Cancelar esta cita? El cliente será notificado.',
   },
 
   // Services

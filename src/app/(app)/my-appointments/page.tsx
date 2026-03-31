@@ -9,6 +9,7 @@ import { useNotification } from '@/hooks/useNotification';
 import { AppointmentService } from '@/lib/services/appointmentService';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
 import type { Appointment } from '@/types/models';
+import { getBoliviaDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -32,9 +33,10 @@ export default function MyAppointmentsPage() {
   const { notifications, removeNotification } = useNotification();
 
   const staffId = user?.uid || '';
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const today = useMemo(() => getBoliviaDate(), []);
   const yesterday = useMemo(() => {
-    const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().split('T')[0];
+    const d = new Date(); d.setDate(d.getDate() - 1);
+    return d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
   }, []);
   const [selectedDate, setSelectedDate] = useState<string>(today);
 
