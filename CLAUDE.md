@@ -63,7 +63,8 @@
 * Staff assignment per service, not per session
 * Material usage tied to a service, with stock auto-deduction
 * Commission model (INTERNAL only, never shown to client): 50% of service price minus material buy cost
-* Client-facing total: service price + material sell price (additive, NOT deducted)
+* Client-facing total: service price ONLY — materials are internal cost tracking, NOT charged to the client separately
+* Materials tracked for: (1) stock deduction, (2) internal commission deduction from staff earnings — never shown on client receipt or client payment total
 * Service price is editable per session (non-standard pricing)
 * Multiple payment methods (cash, card, QR, transfer)
 * Split payments supported (multiple people, multiple methods per session)
