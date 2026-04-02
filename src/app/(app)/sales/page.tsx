@@ -15,7 +15,7 @@ import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { RetailSaleRepository } from '@/lib/repositories/retailSaleRepository';
 import { batchUpdate } from '@/lib/firebase/db';
 import type { RetailSale } from '@/types/models';
-import { toDate, fmtBs } from '@/lib/utils/helpers';
+import { toDate, fmtBs, getBoliviaDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 interface SaleItem {
@@ -38,7 +38,7 @@ export default function SalesPage() {
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<SaleItem[]>([]);
 
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const today = useMemo(() => getBoliviaDate(), []);
 
   const { data: products } = useAsync(async () => {
     if (!userData?.salonId) return [];

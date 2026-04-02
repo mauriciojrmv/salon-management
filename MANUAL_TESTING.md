@@ -1,434 +1,477 @@
 # Manual Testing Guide — Salon Pro
 
-**Versión:** Post Phase 6A + P3.7 fixes (Round 2)
-**Fecha de prueba:** _______________
+**Version:** Post P4 fixes (All P5/P4 items resolved)
+**Test date:** _______________
 **Tester:** _______________
-**Dispositivo:** _______________  (ej: Samsung A32, iPhone 13, PC Chrome)
-**Rol probado:** [ ] Admin  [ ] Gerente  [ ] Personal
+**Device:** _______________ (e.g., Samsung A32, iPhone 13, PC Chrome)
+**Role tested:** [ ] Admin  [ ] Manager  [ ] Staff
 
 ---
 
-## Cómo usar este archivo
+## Test Credentials
 
-- **✅ / ❌ / ⚠️** — marca cada paso con el resultado
-- **✅** = funcionó correctamente
-- **❌** = falló o comportamiento incorrecto
-- **⚠️** = funcionó pero con dificultad o confusión
-- Llena las secciones **Bug**, **Dificultad** y **Mejora** al final
-- Un archivo por sesión de prueba — duplica el archivo para cada ronda
-
----
-
-## MÓDULO 1 — Inicio de Sesión
-
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 1.1 | Abrir la app en el celular | ✅| ✅|✅
-| 1.2 | Ver pantalla de login — ¿se ve bien en el celular? | ✅|✅ |✅
-| 1.3 | Ingresar email incorrecto → debe mostrar error en español (no Firebase crudo) | ✅| ✅|✅
-| 1.4 | Ingresar contraseña incorrecta → debe mostrar error en español | ✅| ✅|✅
-| 1.5 | Ingresar credenciales correctas → debe redirigir al panel |✅ |✅ |✅
-| 1.6 | Cerrar sesión desde el menú lateral |✅ |✅ |✅
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | michelleadmin@salon.com | 123456 |
+| Manager | michellegerente@salon.com | 123456 |
+| Staff | michelletrabajadora@salon.com | 123456 |
 
 ---
 
-## MÓDULO 2 — Navegación
+## How to use this file
 
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 2.1 | Abrir menú hamburger en celular |✅ |✅ |✅
-| 2.2 | Todos los íconos del menú se ven correctamente (sin cuadrados vacíos) |✅ |✅ |✅
-| 2.3 | Navegar a cada sección — el menú se cierra automáticamente | ✅| ✅|✅
-| 2.4 | En desktop: el menú lateral se puede colapsar | ✅| ✅|✅
-| 2.5 | Admin/Gerente NO ven "Mis Trabajos", "Mis Ganancias", "Mis Reservas" en el menú | ✅| ✅|✅
-| 2.6 | Personal NO ve "Dashboard", "Reportes", "Gastos", etc. en el menú |✅ | ✅|✅
-| 2.7 | Personal SÍ ve "Mis Trabajos", "Mis Ganancias", "Mis Reservas" |✅ |✅ |✅
-| 2.8 | Selector de sucursal visible en el menú para admin con al menos 1 salón |✅ |✅ |✅
+- **Pass / Fail / Warn** — mark each step with the result
+- **Pass** = worked correctly
+- **Fail** = broken or incorrect behavior
+- **Warn** = worked but with difficulty or confusion
+- Fill in **Bug**, **Difficulty** and **Improvement** sections at the bottom
+- Duplicate this file for each test round
 
 ---
 
-## MÓDULO 3 — Panel (Dashboard)
+## MODULE 1 — Login
 
-### 3A. Admin / Gerente
-
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 3.1 | Ver métricas del día — ingresos, transacciones, clientes, promedio | ✅|✅ |✅
-| 3.2 | Ver nuevas métricas: "Ventas de hoy" (cantidad), "Total Vendido" (monto), "Materiales Usados" |✅ |✅ |✅
-| 3.3 | Tocar botón "Hoy" → se resalta en azul y carga datos de hoy |✅ |✅ |✅
-| 3.4 | Tocar botón "Ayer" → se resalta en azul y carga datos de ayer |✅ |✅ |✅
-| 3.5 | Cambiar fecha manualmente → datos actualizan |✅ |⚠️ | i want this to be able to gather data as from a range of dates.
-| 3.6 | Ver sección "Cierre de Caja" con totales por método de pago |✅ |✅ |✅
-| 3.7 | Si hay cumpleaños hoy → aparece alerta rosada con nombre del cliente |✅ | ✅|✅
-| 3.8 | Si hay stock bajo → aparece alerta roja con nombres de productos y unidades en español |✅ |✅ |✅
-| 3.9 | Tabla "Trabajos de Hoy" → cada fila muestra columna "Servicios" con nombre del servicio y personal asignado (ej: "Corte — Ana García") |✅ |✅ |✅
-| 3.10 | Ver sección "Top Servicios" y "Top Personal" para Admin/Gerente |✅ |✅ |✅
-
-### 3B. Personal (rol staff)
-
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 3B.1 | Entrar al dashboard con cuenta Personal — NO ver métricas del salón completo |✅ |⚠️ | we are still seeing ingresos totales, section cierre de caja should not appear to staff, and should be able to select data from a range of dates too.
-| 3B.2 | Ver 3 tarjetas de KPI: "Servicios Completados", "Mi Comisión", ingresos propios |⚠️ |⚠️ | We are seeing completados hoy, comision del dia, ingresos totales.
-| 3B.3 | Tabla "Trabajos de Hoy" muestra SOLO los trabajos donde yo tengo servicios asignados |✅ |✅ |✅
-| 3B.4 | NO ver secciones "Top Servicios" ni "Top Personal" | ✅|✅ |✅
+| # | Action | Admin | Manager | Staff | Notes |
+|---|--------|-------|---------|-------|-------|
+| 1.1 | Open the app on mobile — login screen renders correctly | | | | |
+| 1.2 | Enter wrong email → error in Spanish (not raw Firebase) | | | | |
+| 1.3 | Enter wrong password → error in Spanish | | | | |
+| 1.4 | Enter correct credentials → redirects to dashboard/my-work | | | | |
+| 1.5 | Logout from sidebar → returns to login | | | | |
+| 1.6 | No self-registration option visible on login page | | | | |
 
 ---
 
-## MÓDULO 4 — Trabajos (Sesiones) — FLUJO PRINCIPAL
+## MODULE 2 — Navigation & Sidebar
 
-### 4A. Crear nuevo trabajo
-
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 4.1 | Tocar "+ Nuevo Trabajo" |✅ |✅ |✅
-| 4.2 | El dropdown de cliente se abre hacia arriba si está cerca del fondo (no cortado por modal) |✅ | ✅|✅
-| 4.3 | Buscar cliente por nombre — lista desplegable funciona correctamente |✅ | ✅|✅
-| 4.4 | Buscar cliente por teléfono |✅ |✅ |✅
-| 4.5 | Opción "Sin Cliente (Eventual)" aparece al inicio de la lista de clientes |❌ |❌ | No Sin cliente (Eventual ) option.
-| 4.6 | Seleccionar "Sin Cliente (Eventual)" → trabajo se crea sin clientId | ⚠️|⚠️ | 4.5 didnt pass test so this cant be done.
-| 4.7 | Tocar "Nuevo cliente" → llenar nombre y guardar |✅ |✅ |✅
-| 4.8 | Confirmar creación → aparece tarjeta de trabajo activo |✅ |✅ |✅
-
-### 4B. Agregar servicio
-
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 4.9 | Tocar "Agregar Servicio" en la tarjeta |✅ | ✅|✅
-| 4.10 | Ver chips de categoría — tamaño cómodo para tocar |✅ | ✅|✅
-| 4.11 | Seleccionar categoría → ver lista de servicios | ✅| ✅|✅
-| 4.12 | Seleccionar servicio → precio se llena automáticamente |✅ | ✅|✅
-| 4.13 | Tocar el campo de precio → se selecciona solo (sin borrar a mano) | ✅|✅ ✅|
-| 4.14 | Cambiar precio manualmente |✅ |✅ |✅
-| 4.15 | Asignar personal — dropdown no cortado por márgenes del modal |✅ |⚠️ | if i add a service without selecting a personal, it should appear in Trabajos Disponibles of the workers, but they are not appearing.
-| 4.16 | Agregar material → seleccionar producto, ingresar cantidad decimal (ej: 0.5) → precio se calcula |✅ |⚠️ | the agregar material is not following the rule that it 
-| 4.17 | Guardar servicio → aparece en la tarjeta |✅ |✅ |✅
-| 4.18 | Editar material de servicio registrado |❌ |⚠️ | there is no way to add material if the service has been added by mistake without selecting material.
-
-we are having a problem with the material. the material should not be accounted at the total of the payment it should included in the service. it should not appear in the payment of the client. we have our own rules for this cost deduction with the workers.
-
-### 4C. Estado del servicio
-
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 4.18 | Ver borde/badge de color en cada servicio (amarillo=pendiente, azul=en progreso, verde=completado) | ✅| ✅|✅
-| 4.19 | Tocar badge de estado como Admin/Gerente → avanza Pendiente → En Progreso → Completado | ✅| ✅|✅
-
-### 4D. Cobrar
-
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 4.20 | Tocar "Procesar Pago" → ver modal con total grande |✅ | ✅|✅
-| 4.21 | Tocar "Efectivo" → aparece calculadora de cambio (monto recibido → cambio) |✅ |✅ |✅
-| 4.22 | Ingresar monto menor al total → cambio aparece en rojo |✅ |❌ |it is not appearing in red
-| 4.23 | Tocar "Tarjeta" → desaparece calculadora de cambio |✅ |✅ |✅
-| 4.24 | Tocar "QR" → confirmar pago |✅ |✅ |✅
-| 4.25 | Confirmar pago → aparece como "Pagado" en la tarjeta | ✅|✅ | ✅
-| 4.26 | Tocar "Opciones avanzadas" → aparece opción de pago dividido | ✅|✅ |✅
-| 4.27 | Pago dividido: agregar segunda persona, asignar monto y método |✅ |⚠️ | the old personal tried doing split payment the monto appears for example 60  they place in efectivo section monto recibido 30 and other person to pay 30 in qr, the resumen shows this: Persona 1 — Efectivo
-Bs. 60.00
-Persona 2 — Código QR
-Bs. 30.00
-Total
-Bs. 90.00
-
-i tried to make them understand that they have to edit monto section when splitting but they dont get it. we have to find a solution for this part.
-
-### 4E. Cerrar trabajo
-
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 4.28 | Tocar "Cerrar Trabajo" → aparece modal de confirmación en español |✅ |✅ |✅
-| 4.29 | Confirmar cierre → trabajo pasa a sección "Completados" |✅ |✅ |✅
-| 4.30 | Los completados aparecen ordenados del más reciente al más antiguo |✅ |⚠️ | currently dont know what timezone we are using but we need to use timezone of la paz. and the date format dd/mm/yy 
-| 4.31 | Ver recibo → tocar "Ver Recibo" → aparece recibo correcto |✅ |⚠️ | the recibo is summarizing service + material. it should only show services, total, detalle pago pagado. materials used should not be listed here since this is for the client only. 
-| 4.32 | Tocar "Imprimir Recibo" → abre ventana de impresión |✅ |⚠️ | the impresion format is not the same as of ver recibo
-| 4.33 | Tocar "Compartir" → abre menú compartir del sistema (o copia al portapapeles) |✅ | ✅|✅
-| 4.34 | Si el cliente tiene teléfono → aparece botón "WhatsApp" en el recibo |✅ |✅ |✅
-| 4.35 | Tocar "WhatsApp" → abre WhatsApp con el recibo pre-llenado en el chat del cliente |✅ |⚠️ | same as ver recibo the client is receiving a wrong price its only services and maybe venta de productos listed here. materials used should not be listed here at all
-| 4.36 | Si el cliente NO tiene teléfono → botón WhatsApp NO aparece |✅ |✅ |✅
-| 4.37b | En la sección "Completados" cada servicio muestra el nombre del personal asignado debajo del nombre del servicio |✅ |✅ |✅
-
-### 4F. Cancelar trabajo (Solo Admin/Gerente)
-
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 4.37 | Tocar "Anular" → aparece modal con campo de motivo |✅ |✅ |✅
-| 4.38 | Intentar anular sin escribir motivo → debe mostrar error |✅ | ✅|✅
-| 4.39 | Anular con motivo → trabajo pasa a sección de cancelados (tachado) |✅ | ⚠️| we had an issue nulling a work from the day before the work doesnt appear nulled.
-| 4.40 | Verificar que el stock se restauró en inventario |✅ |⚠️ |stock didnt restored in a work from a previous date. we have a problem with region probably
-
-this anular trabajo should be available to admin role only
+| # | Action | Admin | Manager | Staff | Notes |
+|---|--------|-------|---------|-------|-------|
+| 2.1 | Mobile: hamburger opens sidebar drawer | | | | |
+| 2.2 | Mobile: tapping a nav item closes the drawer | | | | |
+| 2.3 | Desktop: sidebar collapses/expands with toggle | | | | |
+| 2.4 | Sidebar shows 4 group labels: Operaciones, Mi Area, Gestion, Sistema | | | | NEW: grouped nav |
+| 2.5 | Group dividers/labels visible when sidebar expanded | | | | |
+| 2.6 | Admin sees all sections including Sistema group | | | | |
+| 2.7 | Manager does NOT see Sistema group (Recompensas, Sucursales, Usuarios) | | | | |
+| 2.8 | Staff sees ONLY Mi Area group (Mis Atenciones, Mis Ganancias, Mis Reservas) + Panel | | | | |
+| 2.9 | Salon switcher visible for Admin with multiple salons | | | | |
+| 2.10 | Switch salon → data updates instantly (no page reload) | | | | Uses onSnapshot |
 
 ---
 
-## MÓDULO 5 — Personal en "Mis Trabajos"
+## MODULE 3 — Dashboard (Panel)
 
-*(Probar con cuenta de Personal)*
+### 3A. Admin / Manager
 
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 5.1 | Entrar a "Mis Trabajos" — solo aparecen servicios asignados a mí |✅ | ✅|✅
-| 5.2 | Ver badge de estado (Pendiente / En Progreso / Completado) en cada servicio | ✅| ✅|✅
-| 5.3 | Tocar "Iniciar" → servicio cambia a En Progreso | ✅|✅ |✅
-| 5.4 | Tocar "Completar" → servicio cambia a Completado y desaparece de activos |✅ |✅ |✅
-| 5.5 | Ver sección "Trabajos Disponibles" (sin asignar) — tocar "Tomar Trabajo" |✅ |✅ |✅
-| 5.6 | Tocar "+ Material" → modal de materiales |✅ |✅ |✅
-| 5.7 | En modal de materiales: ingresar cantidad decimal (ej: 0.5) → funciona | ✅|⚠️ | . is not working it is accepting , value   also old people find difficult the usage of decimals how can this be fixed acting as a ux ui designer
-| 5.8 | En celular: botones Cancelar/Guardar del modal visibles al tener teclado abierto (scroll) |⚠️ |⚠️ | not visible they are covered by the numeric keyboard
-| 5.9 | Crear nuevo trabajo desde "Mis Trabajos" → aparece selector de cliente Y selector de servicio | ✅|⚠️ | the search is kinda bugged cant search by number, neither by name. when you start writing the list dissapears.
-| 5.10 | Seleccionar "Sin Cliente (Eventual)" → trabajo se crea sin clientId |✅ |✅ |✅
-| 5.11 | Seleccionar servicio en la creación → se agrega al trabajo y queda asignado a mí |✅ |⚠️ | it is showing all available services, not the ones the worker does, its kinda clustered for the worker to see all the services here.
-| 5.12 | Personal NO puede anular trabajos — botón no aparece |✅ |✅ |✅
-| 5.13 | Ver historial de cliente desde tarjeta de trabajo | ✅| ✅|✅
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 3.1 | See daily KPIs: Ingresos, Atenciones, Clientes, Promedio | | | |
+| 3.2 | See retail KPIs: Ventas de Hoy (count), Total Ventas (amount) | | | |
+| 3.3 | See "Costo Materiales" metric — shows buy cost, not sell price | | | FIXED: was showing sell price |
+| 3.4 | Tap "Hoy" → highlighted blue, loads today's data | | | Touch target >= 44px |
+| 3.5 | Tap "Ayer" → loads yesterday's data | | | |
+| 3.6 | Change date manually → data updates | | | |
+| 3.7 | "Cierre de Caja" shows totals by payment method (cash/card/QR/transfer) | | | |
+| 3.8 | Birthday alert appears if client has birthday today (pink card) | | | |
+| 3.9 | Low-stock alert appears if products below minimum (red banner) | | | |
+| 3.10 | "Atenciones de Hoy" table shows service names + assigned staff per row | | | |
+| 3.11 | Top Services and Top Staff sections visible | | | |
+| 3.12 | All dates display dd/mm/yyyy format (not YYYY-MM-DD) | | | FIXED |
 
----
+### 3B. Staff
 
-## MÓDULO 5B — Mis Ganancias
-
-*(Probar con cuenta de Personal)*
-
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 5B.1 | Entrar a "Mis Ganancias" desde el menú |✅ |✅ |✅
-| 5B.2 | Ver selector de fecha: botones "Hoy" y "Ayer" + campo de fecha |✅ |✅ |✅
-| 5B.3 | Tocar "Hoy" → se resalta en azul, carga datos de hoy | ✅|✅ |✅
-| 5B.4 | Tocar "Ayer" → carga datos de ayer | ✅| ❌| data from yesterday isnt showing
-| 5B.5 | Cambiar fecha manualmente → datos actualizan | ✅|❌ | data isnt showing also it should be a date range selector
-| 5B.6 | Ver cantidad de servicios completados para la fecha seleccionada |✅ |⚠️ | ayer and date selector isnt working
-| 5B.7 | Ver comisión total para la fecha seleccionada |✅ |⚠️ | ayer and date selector isnt working
-| 5B.8 | Ver desglose por servicio: nombre, precio, deducción material, comisión |✅ | ✅|✅
-| 5B.9 | Ver fila de total al fondo de la lista |✅ |✅ |✅
-| 5B.10 | Sin servicios completados → mensaje "Sin servicios completados hoy" |✅ |✅ |✅
+| # | Action | Staff | Notes |
+|---|--------|-------|-------|
+| 3B.1 | Dashboard shows 3 staff-specific KPIs only (Completados, Comision, Mis Ingresos) | | |
+| 3B.2 | "Cierre de Caja" NOT visible to staff | | FIXED |
+| 3B.3 | Table shows ONLY sessions where I have assigned services | | |
+| 3B.4 | Top Services / Top Staff NOT visible | | |
 
 ---
 
-## MÓDULO 5C — Mis Reservas
+## MODULE 4 — Atenciones (Sessions) — Main Flow
 
-*(Probar con cuenta de Personal)*
+### 4A. Create new session
 
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 5C.1 | Entrar a "Mis Reservas" desde el menú | ✅|✅ |✅
-| 5C.2 | Ver selector de fecha: botones "Hoy" y "Ayer" + campo de fecha |✅ | ✅|✅
-| 5C.3 | Tocar "Hoy" → se resalta en azul, carga citas de hoy |✅ | ⚠️| doesnt show what service it is. also there should be a button to confirm the reservation from the worker side. also we should have a notification system when a reservation is due to respond from the worker side.
-| 5C.4 | Tocar "Ayer" → carga citas de ayer |✅ |⚠️ | ayer and date selector isnt working
-| 5C.5 | Cambiar fecha manualmente → lista de citas actualiza |✅ |⚠️ | ayer and date selector isnt working also there is no indicator neither in the manual date selector of on due reservations.
-| 5C.6 | Ver solo las citas asignadas a mí para la fecha seleccionada |✅ |⚠️ | ayer and date selector isnt working
-| 5C.7 | Citas ordenadas por hora de inicio | ✅|✅ |✅
-| 5C.8 | Ver badge de estado por cita (Pendiente, Confirmada, etc.) |✅ |✅ |✅
-| 5C.9 | Citas canceladas NO aparecen en la lista |✅ |✅ |✅
-| 5C.10 | Sin citas → mensaje "Sin reservas para hoy" |✅ |✅ |✅
----
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 4.1 | Tap "+ Nueva Atencion" button | | | Renamed from "Trabajo" |
+| 4.2 | Client search dropdown works (by name and phone) | | | |
+| 4.3 | "Sin Cliente (Eventual)" option appears at start of list | | | |
+| 4.4 | Tap "Nuevo cliente rapido" → form appears INLINE (no second modal) | | | FIXED: was nested modal |
+| 4.5 | Fill quick-client name → save → auto-selects new client | | | |
+| 4.6 | Tap "Volver" → returns to client selection | | | |
+| 4.7 | Confirm creation → active session card appears | | | |
 
-## MÓDULO 6 — Clientes
+### 4B. Add service
 
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 6.1 | Ver lista de clientes en celular — tarjetas legibles |✅ |✅ |✅
-| 6.2 | Buscar cliente por nombre — barra de búsqueda en el encabezado |✅ |✅ |✅
-| 6.3 | Buscar cliente por teléfono — misma barra |✅ |✅ |✅
-| 6.4 | Crear nuevo cliente con teléfono |✅ | ✅|✅
-| 6.5 | Crear cliente sin teléfono (walk-in) |✅ |✅ |✅
-| 6.6 | Intentar crear cliente con teléfono duplicado → error en español |✅ |❌ | the client was created succesfully it shouldnt have been created.
-| 6.7 | Editar cliente → modal de edición aparece en web y móvil | ✅| ✅|✅
-| 6.8 | Intentar eliminar cliente con trabajos → aparece error bloqueante (no se puede eliminar) |✅ |⚠️ | working but in total gastado doesnt show the cliente spendings
-| 6.9 | Eliminar cliente sin trabajos → modal de confirmación en español |✅ | ✅|✅
-| 6.10 | Ver puntos de lealtad del cliente en web y móvil |✅ |✅ |✅
-| 6.11 | Tocar "Puntos / Canjear" → modal de canje de recompensas |✅ | ⚠️ | the points are duplicating from testings of reediting the work, dont know how the canjear puntos work. it should be able to be applied in the trabajos procesar pagos section.
-| 6.12 | Ver historial de trabajos del cliente en web y móvil | ✅|✅ |✅
-| 6.13 | Agregar saldo aparece en web y móvil |✅ | ✅| we have a problem in the cobro if the client has saldo and it covers the full payment the pago goes to 0 and cant proceed with the payment. they have to get out of the modal manually cause they cant proceed with the payment. another question the payment by saldo doesnt show up in the earnings of the day but the worker still gets its pay right? since the pay up had been made another day.
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 4.8 | Tap "Agregar Servicio" on session card | | | |
+| 4.9 | Frequent services shown as suggestion chips (if client has history) | | | |
+| 4.10 | Category chips comfortable to tap (>= 44px) | | | |
+| 4.11 | Select service → price auto-fills | | | |
+| 4.12 | Change price manually | | | |
+| 4.13 | Assign staff from dropdown | | | |
+| 4.14 | Add material → select product, enter decimal qty (0.5) → cost calculates | | | |
+| 4.15 | Comma input on Android converts to period automatically | | | FIXED: onBeforeInput |
+| 4.16 | Save service → appears on card with status badge | | | |
 
-the options buttons dont follow the same style of the oher lists. also cant visually see the full list with options in the web page.
+### 4C. Service status
 
----
+| # | Action | Admin | Manager | Staff | Notes |
+|---|--------|-------|---------|-------|-------|
+| 4.17 | Status badge colors: yellow=pending, blue=in-progress, green=completed | | | | |
+| 4.18 | Tap status badge → advances state (Pendiente → En Progreso → Completado) | | | | |
+| 4.19 | Status button shows hint text: "Toca para iniciar" / "Toca para completar" | | | | NEW |
+| 4.20 | Status button touch target >= 44px | | | | FIXED |
 
-## MÓDULO 7 — Citas
+### 4D. Edit materials on existing service
 
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 7.1 | Crear nueva cita — seleccionar cliente, servicio, personal, fecha y hora | ✅|✅ |✅
-| 7.2 | El campo de fecha aparece dentro del modal de creación |✅ |✅ | the date selected is the date that apeears in the fecha 
-| 7.3 | Intentar agendar con personal ya ocupado → error de conflicto en español | ✅|✅ |✅
-| 7.4 | Confirmar cita pendiente |✅ |✅ |✅
-| 7.5 | Tocar "Iniciar Trabajo" en cita confirmada → crea trabajo pre-llenado |✅ |✅ |✅
-| 7.6 | Cancelar cita |❌ |❌ | no cancelar cita button
-| 7.7 | Ver selector de fecha: botones "Hoy" y "Ayer" + campo de fecha |✅ | ✅| there is no hoy, there is no ayer, and the date selector should be a range date selector here too.
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 4.21 | Tap "+ Mat." button on a service → edit materials modal opens | | | |
+| 4.22 | Existing materials pre-filled in the modal | | | |
+| 4.23 | Add/remove materials → save → stock adjusts correctly (old restored, new deducted) | | | |
 
-there should be a way to edit the reservation here too if the client changed its mind, and a alert should be sent to the assigned worker about the change for confirmation.
+### 4E. Payment
 
----
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 4.24 | Tap "Procesar Pago" → modal shows big total | | | |
+| 4.25 | Total = sum of service prices ONLY (materials NOT included) | | | CRITICAL rule |
+| 4.26 | Select "Efectivo" → change calculator appears | | | |
+| 4.27 | Select "Tarjeta" / "QR" / "Transferencia" → no change calculator | | | |
+| 4.28 | Client credit balance shown if > 0 → "Aplicar Saldo" button | | | |
+| 4.29 | Client loyalty points shown if > 0 → info text to redeem from Clients | | | NEW |
+| 4.30 | Tap "Opciones avanzadas" → split payment options appear | | | |
+| 4.31 | Split payment: amounts divide correctly, last person gets remainder | | | |
+| 4.32 | Confirm payment → session shows "Pagado" | | | |
+| 4.33 | Loading spinner only on THIS card's buttons (not all cards) | | | FIXED: per-session loading |
 
-## MÓDULO 8 — Inventario
+### 4F. Close session
 
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 8.1 | Ver lista de productos |✅ |✅ |✅
-| 8.2 | Ver unidades en español (Piezas, Botellas, Sobres, ml, g) — no en inglés |✅ |✅ |✅
-| 8.3 | Crear nuevo producto con precio de costo y precio de venta |✅ |✅ |✅
-| 8.4 | Editar stock mínimo | ✅|✅ |✅
-| 8.5 | Producto con stock bajo → aparece con badge "Stock Bajo" |✅ |✅ |✅
-| 8.6 | Eliminar producto → modal de confirmación en español |✅ |✅ |✅
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 4.34 | Tap "Cerrar Atencion" → short confirmation: "Cerrar esta atencion?" | | | FIXED: shortened text |
+| 4.35 | Confirm → session moves to "Completados" section | | | |
+| 4.36 | Completed sessions sorted most recent first | | | |
+| 4.37 | Client stats updated (totalSpent, totalSessions, lastVisit, loyaltyPoints) | | | |
+| 4.38 | Loyalty points awarded = floor(totalAmount / 50) | | | |
+| 4.39 | Reopen then close again → loyalty points NOT duplicated | | | FIXED: loyaltyPointsAwarded flag |
 
----
+### 4G. Receipt
 
-## MÓDULO 9 — Servicios
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 4.40 | Tap "Ver Recibo" → receipt shows services, total, payment details | | | |
+| 4.41 | Receipt does NOT show materials (internal only) | | | CRITICAL rule |
+| 4.42 | Receipt dates show dd/mm/yyyy | | | FIXED |
+| 4.43 | "Imprimir Recibo" → print window matches on-screen receipt styling | | | FIXED |
+| 4.44 | "Compartir" → share/clipboard with plain-text receipt | | | |
+| 4.45 | "WhatsApp" button appears if client has phone | | | |
 
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 9.1 | Ver lista de servicios con precios en Bs. |✅ | ✅|✅
-| 9.2 | Crear nuevo servicio con categoría y precio |✅ |✅ |✅
-| 9.3 | Editar servicio |✅ |✅ |✅
-| 9.4 | Eliminar servicio → modal de confirmación en español | ✅|✅ |✅
+### 4H. Cancel session (Admin only)
 
----
+| # | Action | Admin | Manager | Staff | Notes |
+|---|--------|-------|---------|-------|-------|
+| 4.46 | "Anular" button visible ONLY for Admin role | | | | FIXED |
+| 4.47 | Tap Anular → modal with reason field, short confirmation text | | | | |
+| 4.48 | Submit without reason → error message | | | | |
+| 4.49 | Submit with reason → session moves to cancelled, stock restored | | | | |
+| 4.50 | Can cancel sessions from previous dates (date navigation) | | | | FIXED |
 
-## MÓDULO 10 — Personal (Solo Admin)
+### 4I. Date navigation
 
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 10.1 | Ver lista de personal |✅ |✅ |✅
-| 10.2 | Crear nuevo miembro de personal |✅ |✅ |✅
-| 10.3 | Asignar especialidades (servicios que realiza) |✅ |✅ |✅
-| 10.4 | Eliminar personal → modal de confirmación en español |✅ |⚠️ |should not be able to delete a personal if this has services done.
-
----
-
-## MÓDULO 11 — Reportes (Solo Admin/Gerente)
-
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 11.1 | Seleccionar rango de fechas |✅ |✅ |✅
-| 11.2 | Ver reporte de rentabilidad por servicio | ✅| ✅|✅
-| 11.3 | Ver planilla de pagos por personal — monto a pagar a cada uno |✅ |✅ |✅
-| 11.4 | Tocar "Registrar Pago" en una tarjeta de planilla → modal de confirmación |✅ |✅ |✅
-| 11.5 | Confirmar pago → se registra como gasto en categoría "salarios" |✅ |⚠️ | it reflects the payment in gastos in categoria salarios. but the payment that just have been payed doesnt appears payed in reports. it should appear as payed. and a new payment should start for the new payment.   also there should be a payments page for the worker to show its payments? or do we do it in mis ganancias. act as a ux ui designer to solve this.
-| 11.6 | Ver totales resumen: Ingresos, Planilla, Materiales, Ganancia del Salón |✅ |✅ |✅
-| 11.7 | Exportar CSV de rentabilidad por servicio |✅ |✅ |✅
-| 11.8 | Imprimir reporte → menú lateral y filtros se ocultan, solo queda el contenido |✅ |✅ |✅
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 4.51 | Hoy/Ayer buttons + date picker visible | | | |
+| 4.52 | Navigate to yesterday → see yesterday's sessions | | | |
+| 4.53 | Navigate to any date → sessions load correctly | | | |
+| 4.54 | Buttons have comfortable touch targets (>= 44px) | | | FIXED |
 
 ---
 
-## MÓDULO 12 — Ventas (Retail)
+## MODULE 5 — Staff: Mis Atenciones (My Work)
 
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 12.1 | Crear venta de producto al mostrador | ✅| ✅|✅
-| 12.2 | Seleccionar método de pago: Efectivo → aparece calculadora de cambio | ✅| ✅|✅
-| 12.3 | Ingresar monto recibido → muestra cambio a devolver |✅ |✅ |✅
-| 12.4 | Stock se descuenta automáticamente al confirmar venta |✅ | ✅|✅
-| 12.5 | Ver resumen de ventas del día en la página de ventas |✅ |✅ |✅
-| 12.6 | Ver total de ventas retail en el Dashboard (tarjeta "Ventas Retail") | ✅|✅ |✅
+*Test with Staff account (michelletrabajadora@salon.com)*
 
----
-
-## MÓDULO 13 — Gastos
-
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 13.1 | Registrar gasto con categoría y monto en Bs. |✅ |✅ |✅
-| 13.2 | Ver desglose de gastos por categoría |✅ | ✅|✅
-| 13.3 | Botón Editar → estilo secundario (gris), visible y clicable |✅ |⚠️ | should be only available for admin
-| 13.4 | Botón Eliminar → estilo danger (rojo), visible y clicable |✅ |⚠️ |should be only available for admin
-| 13.5 | Eliminar gasto → modal de confirmación en español |✅ |⚠️ |should be only available for admin
-| 13.6 | Filtrar por mes |✅ |⚠️ | should be able to filter by range of dates
+| # | Action | Staff | Notes |
+|---|--------|-------|-------|
+| 5.1 | Enter "Mis Atenciones" — only services assigned to me appear | | Renamed from "Mis Trabajos" |
+| 5.2 | See status badge per service (Pendiente / En Progreso / Completado) | | |
+| 5.3 | Tap "Iniciar" → status changes, hint text visible | | |
+| 5.4 | Tap "Completar" → service marked done | | |
+| 5.5 | "Atenciones Disponibles" section shows unassigned work | | |
+| 5.6 | Tap "Tomar Atencion" → assigns to me | | |
+| 5.7 | Tap "+ Material" → materials modal opens | | |
+| 5.8 | Modal buttons visible when phone keyboard is open (scroll works) | | FIXED: pb-16 |
+| 5.9 | Decimal input: comma on Android keyboard converts to period | | FIXED |
+| 5.10 | Create new session from my-work → service dropdown filtered by my specialties | | FIXED |
+| 5.11 | Staff CANNOT cancel sessions — button not visible | | |
 
 ---
 
-## MÓDULO 14 — Programa de Lealtad (Solo Admin)
+## MODULE 5B — Staff: Mis Ganancias (My Earnings)
 
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 14.1 | Crear recompensa (descuento, servicio gratis, crédito) | ✅|✅ |✅
-| 14.2 | Cerrar un trabajo → cliente acumula puntos automáticamente |✅ | ✅|✅
-| 14.3 | Verificar que puntos = total / 50 (redondeado) |✅ |✅ |✅
-| 14.4 | Canjear recompensa para cliente desde la página de Clientes → puntos se descuentan |✅ |⚠️ | should be able to canjear recompensa from the payment section so the client doesnt forget.
+*Test with Staff account*
 
----
-
-## MÓDULO 15 — Usuarios (Solo Admin)
-
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 15.1 | Crear nuevo gerente → recibe acceso correcto |✅ |✅ |✅
-| 15.2 | Crear nuevo personal → acceso limitado correcto (solo ve Mis Trabajos, etc.) |✅ |✅ |✅
-| 15.3 | Admin no pierde su sesión al crear usuario | ✅| ✅|✅
+| # | Action | Staff | Notes |
+|---|--------|-------|-------|
+| 5B.1 | Enter "Mis Ganancias" from sidebar | | |
+| 5B.2 | Date selector: Hoy/Ayer buttons + date picker | | |
+| 5B.3 | See completed service count for selected date | | |
+| 5B.4 | See commission total for selected date | | |
+| 5B.5 | Per-service breakdown shows formula: (Bs. X - Bs. Y mat.) x Z% = Bs. W | | NEW: commission explained |
+| 5B.6 | Total row at bottom of list | | |
+| 5B.7 | No completed services → "Sin servicios completados" message | | |
 
 ---
 
-## MÓDULO 16 — Multi-Sucursal (Solo Admin)
+## MODULE 5C — Staff: Mis Reservas (My Appointments)
 
-| # | Acción | Resultado | Notas |
-|---|--------|-----------|-------|
-| 16.1 | Ver/crear sucursales en `/salons` |✅ |✅ |✅
-| 16.2 | Selector de sucursal visible en el menú lateral (aparece si admin tiene ≥1 salón) |✅ | ✅|✅
-| 16.3 | Cambiar de sucursal desde el selector → datos cambian al salón seleccionado |❌ | ❌|not working.
+*Test with Staff account*
+
+| # | Action | Staff | Notes |
+|---|--------|-------|-------|
+| 5C.1 | Enter "Mis Reservas" from sidebar | | |
+| 5C.2 | Loading shows skeleton animation (not blank white page) | | NEW |
+| 5C.3 | Date selector: Hoy/Ayer buttons + date picker | | |
+| 5C.4 | See only appointments assigned to me | | |
+| 5C.5 | Service names shown per appointment (in blue text) | | FIXED |
+| 5C.6 | Confirm button on pending appointments | | |
+| 5C.7 | Appointments sorted by start time | | |
+| 5C.8 | Status badges: Pendiente, Confirmada, etc. | | |
+| 5C.9 | Cancelled appointments NOT shown | | |
 
 ---
 
-## PRUEBAS DE ROLES — Matriz de Permisos
+## MODULE 6 — Clients
 
-Verificar que cada rol VE y PUEDE hacer solo lo que le corresponde:
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 6.1 | See client list — readable on mobile | | | |
+| 6.2 | Search by name | | | |
+| 6.3 | Search by phone | | | |
+| 6.4 | Create client with phone | | | |
+| 6.5 | Create client without phone (walk-in) | | | |
+| 6.6 | Create client with duplicate phone → error in Spanish | | | |
+| 6.7 | Edit client → modal appears | | | |
+| 6.8 | Delete client with sessions → blocked with error message | | | |
+| 6.9 | Delete client without sessions → confirmation modal | | | |
+| 6.10 | See loyalty points + tier badge per client | | | |
+| 6.11 | Tap "Canjear Puntos" → loyalty modal with rewards + history | | | |
+| 6.12 | Redeem reward → points deducted, credit added to balance | | | FIXED |
+| 6.13 | Success message: credit-type shows "saldo agregado", discount shows "aplicar manualmente" | | | NEW |
+| 6.14 | See session history per client (dates in dd/mm/yyyy) | | | FIXED |
+| 6.15 | Add credit/advance payment → balance updates | | | |
+| 6.16 | All action buttons same consistent style | | | FIXED |
 
-| Función | Admin | Gerente | Personal |
-|---------|-------|---------|----------|
-| Ver Dashboard | ✓ | ✓ | ✗ |
-| Ver Trabajos (todos) | ✓ | ✓ | ✗ |
-| Crear/Cerrar Trabajos | ✓ | ✓ | ✓ |
-| Anular Trabajos | ✓ | ✓ | ✗ |
-| Ver Reportes | ✓ | ✓ | ✗ |
-| Gestionar Clientes | ✓ | ✓ | ✗ |
-| Gestionar Inventario | ✓ | ✓ | ✗ |
-| Gestionar Servicios | ✓ | ✓ | ✗ |
-| Gestionar Personal | ✓ | ✗ | ✗ |
-| Gestionar Usuarios | ✓ | ✗ | ✗ |
-| Ver Gastos | ✓ | ✓ | ✗ |
-| Ver Ventas Retail | ✓ | ✓ | ✗ |
-| Ver Recompensas | ✓ | ✗ | ✗ |
-| Ver Sucursales | ✓ | ✗ | ✗ |
-| Mis Trabajos | ✗ | ✗ | ✓ |
-| Mis Ganancias | ✗ | ✗ | ✓ |
-| Mis Reservas | ✗ | ✗ | ✓ |
+---
 
-**Anotar si algún rol ve algo que NO debería:**
+## MODULE 7 — Appointments (Citas)
+
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 7.1 | Create appointment — select client, service, staff, date, time | | | |
+| 7.2 | Double-booking same staff → error in Spanish | | | |
+| 7.3 | Confirm pending appointment | | | |
+| 7.4 | Edit appointment (change date/time/staff) | | | |
+| 7.5 | "Iniciar Atencion" on confirmed appointment → creates pre-filled session | | | |
+| 7.6 | Cancel appointment | | | |
+| 7.7 | Date navigation works correctly | | | |
+
+---
+
+## MODULE 8 — Inventory
+
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 8.1 | See product list with stock levels | | | |
+| 8.2 | Units shown in Spanish (Piezas, Botellas, Sobres, ml, g) | | | |
+| 8.3 | Create product with cost price and sell price | | | |
+| 8.4 | Edit min stock level | | | |
+| 8.5 | Low stock → "Stock Bajo" badge | | | |
+| 8.6 | Delete product → confirmation in Spanish | | | |
+
+---
+
+## MODULE 9 — Services
+
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 9.1 | See service list with prices in Bs. | | | |
+| 9.2 | Create service with category and price | | | |
+| 9.3 | Edit service | | | |
+| 9.4 | Delete service → confirmation in Spanish | | | |
+
+---
+
+## MODULE 10 — Staff Management (Admin only)
+
+| # | Action | Admin | Notes |
+|---|--------|-------|-------|
+| 10.1 | See staff list | | |
+| 10.2 | Create new staff member | | |
+| 10.3 | Assign specialties (services they perform) | | |
+| 10.4 | Delete staff with sessions → blocked with error message | | FIXED |
+| 10.5 | Delete staff without sessions → confirmation modal | | |
+
+---
+
+## MODULE 11 — Reports (Admin/Manager only)
+
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 11.1 | Select date range | | | |
+| 11.2 | See service profitability report | | | |
+| 11.3 | See payroll per staff — amount to pay each | | | |
+| 11.4 | "Registrar Pago" → confirmation, records as salary expense | | | |
+| 11.5 | Paid staff shows "Pagado" badge (no duplicate register button) | | | FIXED |
+| 11.6 | Summary totals: Ingresos, Planilla, Materiales, Ganancia Salon | | | |
+| 11.7 | Export CSV works | | | |
+| 11.8 | Print → clean layout with title + date range header, no sidebar | | | FIXED: print header |
+
+---
+
+## MODULE 12 — Retail Sales
+
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 12.1 | Create product sale at counter | | | |
+| 12.2 | Cash → change calculator appears | | | |
+| 12.3 | Enter amount given → shows change | | | |
+| 12.4 | Stock deducted on confirm | | | |
+| 12.5 | Daily sales summary shown on page | | | |
+| 12.6 | Dashboard retail KPIs match | | | |
+
+---
+
+## MODULE 13 — Expenses (Gastos)
+
+| # | Action | Admin | Manager | Notes |
+|---|--------|-------|---------|-------|
+| 13.1 | Register expense with category and amount | | | |
+| 13.2 | See expense breakdown by category | | | |
+| 13.3 | Edit/Delete buttons visible ONLY for Admin | | | FIXED |
+| 13.4 | Date range filter works (Hoy, Este Mes, Ultimos 7 dias, custom) | | | FIXED |
+| 13.5 | Delete expense → confirmation in Spanish | | | |
+
+---
+
+## MODULE 14 — Loyalty Program (Admin only)
+
+| # | Action | Admin | Notes |
+|---|--------|-------|-------|
+| 14.1 | Create reward (discount, free service, credit) | | |
+| 14.2 | Close a session → client earns points automatically | | |
+| 14.3 | Points = floor(totalAmount / 50) | | |
+| 14.4 | Reopen + close session → points NOT awarded again | | FIXED: loyaltyPointsAwarded flag |
+| 14.5 | Redeem reward from Clients page → credit added to balance | | FIXED |
+| 14.6 | Credit balance usable as payment method in session payment modal | | |
+
+---
+
+## MODULE 15 — Users (Admin only)
+
+| # | Action | Admin | Notes |
+|---|--------|-------|-------|
+| 15.1 | Create new Manager → correct access | | |
+| 15.2 | Create new Staff → limited access (only sees Mi Area) | | |
+| 15.3 | Admin session NOT lost when creating user (uses secondaryAuth) | | |
+
+---
+
+## MODULE 16 — Multi-Location (Admin only)
+
+| # | Action | Admin | Notes |
+|---|--------|-------|-------|
+| 16.1 | See/create salons at /salons | | |
+| 16.2 | Salon switcher visible in sidebar | | |
+| 16.3 | Switch salon → all data updates instantly (no page reload) | | FIXED: useAuth onSnapshot |
+
+---
+
+## CROSS-CUTTING — UX & Accessibility
+
+| # | Check | Pass/Fail | Notes |
+|---|-------|-----------|-------|
+| UX.1 | All text in Spanish (no English strings in UI) | | |
+| UX.2 | All dates display dd/mm/yyyy (not YYYY-MM-DD) | | FIXED |
+| UX.3 | All amounts display "Bs. X.XX" format | | |
+| UX.4 | Touch targets >= 44px on mobile (buttons, links, icons) | | FIXED |
+| UX.5 | Text contrast: no light gray text on white (min text-gray-500) | | FIXED |
+| UX.6 | Modal buttons reachable when phone keyboard open | | FIXED: pb-16 |
+| UX.7 | Decimal comma input works on Android | | FIXED |
+| UX.8 | Toast notifications appear and auto-dismiss | | |
+| UX.9 | No raw Firebase/English error messages shown to user | | |
+| UX.10 | Terminology uses "Atencion/Atenciones" (not "Trabajo/Trabajos") | | CHANGED |
+
+---
+
+## ROLE PERMISSION MATRIX
+
+Verify each role sees and can do ONLY what's allowed:
+
+| Function | Admin | Manager | Staff |
+|----------|-------|---------|-------|
+| See Dashboard (full KPIs) | Yes | Yes | No (staff KPIs only) |
+| See Atenciones (all) | Yes | Yes | No |
+| Create/Close Atenciones | Yes | Yes | Yes (from my-work) |
+| Cancel Atenciones | Yes | No | No |
+| See Reports | Yes | Yes | No |
+| Manage Clients | Yes | Yes | No |
+| Manage Inventory | Yes | Yes | No |
+| Manage Services | Yes | Yes | No |
+| Manage Staff | Yes | No | No |
+| Manage Users | Yes | No | No |
+| See/Edit Expenses | Yes | Yes (view only) | No |
+| See Retail Sales | Yes | Yes | No |
+| See Rewards | Yes | No | No |
+| See Salons | Yes | No | No |
+| Mis Atenciones | No | No | Yes |
+| Mis Ganancias | No | No | Yes |
+| Mis Reservas | No | No | Yes |
+
+**Note any role seeing something it shouldn't:**
 ```
-Observación: _______________________________________________
+Observation: _______________________________________________
 ```
 
 ---
 
 ---
 
-# 🐛 SECCIÓN A — REPORTE DE BUGS
+# SECTION A — BUG REPORTS
 
-*Llenar uno por bug encontrado. Copiar el bloque y pegar tantas veces como sea necesario.*
+*Fill one per bug found. Copy the block and paste as many times as needed.*
 
 ---
 
 ### BUG #___
 
 ```
-MÓDULO:        (ej: Trabajos, Clientes, Pago)
-PANTALLA/URL:  (ej: /sessions, /clients)
-DISPOSITIVO:   (ej: Samsung A32 Android 13)
-ROL:           (Admin / Gerente / Personal)
+MODULE:        (e.g., Atenciones, Clients, Payment)
+SCREEN/URL:    (e.g., /sessions, /clients)
+DEVICE:        (e.g., Samsung A32 Android 13)
+ROLE:          (Admin / Manager / Staff)
 
-QUÉ HICE:
+STEPS:
 1.
 2.
 3.
 
-QUÉ ESPERABA QUE PASARA:
+EXPECTED:
 
-QUÉ PASÓ EN REALIDAD:
+ACTUAL:
 
-¿SE REPITE?:   [ ] Siempre  [ ] A veces  [ ] Solo una vez
+REPEATABLE:    [ ] Always  [ ] Sometimes  [ ] Once
 
-CAPTURA:       (foto o descripción de lo que se veía en pantalla)
+SCREENSHOT:    (photo or description)
 
-SEVERIDAD:     [ ] Bloqueante (no pude continuar)
-               [ ] Importante (pude continuar pero con problemas)
-               [ ] Menor (detalle visual o de texto)
+SEVERITY:      [ ] Blocker (could not continue)
+               [ ] Important (continued with problems)
+               [ ] Minor (visual or text detail)
 ```
 
 ---
@@ -436,130 +479,130 @@ SEVERIDAD:     [ ] Bloqueante (no pude continuar)
 ### BUG #___
 
 ```
-MÓDULO:
-PANTALLA/URL:
-DISPOSITIVO:
-ROL:
+MODULE:
+SCREEN/URL:
+DEVICE:
+ROLE:
 
-QUÉ HICE:
+STEPS:
 1.
 2.
 3.
 
-QUÉ ESPERABA QUE PASARA:
+EXPECTED:
 
-QUÉ PASÓ EN REALIDAD:
+ACTUAL:
 
-¿SE REPITE?:   [ ] Siempre  [ ] A veces  [ ] Solo una vez
+REPEATABLE:    [ ] Always  [ ] Sometimes  [ ] Once
 
-CAPTURA:
+SCREENSHOT:
 
-SEVERIDAD:     [ ] Bloqueante  [ ] Importante  [ ] Menor
+SEVERITY:      [ ] Blocker  [ ] Important  [ ] Minor
 ```
 
 ---
 
 ---
 
-# 😤 SECCIÓN B — DIFICULTADES DE USO
+# SECTION B — USABILITY DIFFICULTIES
 
-*Para cuando algo funciona pero costó trabajo o causó confusión. No es un bug, pero tampoco está bien.*
-
----
-
-### DIFICULTAD #___
-
-```
-MÓDULO:
-PANTALLA/URL:
-DISPOSITIVO:
-ROL:
-
-QUÉ INTENTABA HACER:
-
-QUÉ FUE DIFÍCIL O CONFUSO:
-
-SUGERENCIA:
-```
+*For when something works but was hard or confusing. Not a bug, but not great either.*
 
 ---
 
-### DIFICULTAD #___
+### DIFFICULTY #___
 
 ```
-MÓDULO:
-PANTALLA/URL:
-DISPOSITIVO:
-ROL:
+MODULE:
+SCREEN/URL:
+DEVICE:
+ROLE:
 
-QUÉ INTENTABA HACER:
+WHAT I WAS TRYING TO DO:
 
-QUÉ FUE DIFÍCIL O CONFUSO:
+WHAT WAS DIFFICULT OR CONFUSING:
 
-SUGERENCIA:
+SUGGESTION:
 ```
 
 ---
 
----
-
-# 💡 SECCIÓN C — MEJORAS SUGERIDAS
-
-*Ideas para hacer el sistema más fácil o útil. No son bugs.*
-
----
-
-### MEJORA #___
+### DIFFICULTY #___
 
 ```
-MÓDULO:
-PANTALLA/URL:
+MODULE:
+SCREEN/URL:
+DEVICE:
+ROLE:
 
-QUÉ MEJORARÍA:
+WHAT I WAS TRYING TO DO:
 
-POR QUÉ SERÍA ÚTIL:
+WHAT WAS DIFFICULT OR CONFUSING:
 
-PRIORIDAD SUGERIDA:  [ ] Alta  [ ] Media  [ ] Baja
-```
-
----
-
-### MEJORA #___
-
-```
-MÓDULO:
-PANTALLA/URL:
-
-QUÉ MEJORARÍA:
-
-POR QUÉ SERÍA ÚTIL:
-
-PRIORIDAD SUGERIDA:  [ ] Alta  [ ] Media  [ ] Baja
+SUGGESTION:
 ```
 
 ---
 
 ---
 
-# 📊 RESUMEN FINAL
+# SECTION C — SUGGESTED IMPROVEMENTS
 
-**Total de módulos probados:** ___ / 16
+*Ideas to make the system easier or more useful. Not bugs.*
 
-**Conteo de resultados:**
-- ✅ Pasaron: ___
-- ❌ Fallaron: ___
-- ⚠️ Con dificultad: ___
+---
 
-**Bugs encontrados:** ___
-**Dificultades de uso:** ___
-**Mejoras sugeridas:** ___
+### IMPROVEMENT #___
 
-**¿El sistema está listo para uso diario?**
-[ ] Sí, sin cambios
-[ ] Sí, con los bugs menores corregidos
-[ ] No, hay problemas bloqueantes
+```
+MODULE:
+SCREEN/URL:
 
-**Comentario general:**
+WHAT WOULD IMPROVE:
+
+WHY IT WOULD BE USEFUL:
+
+SUGGESTED PRIORITY:  [ ] High  [ ] Medium  [ ] Low
+```
+
+---
+
+### IMPROVEMENT #___
+
+```
+MODULE:
+SCREEN/URL:
+
+WHAT WOULD IMPROVE:
+
+WHY IT WOULD BE USEFUL:
+
+SUGGESTED PRIORITY:  [ ] High  [ ] Medium  [ ] Low
+```
+
+---
+
+---
+
+# FINAL SUMMARY
+
+**Total modules tested:** ___ / 16 + UX cross-cutting
+
+**Result count:**
+- Pass: ___
+- Fail: ___
+- Warn: ___
+
+**Bugs found:** ___
+**Usability difficulties:** ___
+**Improvements suggested:** ___
+
+**Is the system ready for daily use?**
+[ ] Yes, no changes needed
+[ ] Yes, with minor bugs fixed
+[ ] No, there are blocking issues
+
+**General comment:**
 ```
 _______________________________________________
 _______________________________________________

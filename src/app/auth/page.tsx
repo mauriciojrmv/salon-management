@@ -37,7 +37,7 @@ export default function AuthPage() {
       ) {
         error(ES.auth.invalidCredentials);
       } else {
-        error(err instanceof Error ? err.message : ES.auth.loginFailed);
+        error(ES.auth.loginFailed);
       }
     } finally {
       setLoading(false);

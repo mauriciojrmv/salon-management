@@ -30,9 +30,10 @@ export class RetailSaleRepository {
   static async getSalonDailySales(salonId: string, date: string): Promise<RetailSale[]> {
     const sales = await this.getSalonSales(salonId);
     return sales.filter((s) => {
-      const saleDate = s.createdAt instanceof Date
-        ? s.createdAt.toISOString().split('T')[0]
-        : new Date((s.createdAt as unknown as { seconds: number }).seconds * 1000).toISOString().split('T')[0];
+      const d = s.createdAt instanceof Date
+        ? s.createdAt
+        : new Date((s.createdAt as unknown as { seconds: number }).seconds * 1000);
+      const saleDate = d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
       return saleDate === date;
     });
   }

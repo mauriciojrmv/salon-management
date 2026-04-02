@@ -13,7 +13,7 @@ import { Button } from '@/components/Button';
 import { AnalyticsService, PayrollStaffEntry } from '@/lib/services/analyticsService';
 import { ExpenseRepository } from '@/lib/repositories/expenseRepository';
 import ES from '@/config/text.es';
-import { fmtBs, fmtDate } from '@/lib/utils/helpers';
+import { fmtBs, fmtDate, getBoliviaDate } from '@/lib/utils/helpers';
 
 function PayrollCard({ entry, onRegisterPayment, isPaid }: { entry: PayrollStaffEntry; onRegisterPayment: (entry: PayrollStaffEntry) => void; isPaid?: boolean }) {
   const [expanded, setExpanded] = useState(false);
@@ -123,10 +123,12 @@ function PayrollCard({ entry, onRegisterPayment, isPaid }: { entry: PayrollStaff
 export default function ReportsPage() {
   const { userData } = useAuth();
   const { notifications, removeNotification, success, error } = useNotification();
-  const [startDate, setStartDate] = useState(
-    new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]
-  );
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+  });
+  const [endDate, setEndDate] = useState(() => getBoliviaDate());
   const [paymentEntry, setPaymentEntry] = useState<PayrollStaffEntry | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paidStaffIds, setPaidStaffIds] = useState<Set<string>>(new Set());
@@ -140,7 +142,7 @@ export default function ReportsPage() {
         category: 'salaries',
         description: `${ES.reports.payrollPayment}: ${paymentEntry.staffName} (${validStartDate} – ${validEndDate})`,
         amount: paymentEntry.totalCommission,
-        date: new Date().toISOString().split('T')[0],
+        date: getBoliviaDate(),
         recurring: false,
         paidTo: paymentEntry.staffName,
         paymentMethod: 'cash',
