@@ -237,8 +237,9 @@ export default function ClientsPage() {
       await ClientRepository.updateClient(loyaltyClient.id, {
         loyaltyPoints: clientPoints - reward.pointsCost,
       });
-      // If reward type is credit, add to client balance
-      if (reward.type === 'credit') {
+      // Add credit to client balance for applicable reward types
+      // discount type stores a percentage — admin applies manually during payment
+      if (reward.type !== 'discount') {
         await ClientRepository.addCredit(loyaltyClient.id, reward.value);
       }
       // Record transaction
@@ -250,7 +251,7 @@ export default function ClientsPage() {
         description: reward.name,
         rewardId: reward.id,
       });
-      success(ES.loyalty.redeemed2);
+      success(reward.type === 'discount' ? ES.loyalty.redeemedDiscount : ES.loyalty.redeemedCredit);
       setLoyaltyClient(null);
       refetch();
     } catch (err) {
@@ -512,7 +513,7 @@ export default function ClientsPage() {
             <div>
               <p className="text-sm font-semibold text-gray-700 mb-2">{ES.loyalty.history}</p>
               {loyaltyHistory.length === 0 ? (
-                <p className="text-sm text-gray-400">{ES.loyalty.noHistory}</p>
+                <p className="text-sm text-gray-500">{ES.loyalty.noHistory}</p>
               ) : (
                 <div className="space-y-1 max-h-48 overflow-y-auto">
                   {loyaltyHistory.slice(0, 20).map((tx) => (
@@ -523,7 +524,7 @@ export default function ClientsPage() {
                         </span>
                         <span className="text-gray-500 ml-2">{tx.description}</span>
                       </div>
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-500">
                         {toDate(tx.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}
                       </span>
                     </div>

@@ -40,6 +40,7 @@
 * User creation uses `secondaryAuth` to avoid logging out the current admin
 * Clients are records only (no login) — identified by phone number
 * Auth page is login-only, no self-registration
+* `useAuth` hook uses real-time `onSnapshot` listener on the user document — NOT a one-shot fetch. This ensures `salonId` changes (e.g., multi-location switch) propagate instantly without page reload
 
 ## Code Style
 
@@ -55,6 +56,12 @@
 * Avoid complex forms
 * Optimize for non-technical users (salon staff)
 * System must feel easier than WhatsApp and paper tracking
+* Date display: always `dd/mm/yyyy` format for Bolivian users — use `fmtDate()` helper, never show raw `YYYY-MM-DD`
+* Touch targets: minimum 44px on mobile for all interactive elements (buttons, links, icons)
+* Mobile keyboard: add `pb-16 sm:pb-0` on modal/form content so buttons stay reachable when virtual keyboard opens
+* Android decimal input: `<Input type="number">` must handle comma→period via `onBeforeInput` (already built into `Input` component)
+* Admin-only destructive actions: void/cancel sessions, edit/delete expenses — always gate with role check
+* Button style consistency: use the same variant/size for equivalent actions across all pages (e.g., all "new item" buttons should match)
 
 ## Business Logic
 
@@ -65,12 +72,17 @@
 * Commission model (INTERNAL only, never shown to client): 50% of service price minus material buy cost
 * Client-facing total: service price ONLY — materials are internal cost tracking, NOT charged to the client separately
 * Materials tracked for: (1) stock deduction, (2) internal commission deduction from staff earnings — never shown on client receipt or client payment total
+* **CRITICAL**: `totalAmount` = sum of service prices ONLY. Materials are NEVER added to client-facing totals, receipts, or payment calculations
 * Service price is editable per session (non-standard pricing)
 * Multiple payment methods (cash, card, QR, transfer)
 * Split payments supported (multiple people, multiple methods per session)
+* Split payment rounding: `Math.floor(remaining/count * 100) / 100` — last person gets remainder to avoid penny errors
 * Cash payments show change calculator
 * Cancel/void: set status `cancelled` + restore stock + void payments (never delete documents)
 * Cancelled trabajos are audit trail — always soft-delete, never hard-delete sessions
+* Loyalty points: `closeSession()` awards points. Use `loyaltyPointsAwarded` boolean flag on session document to prevent duplication on reopen→close cycles
+* Staff deletion: query all salon sessions to verify staff has no `assignedStaff` references before allowing delete
+* When editing materials on an existing service: restore old materials' stock BEFORE deducting new materials' stock
 
 ## Inventory
 
@@ -87,6 +99,8 @@
 * Client phone is optional (walk-ins, one-timers, reservations for others) — uniqueness enforced when provided
 * Clients searchable by name or phone number
 * All optional fields must default to `''` (Firestore rejects `undefined`)
+* Phone uniqueness: check client-side against loaded clients array as fallback — Firestore composite indexes may not exist
+* `closeSession()` MUST update client stats (totalSpent, totalSessions, lastVisit, loyaltyPoints) — don't forget side effects
 
 ## Error Handling
 
@@ -103,6 +117,20 @@
 * Reference data (clients, services, staff, products) uses `useAsync` (one-shot fetch, no real-time needed)
 * When using `useRealtime`, do NOT call `refetch()` after mutations — data auto-updates via the subscription
 * `subscribeToQuery()` in `db.ts` wraps `onSnapshot` for the real-time hook
+* `useAuth` also uses `onSnapshot` on the user document for real-time salonId propagation
+
+## Timezone
+
+* Bolivia is UTC-4. **ALWAYS** use `getBoliviaDate()` for the current date — NEVER `new Date().toISOString().split('T')[0]` which returns UTC and gives the wrong date after 8PM Bolivia time
+* `getBoliviaDate()` uses `toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' })` → `YYYY-MM-DD`
+* Any page that shows "today's" data (sessions, dashboard, my-work, expenses) must use `getBoliviaDate()`
+
+## Components — Known Gotchas
+
+* `SearchableSelect` dropdown in modals: uses `position: fixed` + `z-index: 9999`. The dropdown div MUST have `onMouseDown stopPropagation` to prevent Modal overlay's `onClick={onClose}` from capturing clicks
+* `Input` component has built-in comma→period normalization for `type="number"` via `onBeforeInput` — do not reimplement
+* Loading states should be per-item (e.g., per-SessionCard), not a single shared boolean for the whole page — prevents UI flickering on unrelated cards
+* Print/receipt output must match on-screen styling — use matching CSS utility classes in print stylesheets
 
 ## Performance
 

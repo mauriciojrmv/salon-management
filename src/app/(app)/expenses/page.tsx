@@ -249,14 +249,14 @@ export default function ExpensesPage() {
                           {expense.recurrenceType === 'monthly' ? ES.expenses.recurrenceMonthly : ES.expenses.recurrenceWeekly}
                         </span>
                       )}
-                      <span className="text-xs text-gray-400">{fmtDate(expense.date)}</span>
+                      <span className="text-xs text-gray-500">{fmtDate(expense.date)}</span>
                     </div>
                     <p className="text-sm font-medium text-gray-900 truncate">{expense.description}</p>
                     {expense.paidTo && <p className="text-xs text-gray-500">{expense.paidTo}</p>}
                   </div>
                   <div className="text-right ml-3">
                     <p className="text-lg font-bold text-red-600">Bs. {expense.amount.toFixed(2)}</p>
-                    <p className="text-xs text-gray-400">{methodLabels[expense.paymentMethod || ''] || ''}</p>
+                    <p className="text-xs text-gray-500">{methodLabels[expense.paymentMethod || ''] || ''}</p>
                   </div>
                 </div>
                 {isAdmin && (

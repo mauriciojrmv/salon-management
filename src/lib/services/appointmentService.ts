@@ -1,6 +1,7 @@
 import { addDocument, updateDocument, getDocument, queryDocuments, firebaseConstraints, deleteDocument } from '@/lib/firebase/db';
 import { Appointment } from '@/types/models';
 import { CreateAppointmentRequest } from '@/types/api';
+import { getBoliviaDate } from '@/lib/utils/helpers';
 
 export class AppointmentService {
   static async createAppointment(data: CreateAppointmentRequest): Promise<string> {
@@ -76,15 +77,13 @@ export class AppointmentService {
   }
 
   static async getUpcomingAppointments(salonId: string, days = 7): Promise<Appointment[]> {
-    const today = new Date().toISOString().split('T')[0];
-    const future = new Date();
-    future.setDate(future.getDate() + days);
-    const futureDate = future.toISOString().split('T')[0];
-
-    return await queryDocuments('appointments', [
+    const today = getBoliviaDate();
+    const results = await queryDocuments('appointments', [
       firebaseConstraints.where('salonId', '==', salonId),
       firebaseConstraints.where('status', '==', 'pending'),
     ]) as Appointment[];
+    // Filter client-side to avoid composite index requirement
+    return results.filter((a) => a.appointmentDate >= today).sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate));
   }
 
   static async checkStaffAvailability(

@@ -77,7 +77,7 @@ export function ClientHistoryModal({
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-gray-800">{service.serviceName}</p>
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-gray-500">
                           {toDate(service.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>

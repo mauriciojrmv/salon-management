@@ -36,26 +36,38 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
+  group: string;
 }
 
 const allNavItems: NavItem[] = [
-  { name: ES.nav.dashboard, href: '/dashboard', icon: LayoutDashboard },
-  { name: ES.nav.sessions, href: '/sessions', icon: Scissors },
-  { name: ES.nav.appointments, href: '/appointments', icon: Calendar },
-  { name: ES.nav.clients, href: '/clients', icon: Users },
-  { name: ES.nav.services, href: '/services', icon: ListChecks },
-  { name: ES.nav.staff, href: '/staff', icon: UserCheck },
-  { name: ES.nav.inventory, href: '/inventory', icon: Package },
-  { name: ES.nav.myWork, href: '/my-work', icon: ClipboardList },
-  { name: ES.nav.myEarnings, href: '/my-earnings', icon: BarChart2 },
-  { name: ES.nav.myAppointments, href: '/my-appointments', icon: Calendar },
-  { name: ES.retail.title, href: '/sales', icon: ShoppingCart },
-  { name: ES.expenses.title, href: '/expenses', icon: Receipt },
-  { name: ES.nav.reports, href: '/reports', icon: BarChart2 },
-  { name: ES.loyalty.rewards, href: '/rewards', icon: Gift, adminOnly: true },
-  { name: ES.salons.title, href: '/salons', icon: Building2, adminOnly: true },
-  { name: ES.users.title, href: '/users', icon: UserCog, adminOnly: true },
+  // Daily operations
+  { name: ES.nav.dashboard, href: '/dashboard', icon: LayoutDashboard, group: 'daily' },
+  { name: ES.nav.sessions, href: '/sessions', icon: Scissors, group: 'daily' },
+  { name: ES.nav.appointments, href: '/appointments', icon: Calendar, group: 'daily' },
+  { name: ES.nav.clients, href: '/clients', icon: Users, group: 'daily' },
+  { name: ES.retail.title, href: '/sales', icon: ShoppingCart, group: 'daily' },
+  // Staff area
+  { name: ES.nav.myWork, href: '/my-work', icon: ClipboardList, group: 'my' },
+  { name: ES.nav.myEarnings, href: '/my-earnings', icon: BarChart2, group: 'my' },
+  { name: ES.nav.myAppointments, href: '/my-appointments', icon: Calendar, group: 'my' },
+  // Management
+  { name: ES.nav.inventory, href: '/inventory', icon: Package, group: 'manage' },
+  { name: ES.nav.services, href: '/services', icon: ListChecks, group: 'manage' },
+  { name: ES.nav.staff, href: '/staff', icon: UserCheck, group: 'manage' },
+  { name: ES.expenses.title, href: '/expenses', icon: Receipt, group: 'manage' },
+  { name: ES.nav.reports, href: '/reports', icon: BarChart2, group: 'manage' },
+  // System
+  { name: ES.loyalty.rewards, href: '/rewards', icon: Gift, adminOnly: true, group: 'system' },
+  { name: ES.salons.title, href: '/salons', icon: Building2, adminOnly: true, group: 'system' },
+  { name: ES.users.title, href: '/users', icon: UserCog, adminOnly: true, group: 'system' },
 ];
+
+const groupLabels: Record<string, string> = {
+  daily: ES.nav.groupDaily,
+  my: ES.nav.groupMyArea,
+  manage: ES.nav.groupManage,
+  system: ES.nav.groupSystem,
+};
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, userData } = useAuth();
@@ -121,7 +133,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {!isMobile && (
             <button
               onClick={() => setIsDesktopCollapsed(!isDesktopCollapsed)}
-              className="text-gray-400 hover:text-white p-1"
+              className="text-gray-500 hover:text-white p-1"
             >
               ☰
             </button>
@@ -129,31 +141,45 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {isMobile && (
             <button
               onClick={() => setIsMobileOpen(false)}
-              className="text-gray-400 hover:text-white p-2 text-2xl leading-none"
+              className="text-gray-500 hover:text-white p-2 text-2xl leading-none"
             >
               ✕
             </button>
           )}
         </div>
 
-        <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
-          {visibleNav.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-sm ${
-                  isActive
-                    ? 'bg-blue-600 text-white font-medium'
-                    : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                }`}
-              >
-                <item.icon className="w-5 h-5 shrink-0" />
-                {showLabels && <span>{item.name}</span>}
-              </Link>
-            );
-          })}
+        <nav className="flex-1 px-3 overflow-y-auto">
+          {(() => {
+            let lastGroup = '';
+            return visibleNav.map((item) => {
+              const isActive = pathname === item.href;
+              const showGroupHeader = item.group !== lastGroup;
+              lastGroup = item.group;
+              return (
+                <React.Fragment key={item.href}>
+                  {showGroupHeader && showLabels && (
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-4 pt-4 pb-1">
+                      {groupLabels[item.group] || item.group}
+                    </p>
+                  )}
+                  {showGroupHeader && !showLabels && lastGroup !== 'daily' && (
+                    <div className="border-t border-gray-700 my-2 mx-2" />
+                  )}
+                  <Link
+                    href={item.href}
+                    className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors text-sm ${
+                      isActive
+                        ? 'bg-blue-600 text-white font-medium'
+                        : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                    }`}
+                  >
+                    <item.icon className="w-5 h-5 shrink-0" />
+                    {showLabels && <span>{item.name}</span>}
+                  </Link>
+                </React.Fragment>
+              );
+            });
+          })()}
         </nav>
 
         <div className="border-t border-gray-800 p-4 space-y-2">
@@ -178,7 +204,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {userData?.firstName} {userData?.lastName}
               </div>
               {currentSalonName && (
-                <div className="text-xs text-gray-400 truncate">{currentSalonName}</div>
+                <div className="text-xs text-gray-500 truncate">{currentSalonName}</div>
               )}
               <div className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
                 userRole === 'admin' ? 'bg-red-500/20 text-red-300' :
@@ -191,7 +217,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           )}
           <button
             onClick={handleLogout}
-            className="w-full text-left px-4 py-2 text-sm rounded-lg hover:bg-gray-800 transition-colors text-gray-400 hover:text-white"
+            className="w-full text-left px-4 py-2 text-sm rounded-lg hover:bg-gray-800 transition-colors text-gray-500 hover:text-white"
           >
             {showLabels ? ES.auth.logout : '←'}
           </button>

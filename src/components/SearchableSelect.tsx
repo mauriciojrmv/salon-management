@@ -114,7 +114,7 @@ export function SearchableSelect({
     >
       <span>{option.label}</span>
       {option.secondary && (
-        <span className="text-xs text-gray-400 ml-2">{option.secondary}</span>
+        <span className="text-xs text-gray-500 ml-2">{option.secondary}</span>
       )}
     </button>
   );
@@ -135,10 +135,10 @@ export function SearchableSelect({
           error ? 'border-red-500' : 'border-gray-300'
         } ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white hover:border-gray-400'}`}
       >
-        <span className={selectedOption ? 'text-gray-900' : 'text-gray-400'}>
+        <span className={selectedOption ? 'text-gray-900' : 'text-gray-500'}>
           {selectedOption ? selectedOption.label : placeholder}
         </span>
-        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </div>

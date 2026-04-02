@@ -97,7 +97,7 @@ export default function MyAppointmentsPage() {
         <button
           type="button"
           onClick={() => setSelectedDate(today)}
-          className={`px-3 py-2 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+          className={`px-4 py-2.5 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
             selectedDate === today
               ? 'bg-blue-600 text-white border-blue-600'
               : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
@@ -108,7 +108,7 @@ export default function MyAppointmentsPage() {
         <button
           type="button"
           onClick={() => setSelectedDate(yesterday)}
-          className={`px-3 py-2 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+          className={`px-4 py-2.5 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
             selectedDate === yesterday
               ? 'bg-blue-600 text-white border-blue-600'
               : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
@@ -125,11 +125,23 @@ export default function MyAppointmentsPage() {
       </div>
 
       {loading ? (
-        <p className="text-center text-gray-500 py-8">{ES.actions.loading}</p>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardBody>
+                <div className="animate-pulse space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-2/3" />
+                  <div className="h-3 bg-gray-200 rounded w-1/2" />
+                  <div className="h-3 bg-gray-200 rounded w-1/3" />
+                </div>
+              </CardBody>
+            </Card>
+          ))}
+        </div>
       ) : sorted.length === 0 ? (
         <Card>
           <CardBody>
-            <p className="text-center text-gray-400 py-6 text-sm">{ES.staff.noAppointmentsToday}</p>
+            <p className="text-center text-gray-500 py-6 text-sm">{ES.staff.noAppointmentsToday}</p>
           </CardBody>
         </Card>
       ) : (
@@ -144,7 +156,7 @@ export default function MyAppointmentsPage() {
                     {apt.serviceIds?.length > 0 && (
                       <p className="text-sm text-blue-600 mt-0.5">{getServiceNames(apt.serviceIds)}</p>
                     )}
-                    {apt.notes && <p className="text-xs text-gray-400 mt-1 italic">{apt.notes}</p>}
+                    {apt.notes && <p className="text-xs text-gray-500 mt-1 italic">{apt.notes}</p>}
                   </div>
                   <div className="flex flex-col items-end gap-2 ml-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_CLS[apt.status] || 'bg-gray-100 text-gray-600'}`}>

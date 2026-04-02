@@ -327,7 +327,7 @@ export default function StaffPage() {
               {ES.staff.servicesOffered}
             </label>
             {services.length === 0 ? (
-              <p className="text-sm text-gray-400">{ES.staff.addServicesFirst}</p>
+              <p className="text-sm text-gray-500">{ES.staff.addServicesFirst}</p>
             ) : (
               <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
                 {services.map((svc) => (
@@ -347,7 +347,7 @@ export default function StaffPage() {
                       className="rounded"
                     />
                     <span className="text-sm font-medium">{svc.name}</span>
-                    <span className="text-xs text-gray-400 ml-auto">
+                    <span className="text-xs text-gray-500 ml-auto">
                       ${svc.price} · {svc.duration}min
                     </span>
                   </label>

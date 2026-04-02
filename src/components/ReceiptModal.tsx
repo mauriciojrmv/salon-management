@@ -54,7 +54,7 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
             .font-bold { font-weight: 700; }
             .font-semibold { font-weight: 600; }
             .font-medium { font-weight: 500; }
-            .text-gray-400 { color: #9ca3af; }
+            .text-gray-500 { color: #9ca3af; }
             .text-gray-500 { color: #6b7280; }
             .text-gray-600 { color: #4b5563; }
             .text-gray-700 { color: #374151; }
@@ -146,7 +146,7 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
               <span className="text-gray-700">
                 {svc.serviceName}
                 {svc.assignedStaff?.length > 0 && (
-                  <span className="text-xs text-gray-400 ml-1">
+                  <span className="text-xs text-gray-500 ml-1">
                     ({svc.assignedStaff.map(getStaffName).join(', ')})
                   </span>
                 )}
@@ -183,9 +183,9 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
         )}
 
         <div className="border-t border-dashed border-gray-300 my-3" />
-        <p className="text-center text-xs text-gray-400">{ES.receipt.thankYou}</p>
+        <p className="text-center text-xs text-gray-500">{ES.receipt.thankYou}</p>
         {session.endTime && (
-          <p className="text-center text-xs text-gray-400">
+          <p className="text-center text-xs text-gray-500">
             {toDate(session.endTime).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
           </p>
         )}

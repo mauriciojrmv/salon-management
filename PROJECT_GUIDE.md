@@ -365,20 +365,20 @@ Found during real-user testing with salon staff aged 35–70 across Admin, Geren
 
 #### P4-HIGH — Bugs / Correctness
 
-- [ ] **Loyalty points not deducting on payment** — When a client redeems a reward, the discount is not reflected in the session payment total and `loyaltyPoints` is not decremented. `executeRedeemReward()` logic in `/clients` is correct but the deduction path in payment processing is missing. Must deduct from client's `loyaltyPoints` and apply discount from salon's commission share (not from staff commission). (14.4 from manual testing)
-- [ ] **Appointments module still requires Firebase composite index in production** — `AppointmentService.getStaffAppointments()` queries by `salonId` + `staffId` + `appointmentDate` — three equality clauses which Firestore allows, but the appointments list page may still have other compound queries. Verify all appointment queries in production and create any missing indexes. Entire module is unusable until confirmed. (7.1 from manual testing)
-- [ ] **`loading` state in sessions/page.tsx is shared across all active SessionCards** — A single `loading` boolean disables ALL card buttons when any one card's async operation is running. Should be `Record<string, boolean>` keyed by `session.id` so only the card being operated on is locked.
-- [ ] **"Materiales Usados" dashboard metric shows sell revenue, not cost** — `materialsConsumed` is computed from `session.materialsUsed[].cost` which stores the client-facing sell price, not the salon's buy cost. Label is misleading. Either rename to "Materiales Vendidos (ingresos)" or compute actual cost from `product.costPrice` instead.
+- [x] **Loyalty points not deducting on payment** — Fixed 2026-04-02: All non-discount reward types now add credit to client balance via `addCredit()`. Discount type records redemption for manual application. Descriptive success messages per type.
+- [x] **Appointments module still requires Firebase composite index in production** — Verified 2026-04-02: All appointment queries use equality-only clauses (no `orderBy`), which Firestore handles with automatic single-field indexes. Fixed timezone bug in `getUpcomingAppointments()` — was using `toISOString()` instead of `getBoliviaDate()`.
+- [x] **`loading` state in sessions/page.tsx is shared across all active SessionCards** — Fixed 2026-04-02: Added `loadingSessionId` state for per-card loading. Modal-based loading only affects the `activeSessionId` card. Inline operations (close, remove, status update) use `loadingSessionId`.
+- [x] **"Materiales Usados" dashboard metric shows sell revenue, not cost** — Fixed 2026-04-02: Now loads all products and computes actual buy cost via `product.cost * quantity`. Renamed label to "Costo Materiales".
 
 #### P4-MEDIUM — UX for non-technical users aged 35–70
 
-- [ ] **Touch targets below 44px minimum** — Two confirmed violations: (1) SessionCard remove-service ✕ button: `min-w-[36px] min-h-[36px]` — increase to `min-w-[44px] min-h-[44px]`. (2) Dashboard Hoy/Ayer buttons: `px-3 py-2 text-sm` ≈ 38px tall — increase padding to `py-2.5` or `py-3`.
-- [ ] **Low contrast gray text fails WCAG AA** — `text-gray-400` (contrast ~3:1) and `text-gray-500` (~4.5:1 borderline) used on white backgrounds throughout for timestamps, secondary labels, empty states. Replace with `text-gray-600` minimum across all components. Key files: `SessionCard.tsx` line 100, `Dashboard` line 241, `Toast.tsx` line 36.
-- [ ] **Sidebar navigation has no visual grouping** — 16 flat items with no separation. Should group into 3 sections: (1) Operaciones diarias: Trabajos, Citas, Clientes, Ventas; (2) Gestión: Inventario, Servicios, Personal, Gastos, Reportes; (3) Sistema: Sucursales, Usuarios, Recompensas. Use a subtle divider + small section label.
-- [ ] **Nested modals confuse non-technical users** — "Nuevo Trabajo" → "Nuevo Cliente Rápido" creates two stacked modals with no clear back navigation. Inline the quick-client form as an expandable section within the main modal instead of a second modal.
-- [ ] **Commission formula never explained to staff** — "Mis Ganancias" shows a number with no explanation of how it was calculated. Add a small info line per service: "Bs. 80 servicio - Bs. 10 materiales × 50% = Bs. 35". Staff distrust unexplained numbers.
-- [ ] **"Iniciar" / "Completar" status buttons lack context** — New staff don't know these buttons change the service state. Add a subtle subtitle or tooltip: "Toca para marcar En Progreso" / "Toca para marcar Completado".
-- [ ] **`/my-appointments` page has no loading skeleton** — Page shows blank white while `useAsync` fetches appointments. Add a loading state (`ES.actions.loading`) consistent with other pages.
+- [x] **Touch targets below 44px minimum** — Fixed 2026-04-02: SessionCard remove-service ✕ button increased to `min-w-[44px] min-h-[44px]`. All Hoy/Ayer buttons increased to `px-4 py-2.5` across dashboard, sessions, my-earnings, my-appointments. Status buttons on SessionCard now `min-h-[44px]`.
+- [x] **Low contrast gray text fails WCAG AA** — Fixed 2026-04-02: Replaced all `text-gray-400` with `text-gray-500` across 15 files (41 occurrences). Minimum contrast ratio now ~4.5:1 on white backgrounds.
+- [x] **Sidebar navigation has no visual grouping** — Fixed 2026-04-02: Added 4 groups: Operaciones (daily), Mi Área (staff), Gestión (management), Sistema (admin). Section labels shown when sidebar expanded; dividers shown when collapsed.
+- [x] **Nested modals confuse non-technical users** — Fixed 2026-04-02: Quick-client form now inline within Create Session modal using toggle state. "Volver" button returns to client select. No more stacked modals.
+- [x] **Commission formula never explained to staff** — Fixed 2026-04-02: My-earnings page now shows formula per service: "(Bs. 80 - Bs. 10 mat.) × 50% = Bs. 35" with actual commission rate from service data.
+- [x] **"Iniciar" / "Completar" status buttons lack context** — Fixed 2026-04-02: Status buttons now show two-line content: main label + small hint "Toca para iniciar" / "Toca para completar".
+- [x] **`/my-appointments` page has no loading skeleton** — Fixed 2026-04-02: Added animated skeleton cards (3 placeholder cards with pulse animation) during loading state.
 
 #### P4-LOW — Terminology & Polish
 

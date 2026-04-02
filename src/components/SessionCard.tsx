@@ -98,7 +98,7 @@ export function SessionCard({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-sm font-medium text-gray-900">{service.serviceName}</p>
-                            <span className="text-xs text-gray-400">
+                            <span className="text-xs text-gray-500">
                               {toDate(service.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                             </span>
                             {onUpdateServiceStatus && svcStatus.next ? (
@@ -108,10 +108,13 @@ export function SessionCard({
                                   e.stopPropagation();
                                   onUpdateServiceStatus(service.id, svcStatus.next!);
                                 }}
-                                className={`px-2 py-1 rounded-full text-xs font-medium ${svcStatus.badgeColor} hover:opacity-80 transition-opacity`}
+                                className={`px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium ${svcStatus.badgeColor} hover:opacity-80 transition-opacity flex flex-col items-center`}
                                 title={svcStatus.next === 'in_progress' ? ES.sessions.inProgressService : ES.sessions.completedService}
                               >
-                                {svcStatus.label} →
+                                <span>{svcStatus.label} →</span>
+                                <span className="text-[10px] opacity-70 font-normal">
+                                  {svcStatus.next === 'in_progress' ? ES.sessions.tapToStart : ES.sessions.tapToComplete}
+                                </span>
                               </button>
                             ) : (
                               <span className={`px-2 py-1 rounded-full text-xs font-medium ${svcStatus.badgeColor}`}>
@@ -147,7 +150,7 @@ export function SessionCard({
                                 e.stopPropagation();
                                 setConfirmRemoveServiceId(service.id);
                               }}
-                              className="text-red-400 hover:text-red-600 p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded"
+                              className="text-red-400 hover:text-red-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded"
                               title={ES.sessions.removeService}
                             >
                               ✕
@@ -158,7 +161,7 @@ export function SessionCard({
                       {service.materialsUsed?.length > 0 && (
                         <div className="mt-1 pl-3 border-l-2 border-gray-200">
                           {service.materialsUsed.map((mat, i) => (
-                            <p key={i} className="text-xs text-gray-400">
+                            <p key={i} className="text-xs text-gray-500">
                               {mat.productName}: {mat.quantity} {mat.unit} · {fmtBs(mat.cost)}
                             </p>
                           ))}
@@ -169,7 +172,7 @@ export function SessionCard({
                 })}
               </div>
             ) : (
-              <p className="text-sm text-gray-400 mb-4">{ES.sessions.noServices}</p>
+              <p className="text-sm text-gray-500 mb-4">{ES.sessions.noServices}</p>
             )}
 
             {/* Summary — client-facing: Servicios = Total only */}

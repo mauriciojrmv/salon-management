@@ -51,6 +51,10 @@ export const ES = {
     myWork: 'Mis Trabajos',
     myEarnings: 'Mis Ganancias',
     myAppointments: 'Mis Reservas',
+    groupDaily: 'Operaciones',
+    groupManage: 'Gestión',
+    groupSystem: 'Sistema',
+    groupMyArea: 'Mi Área',
   },
 
   // Dashboard
@@ -80,7 +84,7 @@ export const ES = {
     totalCollected: 'Total Cobrado',
     pendingCollection: 'Pendiente de Cobro',
     activeSessions: 'Trabajos Activos',
-    materialsConsumed: 'Materiales Usados',
+    materialsConsumed: 'Costo Materiales',
     materialsSold: 'Materiales Vendidos',
   },
 
@@ -115,6 +119,8 @@ export const ES = {
     pendingService: 'Pendiente',
     inProgressService: 'En Progreso',
     completedService: 'Completado',
+    tapToStart: 'Toca para iniciar',
+    tapToComplete: 'Toca para completar',
     customPrice: 'Precio',
     materialsUsed: 'Materiales Utilizados',
     addMaterial: '+ Agregar Material',
@@ -673,6 +679,8 @@ export const ES = {
     redeemReward: 'Canjear Recompensa',
     redeemConfirm: 'Canjear esta recompensa?',
     redeemed2: 'Recompensa canjeada',
+    redeemedCredit: 'Recompensa canjeada — saldo agregado',
+    redeemedDiscount: 'Descuento registrado — aplicar manualmente en el cobro',
     insufficientPoints: 'Puntos insuficientes',
     history: 'Historial de Puntos',
     noHistory: 'Sin movimientos de puntos',

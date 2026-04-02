@@ -95,7 +95,7 @@ export function CategoryServicePicker({
                 className="flex items-center justify-between px-4 py-3.5 bg-white border border-gray-200 rounded-xl text-left hover:border-blue-400 hover:bg-blue-50 transition-colors active:bg-blue-100"
               >
                 <span className="text-sm font-medium text-gray-800">{catLabel}</span>
-                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{count}</span>
+                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{count}</span>
               </button>
             ))}
           </div>
@@ -129,7 +129,7 @@ export function CategoryServicePicker({
               </button>
             ))}
             {filteredServices.length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-4">{ES.app.noResults}</p>
+              <p className="text-sm text-gray-500 text-center py-4">{ES.app.noResults}</p>
             )}
           </div>
         </div>

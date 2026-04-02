@@ -402,7 +402,7 @@ export default function AppointmentsPage() {
                     className="rounded"
                   />
                   <span className="text-sm">{opt.label}</span>
-                  <span className="text-xs text-gray-400 ml-auto">{opt.secondary}</span>
+                  <span className="text-xs text-gray-500 ml-auto">{opt.secondary}</span>
                 </label>
               ))}
             </div>

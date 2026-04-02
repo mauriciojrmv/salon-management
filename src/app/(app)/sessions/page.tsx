@@ -52,6 +52,7 @@ export default function SessionsPage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [clientId, setClientId] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
   const [historyClientId, setHistoryClientId] = useState<string | null>(null);
   const [cancelSessionId, setCancelSessionId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
@@ -411,12 +412,15 @@ export default function SessionsPage() {
   };
 
   const handleCloseSession = async (sessionId: string) => {
+    setLoadingSessionId(sessionId);
     try {
       await SessionService.closeSession(sessionId);
       success(ES.sessions.sessionClosed);
 
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setLoadingSessionId(null);
     }
   };
 
@@ -439,19 +443,25 @@ export default function SessionsPage() {
   };
 
   const handleRemoveService = async (sessionId: string, serviceItemId: string) => {
+    setLoadingSessionId(sessionId);
     try {
       await SessionService.removeServiceFromSession(sessionId, serviceItemId);
       success(ES.sessions.serviceRemoved);
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setLoadingSessionId(null);
     }
   };
 
   const handleUpdateServiceStatus = async (sessionId: string, serviceItemId: string, newStatus: 'pending' | 'in_progress' | 'completed') => {
+    setLoadingSessionId(sessionId);
     try {
       await SessionService.updateServiceStatus(sessionId, serviceItemId, newStatus);
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setLoadingSessionId(null);
     }
   };
 
@@ -541,7 +551,7 @@ export default function SessionsPage() {
           <button
             type="button"
             onClick={() => setSelectedDate(today)}
-            className={`px-3 py-2 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+            className={`px-4 py-2.5 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
               isToday
                 ? 'bg-blue-600 text-white border-blue-600'
                 : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
@@ -552,7 +562,7 @@ export default function SessionsPage() {
           <button
             type="button"
             onClick={() => setSelectedDate(yesterday)}
-            className={`px-3 py-2 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+            className={`px-4 py-2.5 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
               selectedDate === yesterday
                 ? 'bg-blue-600 text-white border-blue-600'
                 : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
@@ -580,7 +590,7 @@ export default function SessionsPage() {
           <CardBody>
             <div className="text-center py-8">
               <p className="text-gray-500 text-lg mb-2">{ES.sessions.noActiveSessions}</p>
-              <p className="text-gray-400 text-sm">{ES.sessions.noActiveSessionsCta}</p>
+              <p className="text-gray-500 text-sm">{ES.sessions.noActiveSessionsCta}</p>
             </div>
           </CardBody>
         </Card>
@@ -638,7 +648,7 @@ export default function SessionsPage() {
               onUpdateServiceStatus={(serviceItemId, newStatus) => handleUpdateServiceStatus(session.id, serviceItemId, newStatus)}
               onEditMaterials={(serviceItemId, serviceName) => openEditMaterials(session.id, serviceItemId, serviceName)}
               canCancel={canCancel}
-              loading={loading}
+              loading={(loading && activeSessionId === session.id) || loadingSessionId === session.id}
             />
           ))}
         </div>
@@ -679,7 +689,7 @@ export default function SessionsPage() {
                             <div>
                               <span>{svc.serviceName}</span>
                               {svc.assignedStaff?.length > 0 && (
-                                <p className="text-xs text-gray-400">{svc.assignedStaff.map((id) => getStaffName(id)).join(', ')}</p>
+                                <p className="text-xs text-gray-500">{svc.assignedStaff.map((id) => getStaffName(id)).join(', ')}</p>
                               )}
                             </div>
                             <span>{fmtBs(svc.price)}</span>
@@ -690,7 +700,7 @@ export default function SessionsPage() {
 
                     {/* Notes */}
                     {session.notes && (
-                      <p className="text-xs text-gray-400 mt-2 italic">{session.notes}</p>
+                      <p className="text-xs text-gray-500 mt-2 italic">{session.notes}</p>
                     )}
 
                     {/* Edit actions (admin/manager only) */}
@@ -761,7 +771,7 @@ export default function SessionsPage() {
       {/* Cancelled Sessions */}
       {cancelledSessions.length > 0 && (
         <>
-          <h2 className="text-xl font-semibold text-gray-400 pt-4">{ES.sessions.cancelledSessions}</h2>
+          <h2 className="text-xl font-semibold text-gray-500 pt-4">{ES.sessions.cancelledSessions}</h2>
           <div className="space-y-3">
             {cancelledSessions.map((session) => (
               <Card key={session.id} className="opacity-50">
@@ -769,7 +779,7 @@ export default function SessionsPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-gray-500 line-through">{getClientName(session.clientId)}</p>
-                      <p className="text-sm text-gray-400">
+                      <p className="text-sm text-gray-500">
                         {(session.services || []).length} {ES.sessions.services.toLowerCase()} · {fmtBs(session.totalAmount)}
                       </p>
                       {session.notes && (
@@ -847,63 +857,65 @@ export default function SessionsPage() {
         </div>
       </Modal>
 
-      {/* Create Session Modal */}
-      <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title={ES.sessions.create}>
-        <div className="space-y-4">
-          <SearchableSelect
-            label={ES.sessions.selectClient}
-            options={clientOptions}
-            value={clientId}
-            onChange={setClientId}
-            placeholder={ES.actions.search}
-            required
-          />
-          <button
-            type="button"
-            onClick={() => setIsQuickClientOpen(true)}
-            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-          >
-            {ES.clients.addQuick}
-          </button>
-          <div className="flex gap-2 pt-2">
-            <Button variant="secondary" onClick={() => setIsCreateModalOpen(false)}>
-              {ES.actions.cancel}
-            </Button>
-            <Button onClick={handleCreateSession} loading={loading}>
-              {ES.sessions.create}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Quick Client Modal */}
-      <Modal isOpen={isQuickClientOpen} onClose={() => setIsQuickClientOpen(false)} title={ES.clients.quickAddTitle}>
-        <div className="space-y-4">
-          <Input
-            label={ES.clients.name}
-            value={quickClient.firstName}
-            onChange={(e) => setQuickClient({ ...quickClient, firstName: e.target.value })}
-            required
-          />
-          <Input
-            label={ES.clients.lastName}
-            value={quickClient.lastName}
-            onChange={(e) => setQuickClient({ ...quickClient, lastName: e.target.value })}
-          />
-          <Input
-            label={ES.clients.phoneOptional}
-            type="tel"
-            value={quickClient.phone}
-            onChange={(e) => setQuickClient({ ...quickClient, phone: e.target.value })}
-          />
-          <div className="flex gap-2 pt-2">
-            <Button variant="secondary" onClick={() => setIsQuickClientOpen(false)}>
-              {ES.actions.cancel}
-            </Button>
-            <Button onClick={handleQuickCreateClient} loading={loading}>
-              {ES.actions.save}
-            </Button>
-          </div>
+      {/* Create Session Modal — quick-client form inlined */}
+      <Modal isOpen={isCreateModalOpen} onClose={() => { setIsCreateModalOpen(false); setIsQuickClientOpen(false); }} title={ES.sessions.create}>
+        <div className="space-y-4 pb-16 sm:pb-0">
+          {!isQuickClientOpen ? (
+            <>
+              <SearchableSelect
+                label={ES.sessions.selectClient}
+                options={clientOptions}
+                value={clientId}
+                onChange={setClientId}
+                placeholder={ES.actions.search}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => { setIsQuickClientOpen(true); setQuickClient({ firstName: '', lastName: '', phone: '' }); }}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
+                {ES.clients.addQuick}
+              </button>
+              <div className="flex gap-2 pt-2">
+                <Button variant="secondary" onClick={() => setIsCreateModalOpen(false)}>
+                  {ES.actions.cancel}
+                </Button>
+                <Button onClick={handleCreateSession} loading={loading}>
+                  {ES.sessions.create}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-gray-700">{ES.clients.quickAddTitle}</p>
+              <Input
+                label={ES.clients.name}
+                value={quickClient.firstName}
+                onChange={(e) => setQuickClient({ ...quickClient, firstName: e.target.value })}
+                required
+              />
+              <Input
+                label={ES.clients.lastName}
+                value={quickClient.lastName}
+                onChange={(e) => setQuickClient({ ...quickClient, lastName: e.target.value })}
+              />
+              <Input
+                label={ES.clients.phoneOptional}
+                type="tel"
+                value={quickClient.phone}
+                onChange={(e) => setQuickClient({ ...quickClient, phone: e.target.value })}
+              />
+              <div className="flex gap-2 pt-2">
+                <Button variant="secondary" onClick={() => setIsQuickClientOpen(false)}>
+                  {ES.actions.back}
+                </Button>
+                <Button onClick={handleQuickCreateClient} loading={loading}>
+                  {ES.actions.save}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 
@@ -976,7 +988,7 @@ export default function SessionsPage() {
               </div>
 
               {materials.length === 0 ? (
-                <p className="text-xs text-gray-400">{ES.sessions.noMaterials}</p>
+                <p className="text-xs text-gray-500">{ES.sessions.noMaterials}</p>
               ) : (
                 <div className="space-y-3">
                   {materials.map((mat, idx) => (
@@ -1003,7 +1015,7 @@ export default function SessionsPage() {
                           <span className="text-sm text-gray-500 pb-3">{mat.unit}</span>
                         )}
                         <div className="text-right pb-3">
-                          <p className="text-xs text-gray-400">{fmtBs(mat.pricePerUnit)}/{mat.unit}</p>
+                          <p className="text-xs text-gray-500">{fmtBs(mat.pricePerUnit)}/{mat.unit}</p>
                           <p className="text-sm font-semibold">{fmtBs(mat.totalPrice)}</p>
                         </div>
                         <button
@@ -1029,7 +1041,7 @@ export default function SessionsPage() {
                 <span className="text-gray-900 font-bold">{fmtBs(serviceForm.price)}</span>
               </div>
               {totalMaterialsCost > 0 && (
-                <p className="text-xs text-gray-400 pt-1">{ES.sessions.materialsInternal}: {fmtBs(totalMaterialsCost)}</p>
+                <p className="text-xs text-gray-500 pt-1">{ES.sessions.materialsInternal}: {fmtBs(totalMaterialsCost)}</p>
               )}
             </div>
           )}
@@ -1386,7 +1398,7 @@ export default function SessionsPage() {
       >
         <div className="space-y-4 pb-16 sm:pb-0">
           {editMaterials.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-2">{ES.sessions.noMaterials}</p>
+            <p className="text-sm text-gray-500 text-center py-2">{ES.sessions.noMaterials}</p>
           ) : (
             <div className="space-y-3">
               {editMaterials.map((mat, idx) => (
@@ -1422,7 +1434,7 @@ export default function SessionsPage() {
                     </div>
                     {mat.unit && <span className="text-sm text-gray-500 pb-3">{mat.unit}</span>}
                     <div className="text-right pb-3">
-                      <p className="text-xs text-gray-400">{fmtBs(mat.pricePerUnit)}/{mat.unit}</p>
+                      <p className="text-xs text-gray-500">{fmtBs(mat.pricePerUnit)}/{mat.unit}</p>
                       <p className="text-sm font-semibold">{fmtBs(mat.totalPrice)}</p>
                     </div>
                     <button type="button" onClick={() => setEditMaterials(editMaterials.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 text-sm pb-3 font-medium">

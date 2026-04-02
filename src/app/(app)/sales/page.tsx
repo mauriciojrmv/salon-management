@@ -237,7 +237,7 @@ export default function SalesPage() {
                     </div>
                   ))}
                 </div>
-                {sale.notes && <p className="text-xs text-gray-400 mt-1 italic">{sale.notes}</p>}
+                {sale.notes && <p className="text-xs text-gray-500 mt-1 italic">{sale.notes}</p>}
               </CardBody>
             </Card>
           ))}
@@ -285,7 +285,7 @@ export default function SalesPage() {
                       />
                     </div>
                     <div className="flex-1 text-right pb-3">
-                      <p className="text-xs text-gray-400">Bs. {item.unitPrice.toFixed(2)} c/u</p>
+                      <p className="text-xs text-gray-500">Bs. {item.unitPrice.toFixed(2)} c/u</p>
                       <p className="text-sm font-semibold">Bs. {item.total.toFixed(2)}</p>
                     </div>
                     <button type="button" onClick={() => handleRemoveItem(idx)} className="text-red-500 hover:text-red-700 text-xs pb-3">

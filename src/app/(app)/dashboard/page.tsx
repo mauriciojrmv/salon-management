@@ -44,11 +44,15 @@ export default function Dashboard() {
     return StaffRepository.getSalonStaff(userData.salonId);
   }, [userData?.salonId]);
 
-  // Low-stock products
-  const { data: lowStockProducts } = useAsync(async () => {
+  // All products (for buy cost lookup + low-stock alerts)
+  const { data: allProducts } = useAsync(async () => {
     if (!userData?.salonId) return [];
-    return ProductRepository.getLowStockProducts(userData.salonId);
+    return ProductRepository.getSalonProducts(userData.salonId);
   }, [userData?.salonId]);
+
+  const lowStockProducts = useMemo(() => {
+    return (allProducts || []).filter((p) => p.currentStock <= p.minStock);
+  }, [allProducts]);
 
   // Retail sales for selected date
   const { data: retailSales } = useAsync(async () => {
@@ -59,10 +63,22 @@ export default function Dashboard() {
   const retailTotal = (retailSales || []).reduce((sum, s) => sum + s.totalAmount, 0);
   const retailCount = (retailSales || []).length;
 
-  // Materials used in services (sell price charged to client, embedded in session totals)
-  const materialsConsumed = (sessions || []).reduce((sum, s) => {
-    return sum + (s.materialsUsed || []).reduce((ms, m) => ms + (m.cost || 0), 0);
-  }, 0);
+  // Materials used in services — compute actual buy cost from product data
+  const productCostMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    (allProducts || []).forEach((p) => { map[p.id] = p.cost; });
+    return map;
+  }, [allProducts]);
+
+  const materialsConsumed = useMemo(() => {
+    return (sessions || []).reduce((sum, s) => {
+      return sum + (s.materialsUsed || []).reduce((ms, m) => {
+        const buyCost = productCostMap[m.productId];
+        // Use product buy cost if available, otherwise fall back to stored cost
+        return ms + (buyCost !== undefined ? buyCost * m.quantity : (m.cost || 0));
+      }, 0);
+    }, 0);
+  }, [sessions, productCostMap]);
 
   // Birthday detection
   const birthdayClients = useMemo(() => {
@@ -167,11 +183,11 @@ export default function Dashboard() {
             <div key={svc.id} className="text-xs text-gray-600">
               <span className="font-medium">{svc.serviceName}</span>
               {svc.assignedStaff?.length > 0 && (
-                <span className="text-gray-400"> — {svc.assignedStaff.map(getStaffName).join(', ')}</span>
+                <span className="text-gray-500"> — {svc.assignedStaff.map(getStaffName).join(', ')}</span>
               )}
             </div>
           ))}
-          {(row.services || []).length === 0 && <span className="text-xs text-gray-400">-</span>}
+          {(row.services || []).length === 0 && <span className="text-xs text-gray-500">-</span>}
         </div>
       ),
     },
@@ -202,7 +218,7 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={() => setSelectedDate(today)}
-            className={`px-3 py-2 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+            className={`px-4 py-2.5 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
               selectedDate === today
                 ? 'bg-blue-600 text-white border-blue-600'
                 : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
@@ -213,7 +229,7 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={() => setSelectedDate(yesterday)}
-            className={`px-3 py-2 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+            className={`px-4 py-2.5 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
               selectedDate === yesterday
                 ? 'bg-blue-600 text-white border-blue-600'
                 : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'

@@ -30,13 +30,14 @@ export default function MyEarningsPage() {
   const { data: sessions } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId);
 
   const myCompletedServices = useMemo(() => {
-    const result: { serviceName: string; price: number; materialCost: number; commission: number }[] = [];
+    const result: { serviceName: string; price: number; materialCost: number; commission: number; rate: number }[] = [];
     (sessions || []).forEach((session) => {
       (session.services || []).forEach((svc) => {
         if (svc.assignedStaff?.includes(staffId) && svc.status === 'completed') {
           const materialCost = (svc.materialsUsed || []).reduce((s, m) => s + (m.cost || 0), 0);
-          const commission = Math.max(0, (svc.price - materialCost) * (svc.commissionRate / 100));
-          result.push({ serviceName: svc.serviceName, price: svc.price, materialCost, commission });
+          const rate = svc.commissionRate || 50;
+          const commission = Math.max(0, (svc.price - materialCost) * (rate / 100));
+          result.push({ serviceName: svc.serviceName, price: svc.price, materialCost, commission, rate });
         }
       });
     });
@@ -61,7 +62,7 @@ export default function MyEarningsPage() {
         <button
           type="button"
           onClick={() => setSelectedDate(today)}
-          className={`px-3 py-2 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+          className={`px-4 py-2.5 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
             selectedDate === today
               ? 'bg-blue-600 text-white border-blue-600'
               : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
@@ -72,7 +73,7 @@ export default function MyEarningsPage() {
         <button
           type="button"
           onClick={() => setSelectedDate(yesterday)}
-          className={`px-3 py-2 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+          className={`px-4 py-2.5 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
             selectedDate === yesterday
               ? 'bg-blue-600 text-white border-blue-600'
               : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
@@ -108,7 +109,7 @@ export default function MyEarningsPage() {
       {myCompletedServices.length === 0 ? (
         <Card>
           <CardBody>
-            <p className="text-center text-gray-400 py-6 text-sm">{ES.staff.noEarningsToday}</p>
+            <p className="text-center text-gray-500 py-6 text-sm">{ES.staff.noEarningsToday}</p>
           </CardBody>
         </Card>
       ) : (
@@ -119,8 +120,8 @@ export default function MyEarningsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium text-gray-900 text-sm">{s.serviceName}</p>
-                    <p className="text-xs text-gray-400">
-                      {fmtBs(s.price)} - {fmtBs(s.materialCost)} {ES.reports.materialDeduction.toLowerCase()}
+                    <p className="text-xs text-gray-500">
+                      ({fmtBs(s.price)} - {fmtBs(s.materialCost)} mat.) &times; {s.rate}% = {fmtBs(s.commission)}
                     </p>
                   </div>
                   <p className="text-sm font-bold text-green-600">{fmtBs(s.commission)}</p>

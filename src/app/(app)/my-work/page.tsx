@@ -376,7 +376,7 @@ export default function MyWorkPage() {
         {myActiveServices.length === 0 ? (
           <Card>
             <CardBody>
-              <p className="text-center text-gray-400 py-6 text-sm">{ES.staff.noMyWork}</p>
+              <p className="text-center text-gray-500 py-6 text-sm">{ES.staff.noMyWork}</p>
             </CardBody>
           </Card>
         ) : (
@@ -515,7 +515,7 @@ export default function MyWorkPage() {
       >
         <div className="space-y-4 pb-16 sm:pb-0">
           {materials.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-2">{ES.sessions.noMaterials}</p>
+            <p className="text-sm text-gray-500 text-center py-2">{ES.sessions.noMaterials}</p>
           ) : (
             <div className="space-y-3">
               {materials.map((mat, idx) => (
@@ -540,7 +540,7 @@ export default function MyWorkPage() {
                     </div>
                     {mat.unit && <span className="text-sm text-gray-500 pb-3">{mat.unit}</span>}
                     <div className="text-right pb-3">
-                      <p className="text-xs text-gray-400">{fmtBs(mat.pricePerUnit)}/{mat.unit}</p>
+                      <p className="text-xs text-gray-500">{fmtBs(mat.pricePerUnit)}/{mat.unit}</p>
                       <p className="text-sm font-semibold">{fmtBs(mat.totalPrice)}</p>
                     </div>
                     <button type="button" onClick={() => handleRemoveMaterial(idx)} className="text-red-500 hover:text-red-700 text-sm pb-3 font-medium">
