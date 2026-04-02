@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Modal } from '@/components/Modal';
 import { Button } from '@/components/Button';
 import { Session } from '@/types/models';
-import { toDate, fmtBs } from '@/lib/utils/helpers';
+import { toDate, fmtBs, fmtDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 interface ReceiptModalProps {
@@ -44,20 +44,42 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
         <head>
           <title>${ES.receipt.title}</title>
           <style>
-            body { font-family: 'Courier New', monospace; max-width: 320px; margin: 0 auto; padding: 16px; font-size: 12px; color: #000; }
-            .center { text-align: center; }
-            .bold { font-weight: bold; }
-            .divider { border-top: 1px dashed #999; margin: 8px 0; }
-            .row { display: flex; justify-content: space-between; margin: 2px 0; }
-            .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin: 4px 0; }
-            h2 { margin: 4px 0; font-size: 16px; }
-            p { margin: 2px 0; }
-            @media print { body { margin: 0; } }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: -apple-system, 'Segoe UI', sans-serif; max-width: 320px; margin: 0 auto; padding: 16px; font-size: 13px; color: #111; line-height: 1.4; }
+            .text-center { text-align: center; }
+            .text-xs { font-size: 11px; }
+            .text-sm { font-size: 12px; }
+            .text-base { font-size: 14px; }
+            .text-lg { font-size: 16px; }
+            .font-bold { font-weight: 700; }
+            .font-semibold { font-weight: 600; }
+            .font-medium { font-weight: 500; }
+            .text-gray-400 { color: #9ca3af; }
+            .text-gray-500 { color: #6b7280; }
+            .text-gray-600 { color: #4b5563; }
+            .text-gray-700 { color: #374151; }
+            .text-gray-900 { color: #111827; }
+            .text-green-600 { color: #059669; }
+            .mb-1 { margin-bottom: 4px; }
+            .mb-2 { margin-bottom: 8px; }
+            .mb-3 { margin-bottom: 12px; }
+            .mt-1 { margin-top: 4px; }
+            .my-2 { margin: 8px 0; }
+            .my-3 { margin: 12px 0; }
+            .ml-1 { margin-left: 4px; }
+            .pt-2 { padding-top: 8px; }
+            .space-y-1 > * + * { margin-top: 4px; }
+            .flex { display: flex; }
+            .justify-between { justify-content: space-between; }
+            .border-t { border-top: 1px solid #e5e7eb; }
+            .border-dashed { border-style: dashed; }
+            .border-gray-300 { border-color: #d1d5db; }
+            @media print { body { margin: 0; padding: 8px; } }
           </style>
         </head>
         <body>
           ${receiptRef.current.innerHTML}
-          <script>window.print(); window.close();</script>
+          <script>window.print(); window.close();<\/script>
         </body>
       </html>
     `);
@@ -67,7 +89,7 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
   const buildReceiptText = () => {
     const lines = [
       salonName || ES.app.name,
-      `${ES.receipt.date}: ${session.date}`,
+      `${ES.receipt.date}: ${fmtDate(session.date)}`,
       `${ES.sessions.client}: ${clientName}`,
       '',
       `--- ${ES.sessions.services} ---`,
@@ -111,7 +133,7 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
       <div ref={receiptRef}>
         <div className="text-center mb-3">
           <h2 className="text-lg font-bold">{salonName || ES.app.name}</h2>
-          <p className="text-xs text-gray-500">{ES.receipt.date}: {session.date}</p>
+          <p className="text-xs text-gray-500">{ES.receipt.date}: {fmtDate(session.date)}</p>
           <p className="text-xs text-gray-500">{ES.sessions.client}: {clientName}</p>
         </div>
 

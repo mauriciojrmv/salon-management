@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal } from '@/components/Modal';
 import { Session } from '@/types/models';
 import { SessionService } from '@/lib/services/sessionService';
-import { toDate, fmtBs } from '@/lib/utils/helpers';
+import { toDate, fmtBs, fmtDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 interface ClientHistoryModalProps {
@@ -55,7 +55,7 @@ export function ClientHistoryModal({
               {/* Session header */}
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-semibold text-gray-900">
-                  {session.date}
+                  {fmtDate(session.date)}
                 </span>
                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                   session.status === 'completed'

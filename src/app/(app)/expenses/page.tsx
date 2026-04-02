@@ -12,7 +12,7 @@ import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { ExpenseRepository } from '@/lib/repositories/expenseRepository';
 import type { Expense, ExpenseCategory } from '@/types/models';
-import { fmtBs, getBoliviaDate } from '@/lib/utils/helpers';
+import { fmtBs, fmtDate, getBoliviaDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 const categoryOptions: { value: ExpenseCategory; label: string }[] = [
@@ -249,7 +249,7 @@ export default function ExpensesPage() {
                           {expense.recurrenceType === 'monthly' ? ES.expenses.recurrenceMonthly : ES.expenses.recurrenceWeekly}
                         </span>
                       )}
-                      <span className="text-xs text-gray-400">{expense.date}</span>
+                      <span className="text-xs text-gray-400">{fmtDate(expense.date)}</span>
                     </div>
                     <p className="text-sm font-medium text-gray-900 truncate">{expense.description}</p>
                     {expense.paidTo && <p className="text-xs text-gray-500">{expense.paidTo}</p>}

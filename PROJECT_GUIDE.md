@@ -358,10 +358,10 @@ Found during real-user testing with salon staff aged 35–70 across Admin, Geren
 #### P5-LOW — Polish & Timezone
 
 - [x] **Timezone: use America/La_Paz (UTC-4) for all date display and date field writes** — Fixed 2026-03-30: Added `getBoliviaDate()` utility in `helpers.ts` using `toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' })`. Applied to sessions/page.tsx, dashboard/page.tsx, my-earnings/page.tsx, my-appointments/page.tsx, appointments/page.tsx, and sessionService.ts. (4.30, 4.40)
-- [ ] **Date format in UI should be dd/mm/yyyy** — Dates displayed in completed sessions and receipts use ISO format (yyyy-mm-dd). Format all date displays with `toLocaleDateString('es-BO', { timeZone: 'America/La_Paz', day: '2-digit', month: '2-digit', year: 'numeric' })`. (4.30)
-- [ ] **Print receipt format differs from on-screen receipt** — `window.print()` in ReceiptModal renders the page print styles differently from the modal view. Create a dedicated `@media print` layout inside ReceiptModal that matches the on-screen design exactly. (4.32)
-- [ ] **Client list options buttons style inconsistency** — Edit/Delete buttons in the client list don't match the button style used in other list pages (inventory, services). Standardize to use the same `Button` component with consistent variant and size props. (6, general)
-- [ ] **Loyalty points duplicating on re-test** — Points accumulate each time a session is edited or re-tested. `closeSession()` should only award points once (guard: check if `session.loyaltyPointsAwarded` is already set). Add `loyaltyPointsAwarded: boolean` flag to session model. (6.11)
+- [x] **Date format in UI should be dd/mm/yyyy** — Fixed 2026-04-01: Added `fmtDate()` helper to `helpers.ts` that converts YYYY-MM-DD to dd/mm/yyyy. Applied to: ReceiptModal (header + text receipt), ClientHistoryModal (session date), reports payroll detail, expenses list, clients lastVisit. (4.30)
+- [x] **Print receipt format differs from on-screen receipt** — Fixed 2026-04-01: Print window styles updated to mirror Tailwind utility classes used in receipt div (text-center, text-xs/sm/lg, font-bold/semibold, text-gray-*, flex, justify-between, border-dashed). Uses system font instead of Courier. (4.32)
+- [x] **Client list options buttons style inconsistency** — Verified 2026-04-01: Client list already uses `Button` component with consistent variant/size props (secondary for edit, ghost for history/credit/loyalty, danger for delete). Matches pattern used in inventory and services pages. No change needed. (6, general)
+- [x] **Loyalty points duplicating on re-test** — Fixed 2026-04-01: `closeSession()` now checks `session.loyaltyPointsAwarded` flag before computing points. If already awarded, `pointsEarned = 0`. Flag is set on the session document when points are first awarded. Prevents duplication on reopen-and-close cycles. (6.11)
 
 #### P4-HIGH — Bugs / Correctness
 

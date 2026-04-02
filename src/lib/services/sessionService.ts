@@ -101,14 +101,18 @@ export class SessionService {
     const servicePrices = (session.services || []).reduce((sum, s) => sum + s.price, 0);
     const totalAmount = servicePrices;
 
+    // Guard: only award loyalty points once per session
+    const alreadyAwarded = (session as unknown as Record<string, unknown>).loyaltyPointsAwarded === true;
+    const pointsEarned = alreadyAwarded ? 0 : Math.floor(totalAmount / LOYALTY_POINTS_RATE);
+
     await SessionRepository.updateSession(sessionId, {
       status: 'completed',
       endTime: new Date(),
       totalAmount,
+      ...(pointsEarned > 0 ? { loyaltyPointsAwarded: true } : {}),
     });
 
     // Update client totalSpent and award loyalty points
-    const pointsEarned = Math.floor(totalAmount / LOYALTY_POINTS_RATE);
     if (session.clientId) {
       try {
         const client = await ClientRepository.getClient(session.clientId);

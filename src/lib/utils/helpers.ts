@@ -19,6 +19,13 @@ export function getBoliviaDate(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
 }
 
+// Format a YYYY-MM-DD date string as dd/mm/yyyy for Bolivian users
+export function fmtDate(dateStr: string): string {
+  if (!dateStr) return '-';
+  const [y, m, d] = dateStr.split('-');
+  return `${d}/${m}/${y}`;
+}
+
 // Date utilities
 export function formatDate(date: Date | string): string {
   const d = new Date(date);

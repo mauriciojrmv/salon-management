@@ -13,7 +13,7 @@ import { Button } from '@/components/Button';
 import { AnalyticsService, PayrollStaffEntry } from '@/lib/services/analyticsService';
 import { ExpenseRepository } from '@/lib/repositories/expenseRepository';
 import ES from '@/config/text.es';
-import { fmtBs } from '@/lib/utils/helpers';
+import { fmtBs, fmtDate } from '@/lib/utils/helpers';
 
 function PayrollCard({ entry, onRegisterPayment, isPaid }: { entry: PayrollStaffEntry; onRegisterPayment: (entry: PayrollStaffEntry) => void; isPaid?: boolean }) {
   const [expanded, setExpanded] = useState(false);
@@ -92,7 +92,7 @@ function PayrollCard({ entry, onRegisterPayment, isPaid }: { entry: PayrollStaff
                     .sort((a, b) => a.date.localeCompare(b.date))
                     .map((d, i) => (
                     <tr key={i} className="border-t border-gray-100">
-                      <td className="py-2 pr-3 text-gray-600">{d.date}</td>
+                      <td className="py-2 pr-3 text-gray-600">{fmtDate(d.date)}</td>
                       <td className="py-2 pr-3 text-gray-900">{d.clientName}</td>
                       <td className="py-2 pr-3 text-gray-900">{d.serviceName}</td>
                       <td className="py-2 pr-3 text-right">{fmtBs(d.price)}</td>

@@ -299,7 +299,11 @@ export default function ClientsPage() {
     {
       key: 'lastVisit',
       label: ES.clients.lastVisit,
-      render: (v) => (v ? new Date(v as string).toLocaleDateString('es-ES') : '-'),
+      render: (v) => {
+        if (!v) return '-';
+        const d = v instanceof Date ? v : (v && typeof v === 'object' && 'toDate' in v) ? (v as { toDate: () => Date }).toDate() : new Date(v as string);
+        return d.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz', day: '2-digit', month: '2-digit', year: 'numeric' });
+      },
     },
     {
       key: 'id' as keyof Client,
