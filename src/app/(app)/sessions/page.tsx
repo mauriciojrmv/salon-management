@@ -1196,7 +1196,21 @@ export default function SessionsPage() {
             );
           })()}
 
-          {/* END advanced: per-service */}
+          {/* Loyalty points indicator */}
+          {(() => {
+            const clientForLoyalty = paymentSessionRef ? clients?.find((c) => c.id === paymentSessionRef.clientId) : null;
+            const pts = (clientForLoyalty as { loyaltyPoints?: number } | null)?.loyaltyPoints || 0;
+            if (pts <= 0) return null;
+            return (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-amber-600 font-medium">{ES.loyalty.points}</p>
+                  <p className="text-lg font-bold text-amber-700">{pts} pts</p>
+                </div>
+                <p className="text-xs text-amber-600 max-w-[140px] text-right">{ES.loyalty.redeemFromClients}</p>
+              </div>
+            );
+          })()}
 
           {/* Big total display */}
           <div className="text-center py-3">

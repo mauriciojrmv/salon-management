@@ -193,12 +193,20 @@ export default function ReportsPage() {
     <div className="space-y-6 p-6">
       <style>{`
         @media print {
-          aside { display: none !important; }
-          .no-print { display: none !important; }
+          aside, .no-print { display: none !important; }
+          .print-only { display: block !important; }
           main { padding-top: 0 !important; overflow: visible !important; }
           body { background: white !important; }
+          .space-y-6 > * { break-inside: avoid; }
         }
       `}</style>
+      {/* Print header — hidden on screen, shown on print */}
+      <div className="hidden print-only" style={{ display: 'none' }}>
+        <div className="text-center border-b border-gray-300 pb-4 mb-6">
+          <h1 className="text-2xl font-bold">{ES.reports.title}</h1>
+          <p className="text-sm text-gray-600 mt-1">{fmtDate(startDate)} — {fmtDate(endDate)}</p>
+        </div>
+      </div>
       <Toast notifications={notifications} onDismiss={removeNotification} />
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-3xl font-bold text-gray-900">{ES.reports.title}</h1>

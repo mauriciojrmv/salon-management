@@ -338,7 +338,7 @@ Found during real-user testing with salon staff aged 35–70 across Admin, Geren
 - [x] **Client search broken in my-work "Nuevo Trabajo" modal** — Fixed 2026-04-01: Added `onMouseDown={(e) => e.stopPropagation()}` on the SearchableSelect fixed dropdown to prevent Modal overlay's `onClick={onClose}` from capturing clicks on the dropdown. (5.9)
 - [x] **Saldo payment at full amount blocks payment modal** — Fixed 2026-03-30: After applying credit, if `remaining <= 0`, payment modal auto-closes and success toast fires. No longer stuck at Bs. 0.00 with disabled confirm button. (6.13)
 - [x] **Gastos edit/delete should be admin-only** — Fixed 2026-03-30: `isAdmin = userData?.role === 'admin'` check in expenses/page.tsx. Edit and Delete buttons only render when `isAdmin`. (13.3, 13.4, 13.5)
-- [ ] **Loyalty reward redemption only from /clients page** — Complex integration with payment modal. Deferred to P5-MEDIUM. (6.11, 14.4)
+- [x] **Loyalty reward redemption only from /clients page** — Fixed 2026-04-02: Payment modal now shows client's loyalty points balance with note to redeem from Clients page. Rewards add credit to client balance, which is automatically shown and applicable in the payment modal.
 
 #### P5-MEDIUM — UX Improvements
 
@@ -382,10 +382,10 @@ Found during real-user testing with salon staff aged 35–70 across Admin, Geren
 
 #### P4-LOW — Terminology & Polish
 
-- [ ] **"Trabajos" terminology may confuse new users** — Consider renaming to "Atenciones" or "Servicios del Día" in the nav and page titles. "Trabajo" has a construction/labor connotation. Low risk change — only affects `text.es.ts` nav/sessions keys and one page title.
-- [ ] **Confirmation modal text too long for anxious users** — "Esta acción no se puede deshacer" combined with long explanations causes some users to either skip reading entirely or panic. Shorten to 1 sentence + a clear consequence. E.g. "¿Anular este trabajo? Se restaurará el stock." rather than the current multi-sentence version.
-- [ ] **Print report is a browser screenshot, not a formatted document** — `window.print()` captures the entire page including nav remnants. Already has `@media print` CSS hiding sidebar and filter card, but the result is still a raw page dump. Consider generating a dedicated print layout with salon name, date range header, and clean table-only output.
-- [ ] **"Materiales Usados" vs "Materiales Vendidos" — mixed framing** — Dashboard mixes material sell revenue with operational metrics. Clarify throughout the app: materials used in services are a revenue line (charged to client), not a cost line. The reports page already separates this correctly; dashboard should match.
+- [x] **"Trabajos" terminology may confuse new users** — Fixed 2026-04-02: Renamed all "Trabajo/Trabajos" to "Atención/Atenciones" throughout `text.es.ts`. Fixed feminine gender agreement (cerrada, creada, anulada, reabierta).
+- [x] **Confirmation modal text too long for anxious users** — Fixed 2026-04-02: Shortened all confirmation dialogs to 1 sentence with clear consequence. E.g. "¿Anular esta atención? Se restaurará el inventario."
+- [x] **Print report is a browser screenshot, not a formatted document** — Fixed 2026-04-02: Added print-only header with report title and date range (dd/mm/yyyy). Added `break-inside: avoid` for cleaner page breaks.
+- [x] **"Materiales Usados" vs "Materiales Vendidos" — mixed framing** — Fixed 2026-04-02: Dashboard now shows "Costo Materiales" computed from actual product buy cost. Consistent with reports page cost-based framing.
 
 ### P3 — LOW (future hardening)
 
