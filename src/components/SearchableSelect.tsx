@@ -145,7 +145,7 @@ export function SearchableSelect({
 
       {/* Dropdown — fixed positioned to escape modal overflow */}
       {isOpen && (
-        <div style={dropdownStyle} className="bg-white border border-gray-200 rounded-lg shadow-xl max-h-[50vh] overflow-hidden">
+        <div style={dropdownStyle} className="bg-white border border-gray-200 rounded-lg shadow-xl max-h-[50vh] overflow-hidden" onMouseDown={(e) => e.stopPropagation()}>
             {/* Search input */}
             <div className="p-2 border-b border-gray-100">
               <input

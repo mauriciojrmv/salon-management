@@ -247,7 +247,7 @@ export default function Dashboard() {
           </Card>
           <Card>
             <CardBody>
-              <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.totalRevenue}</p>
+              <p className="text-gray-600 text-sm font-medium mb-1">{ES.staff.myRevenueToday}</p>
               <p className="text-2xl font-bold text-gray-900">{fmtBs(staffKPIs?.totalRevenue ?? 0)}</p>
             </CardBody>
           </Card>
@@ -371,8 +371,8 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Cierre de Caja — daily payment summary by method */}
-      {(() => {
+      {/* Cierre de Caja — daily payment summary by method (admin/manager only) */}
+      {!isStaff && (() => {
         const completedToday = (sessions || []).filter((s) => s.status === 'completed');
         const allPayments = completedToday.flatMap((s) => (s.payments || []).filter((p) => p.status === 'completed'));
         const cash = allPayments.filter((p) => p.method === 'cash').reduce((s, p) => s + p.amount, 0);

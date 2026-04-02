@@ -12,7 +12,7 @@ import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { ExpenseRepository } from '@/lib/repositories/expenseRepository';
 import type { Expense, ExpenseCategory } from '@/types/models';
-import { fmtBs } from '@/lib/utils/helpers';
+import { fmtBs, getBoliviaDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 const categoryOptions: { value: ExpenseCategory; label: string }[] = [
@@ -43,7 +43,7 @@ const initialForm = {
   category: 'supplies' as ExpenseCategory,
   description: '',
   amount: 0,
-  date: new Date().toISOString().split('T')[0],
+  date: '',
   recurring: false,
   recurrenceType: '' as string,
   paidTo: '',
@@ -58,7 +58,10 @@ export default function ExpensesPage() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [formData, setFormData] = useState(initialForm);
   const [loading, setLoading] = useState(false);
-  const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  // Date range filter with presets
+  const today = useMemo(() => getBoliviaDate(), []);
+  const [filterStart, setFilterStart] = useState(() => today.slice(0, 7) + '-01');
+  const [filterEnd, setFilterEnd] = useState(() => today);
   const [confirmDeleteExpenseId, setConfirmDeleteExpenseId] = useState<string | null>(null);
 
   const { data: expenses, refetch } = useAsync(async () => {
@@ -66,11 +69,11 @@ export default function ExpensesPage() {
     return ExpenseRepository.getSalonExpenses(userData.salonId);
   }, [userData?.salonId]);
 
-  // Filter by month
+  // Filter by date range
   const filteredExpenses = useMemo(() => {
     if (!expenses) return [];
-    return expenses.filter((e) => e.date.startsWith(filterMonth));
-  }, [expenses, filterMonth]);
+    return expenses.filter((e) => e.date >= filterStart && e.date <= filterEnd);
+  }, [expenses, filterStart, filterEnd]);
 
   const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
 
@@ -84,7 +87,7 @@ export default function ExpensesPage() {
   }, [filteredExpenses]);
 
   const resetForm = () => {
-    setFormData({ ...initialForm, date: new Date().toISOString().split('T')[0] });
+    setFormData({ ...initialForm, date: getBoliviaDate() });
     setEditingExpense(null);
   };
 
@@ -177,23 +180,38 @@ export default function ExpensesPage() {
         <Button onClick={openCreate} size="lg">{ES.expenses.add}</Button>
       </div>
 
-      {/* Month filter + total */}
-      <div className="flex items-center gap-4 flex-wrap">
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">{ES.expenses.filterByMonth}</label>
-          <input
-            type="month"
-            value={filterMonth}
-            onChange={(e) => setFilterMonth(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          />
+      {/* Date range filter + presets + total */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button type="button" onClick={() => { setFilterStart(today); setFilterEnd(today); }}
+            className={`px-3 py-2 text-sm border rounded-lg font-medium transition-colors ${filterStart === today && filterEnd === today ? 'bg-blue-600 text-white border-blue-600' : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'}`}>
+            Hoy
+          </button>
+          <button type="button" onClick={() => { const s = today.slice(0, 7) + '-01'; setFilterStart(s); setFilterEnd(today); }}
+            className={`px-3 py-2 text-sm border rounded-lg font-medium transition-colors ${filterStart === today.slice(0, 7) + '-01' && filterEnd === today ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'}`}>
+            {ES.expenses.thisMonth}
+          </button>
+          <button type="button" onClick={() => { const d = new Date(); d.setDate(d.getDate() - 7); setFilterStart(d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' })); setFilterEnd(today); }}
+            className="px-3 py-2 text-sm border rounded-lg font-medium bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 transition-colors">
+            {ES.expenses.last7Days}
+          </button>
         </div>
-        <Card className="flex-1">
-          <CardBody>
-            <p className="text-gray-600 text-sm font-medium">{ES.expenses.totalExpenses}</p>
-            <p className="text-2xl font-bold text-red-600">Bs. {totalExpenses.toFixed(2)}</p>
-          </CardBody>
-        </Card>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">{ES.expenses.from}</label>
+            <input type="date" value={filterStart} onChange={(e) => setFilterStart(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">{ES.expenses.to}</label>
+            <input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+          <Card className="flex-1">
+            <CardBody>
+              <p className="text-gray-600 text-sm font-medium">{ES.expenses.totalExpenses}</p>
+              <p className="text-2xl font-bold text-red-600">{fmtBs(totalExpenses)}</p>
+            </CardBody>
+          </Card>
+        </div>
       </div>
 
       {/* Category breakdown */}

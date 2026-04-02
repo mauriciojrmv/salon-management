@@ -13,6 +13,7 @@ import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
+import { SessionRepository } from '@/lib/repositories/sessionRepository';
 import { Staff } from '@/types/models';
 import ES from '@/config/text.es';
 
@@ -153,6 +154,18 @@ export default function StaffPage() {
 
   const handleDeleteStaff = async (id: string) => {
     try {
+      // Check if staff has any sessions before deleting
+      if (userData?.salonId) {
+        const allSessions = await SessionRepository.getSalonSessions(userData.salonId);
+        const hasWork = allSessions.some((s) =>
+          (s.services || []).some((svc) => svc.assignedStaff?.includes(id))
+        );
+        if (hasWork) {
+          error(ES.staff.cannotDeleteHasWork);
+          setConfirmDeleteId(null);
+          return;
+        }
+      }
       await StaffRepository.deleteStaff(id);
       success(ES.staff.deleted);
       setConfirmDeleteId(null);

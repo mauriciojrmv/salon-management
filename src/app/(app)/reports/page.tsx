@@ -15,7 +15,7 @@ import { ExpenseRepository } from '@/lib/repositories/expenseRepository';
 import ES from '@/config/text.es';
 import { fmtBs } from '@/lib/utils/helpers';
 
-function PayrollCard({ entry, onRegisterPayment }: { entry: PayrollStaffEntry; onRegisterPayment: (entry: PayrollStaffEntry) => void }) {
+function PayrollCard({ entry, onRegisterPayment, isPaid }: { entry: PayrollStaffEntry; onRegisterPayment: (entry: PayrollStaffEntry) => void; isPaid?: boolean }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -63,9 +63,13 @@ function PayrollCard({ entry, onRegisterPayment }: { entry: PayrollStaffEntry; o
           >
             {expanded ? ES.reports.collapseDetail : ES.reports.expandDetail} ({entry.details.length})
           </button>
-          <Button size="sm" variant="primary" onClick={() => onRegisterPayment(entry)}>
-            {ES.reports.registerPayment}
-          </Button>
+          {isPaid ? (
+            <span className="flex-1 py-2 text-sm text-center text-green-700 bg-green-50 rounded-lg font-semibold">{ES.reports.paid}</span>
+          ) : (
+            <Button size="sm" variant="primary" onClick={() => onRegisterPayment(entry)}>
+              {ES.reports.registerPayment}
+            </Button>
+          )}
         </div>
 
         {/* Expanded detail — service-by-service breakdown */}
@@ -125,6 +129,7 @@ export default function ReportsPage() {
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentEntry, setPaymentEntry] = useState<PayrollStaffEntry | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paidStaffIds, setPaidStaffIds] = useState<Set<string>>(new Set());
 
   const handleRegisterPayment = async () => {
     if (!paymentEntry || !userData?.salonId) return;
@@ -142,6 +147,7 @@ export default function ReportsPage() {
         createdBy: '',
       });
       success(ES.reports.paymentRegistered);
+      setPaidStaffIds((prev) => new Set([...prev, paymentEntry.staffId]));
       setPaymentEntry(null);
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
@@ -298,7 +304,7 @@ export default function ReportsPage() {
       ) : (
         <div className="space-y-4">
           {payroll.map((entry) => (
-            <PayrollCard key={entry.staffId} entry={entry} onRegisterPayment={setPaymentEntry} />
+            <PayrollCard key={entry.staffId} entry={entry} onRegisterPayment={setPaymentEntry} isPaid={paidStaffIds.has(entry.staffId)} />
           ))}
         </div>
       )}

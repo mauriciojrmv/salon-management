@@ -29,6 +29,10 @@ export class AppointmentService {
     return await getDocument('appointments', appointmentId) as Appointment | null;
   }
 
+  static async updateAppointment(appointmentId: string, data: Partial<Record<string, unknown>>): Promise<void> {
+    await updateDocument('appointments', appointmentId, data);
+  }
+
   static async updateAppointmentStatus(appointmentId: string, status: Appointment['status']): Promise<void> {
     await updateDocument('appointments', appointmentId, { status });
   }

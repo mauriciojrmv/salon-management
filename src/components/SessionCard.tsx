@@ -17,6 +17,7 @@ interface SessionCardProps {
   onCancelSession?: () => void;
   onRemoveService?: (serviceItemId: string) => void;
   onUpdateServiceStatus?: (serviceItemId: string, newStatus: 'pending' | 'in_progress' | 'completed') => void;
+  onEditMaterials?: (serviceItemId: string, serviceName: string) => void;
   canCancel?: boolean; // admin/manager only
   loading?: boolean;
 }
@@ -39,6 +40,7 @@ export function SessionCard({
   onCancelSession,
   onRemoveService,
   onUpdateServiceStatus,
+  onEditMaterials,
   canCancel = false,
   loading = false,
 }: SessionCardProps) {
@@ -124,6 +126,19 @@ export function SessionCard({
                           )}
                         </div>
                         <div className="flex items-center gap-2">
+                          {onEditMaterials && session.status === 'active' && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditMaterials(service.id, service.serviceName);
+                              }}
+                              className="text-blue-500 hover:text-blue-700 text-xs font-medium px-2 py-1 rounded hover:bg-blue-50"
+                              title={ES.sessions.addMaterial}
+                            >
+                              + Mat.
+                            </button>
+                          )}
                           <p className="text-sm font-semibold">{fmtBs(service.price)}</p>
                           {onRemoveService && canCancel && (
                             <button

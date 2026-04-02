@@ -75,7 +75,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const handleSwitchSalon = async (salonId: string) => {
     if (!user?.uid || salonId === userData?.salonId) return;
     await updateUserDocument(user.uid, { salonId });
-    window.location.reload();
+    // No reload needed — useAuth's onSnapshot listener picks up salonId change automatically
   };
 
   const currentSalonName = (salons || []).find((s: Salon) => s.id === userData?.salonId)?.name;

@@ -61,6 +61,10 @@ export default function SessionsPage() {
   const [receiptSession, setReceiptSession] = useState<Session | null>(null);
   const [suggestedServices, setSuggestedServices] = useState<{ serviceId: string; serviceName: string; count: number }[]>([]);
 
+  // Edit materials on existing service
+  const [editMaterialModal, setEditMaterialModal] = useState<{ sessionId: string; serviceId: string; serviceName: string } | null>(null);
+  const [editMaterials, setEditMaterials] = useState<MaterialEntry[]>([]);
+
   // Quick client form
   const [quickClient, setQuickClient] = useState({ firstName: '', lastName: '', phone: '' });
 
@@ -81,10 +85,17 @@ export default function SessionsPage() {
 
   // Data — real-time sessions (syncs across admin/staff/manager instantly)
   const today = useMemo(() => getBoliviaDate(), []);
+  const yesterday = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+  }, []);
+  const [selectedDate, setSelectedDate] = useState(() => getBoliviaDate());
+  const isToday = selectedDate === today;
   const sessionConstraints = useMemo(() => [
     firebaseConstraints.where('salonId', '==', userData?.salonId || ''),
-    firebaseConstraints.where('date', '==', today),
-  ], [userData?.salonId, today]);
+    firebaseConstraints.where('date', '==', selectedDate),
+  ], [userData?.salonId, selectedDate]);
   const { data: sessions } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId);
 
   const { data: clients, refetch: refetchClients } = useAsync(async () => {
@@ -222,6 +233,74 @@ export default function SessionsPage() {
   };
 
   const totalMaterialsCost = materials.reduce((sum, m) => sum + m.totalPrice, 0);
+
+  // Edit materials on existing service
+  const openEditMaterials = (sessionId: string, serviceId: string, serviceName: string) => {
+    const session = sessions?.find((s) => s.id === sessionId);
+    const svc = session?.services?.find((s) => s.id === serviceId);
+    const existing: MaterialEntry[] = (svc?.materialsUsed || []).map((m) => ({
+      productId: m.productId,
+      productName: m.productName,
+      quantity: m.quantity,
+      unit: m.unit || 'ud',
+      pricePerUnit: m.cost / (m.quantity || 1),
+      totalPrice: m.cost,
+    }));
+    setEditMaterials(existing);
+    setEditMaterialModal({ sessionId, serviceId, serviceName });
+  };
+
+  const handleSaveEditMaterials = async () => {
+    if (!editMaterialModal) return;
+    setLoading(true);
+    try {
+      const session = await SessionRepository.getSession(editMaterialModal.sessionId);
+      if (!session) throw new Error('Session not found');
+
+      const updatedServices = (session.services || []).map((svc) => {
+        if (svc.id !== editMaterialModal.serviceId) return svc;
+        return {
+          ...svc,
+          materialsUsed: editMaterials.filter((m) => m.productId).map((m) => ({
+            productId: m.productId,
+            productName: m.productName,
+            quantity: m.quantity,
+            unit: m.unit,
+            cost: m.totalPrice,
+          })),
+        };
+      });
+
+      // Rebuild session-level materialsUsed from all services
+      const allMaterials = updatedServices.flatMap((svc) => svc.materialsUsed || []);
+
+      await SessionRepository.updateSession(editMaterialModal.sessionId, {
+        services: updatedServices,
+        materialsUsed: allMaterials,
+      });
+
+      // Restore old stock, then deduct new stock
+      const oldSvc = session.services?.find((s) => s.id === editMaterialModal.serviceId);
+      const oldMats = oldSvc?.materialsUsed || [];
+      const newMats = editMaterials.filter((m) => m.productId);
+
+      for (const om of oldMats) {
+        await ProductRepository.restockProduct(om.productId, om.quantity);
+      }
+      for (const nm of newMats) {
+        await ProductRepository.updateStock(nm.productId, nm.quantity);
+      }
+
+      success(ES.actions.success);
+      setEditMaterialModal(null);
+      setEditMaterials([]);
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handlers
   const handleCreateSession = async () => {
     if (!clientId || !userData?.salonId) {
@@ -451,11 +530,48 @@ export default function SessionsPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">{ES.sessions.title}</h1>
-        <Button onClick={() => setIsCreateModalOpen(true)} size="lg">
-          {ES.sessions.new}
-        </Button>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-gray-900">{ES.sessions.title}</h1>
+          <Button onClick={() => setIsCreateModalOpen(true)} size="lg">
+            {ES.sessions.new}
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedDate(today)}
+            className={`px-3 py-2 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+              isToday
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+            }`}
+          >
+            Hoy
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedDate(yesterday)}
+            className={`px-3 py-2 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+              selectedDate === yesterday
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+            }`}
+          >
+            Ayer
+          </button>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
+          />
+          {!isToday && (
+            <span className="text-sm text-amber-600 font-medium">
+              {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-BO', { weekday: 'short', day: 'numeric', month: 'short' })}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Active Sessions */}
@@ -520,6 +636,7 @@ export default function SessionsPage() {
               }}
               onRemoveService={(serviceItemId) => handleRemoveService(session.id, serviceItemId)}
               onUpdateServiceStatus={(serviceItemId, newStatus) => handleUpdateServiceStatus(session.id, serviceItemId, newStatus)}
+              onEditMaterials={(serviceItemId, serviceName) => openEditMaterials(session.id, serviceItemId, serviceName)}
               canCancel={canCancel}
               loading={loading}
             />
@@ -1259,6 +1376,80 @@ export default function SessionsPage() {
       >
         +
       </button>
+
+      {/* Edit Materials Modal */}
+      <Modal
+        isOpen={!!editMaterialModal}
+        onClose={() => { setEditMaterialModal(null); setEditMaterials([]); }}
+        title={`${ES.sessions.materialsUsed} — ${editMaterialModal?.serviceName || ''}`}
+        size="lg"
+      >
+        <div className="space-y-4 pb-16 sm:pb-0">
+          {editMaterials.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-2">{ES.sessions.noMaterials}</p>
+          ) : (
+            <div className="space-y-3">
+              {editMaterials.map((mat, idx) => (
+                <div key={idx} className="border border-gray-200 rounded-xl p-3 space-y-2">
+                  <SearchableSelect
+                    label=""
+                    options={(products || []).map((p) => ({ value: p.id, label: p.name, secondary: `${fmtBs(p.price)} / ${p.unit || 'ud'}` }))}
+                    value={mat.productId}
+                    onChange={(v) => {
+                      const product = products?.find((p) => p.id === v);
+                      if (!product) return;
+                      const updated = [...editMaterials];
+                      updated[idx] = { ...updated[idx], productId: v, productName: product.name, unit: product.unit || 'ud', pricePerUnit: product.price, totalPrice: product.price * updated[idx].quantity };
+                      setEditMaterials(updated);
+                    }}
+                    placeholder={ES.material.product}
+                  />
+                  <div className="flex gap-3 items-end">
+                    <div className="flex-1">
+                      <Input
+                        label={ES.sessions.quantity}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={mat.quantity}
+                        onChange={(e) => {
+                          const qty = parseFloat(e.target.value) || 0;
+                          const updated = [...editMaterials];
+                          updated[idx] = { ...updated[idx], quantity: qty, totalPrice: updated[idx].pricePerUnit * qty };
+                          setEditMaterials(updated);
+                        }}
+                      />
+                    </div>
+                    {mat.unit && <span className="text-sm text-gray-500 pb-3">{mat.unit}</span>}
+                    <div className="text-right pb-3">
+                      <p className="text-xs text-gray-400">{fmtBs(mat.pricePerUnit)}/{mat.unit}</p>
+                      <p className="text-sm font-semibold">{fmtBs(mat.totalPrice)}</p>
+                    </div>
+                    <button type="button" onClick={() => setEditMaterials(editMaterials.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 text-sm pb-3 font-medium">
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setEditMaterials([...editMaterials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0 }])}
+            className="w-full py-3.5 border-2 border-dashed border-gray-300 rounded-xl text-sm text-blue-600 font-medium hover:border-blue-400 hover:bg-blue-50 transition-colors"
+          >
+            {ES.sessions.addMaterial}
+          </button>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" className="flex-1 py-3" onClick={() => { setEditMaterialModal(null); setEditMaterials([]); }}>
+              {ES.actions.cancel}
+            </Button>
+            <Button className="flex-1 py-3" onClick={handleSaveEditMaterials} loading={loading}>
+              {ES.actions.save}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Receipt Modal */}
       <ReceiptModal

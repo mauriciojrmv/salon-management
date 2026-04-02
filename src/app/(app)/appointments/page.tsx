@@ -27,6 +27,7 @@ export default function AppointmentsPage() {
   const [isQuickClientOpen, setIsQuickClientOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getBoliviaDate());
   const [cancelApptId, setCancelApptId] = useState<string | null>(null);
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [formData, setFormData] = useState({
     clientId: '',
     serviceIds: [] as string[],
@@ -113,7 +114,19 @@ export default function AppointmentsPage() {
     }
   };
 
-  const handleCreateAppointment = async () => {
+  const openEditModal = (apt: Appointment) => {
+    setEditingAppointment(apt);
+    setFormData({
+      clientId: apt.clientId,
+      serviceIds: apt.serviceIds || [],
+      staffId: apt.staffId,
+      startTime: apt.startTime,
+      endTime: apt.endTime,
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSaveAppointment = async () => {
     if (!formData.clientId || !formData.staffId) {
       error(ES.messages.fillRequiredFields);
       return;
@@ -121,13 +134,26 @@ export default function AppointmentsPage() {
 
     setLoading(true);
     try {
-      await AppointmentService.createAppointment({
-        ...formData,
-        appointmentDate: selectedDate,
-        salonId: userData!.salonId,
-      });
-      success(ES.appointments.created);
+      if (editingAppointment) {
+        await AppointmentService.updateAppointment(editingAppointment.id, {
+          clientId: formData.clientId,
+          serviceIds: formData.serviceIds,
+          staffId: formData.staffId,
+          startTime: formData.startTime,
+          endTime: formData.endTime,
+          appointmentDate: selectedDate,
+        });
+        success(ES.appointments.updated);
+      } else {
+        await AppointmentService.createAppointment({
+          ...formData,
+          appointmentDate: selectedDate,
+          salonId: userData!.salonId,
+        });
+        success(ES.appointments.created);
+      }
       setIsModalOpen(false);
+      setEditingAppointment(null);
       setFormData({
         clientId: '',
         serviceIds: [],
@@ -262,6 +288,11 @@ export default function AppointmentsPage() {
             </Button>
           )}
           {(item.status === 'pending' || item.status === 'confirmed') && (
+            <Button size="sm" variant="secondary" onClick={() => openEditModal(item)}>
+              {ES.actions.edit}
+            </Button>
+          )}
+          {(item.status === 'pending' || item.status === 'confirmed') && (
             <Button size="sm" variant="danger" onClick={() => setCancelApptId(value as string)}>
               {ES.actions.cancel}
             </Button>
@@ -316,8 +347,8 @@ export default function AppointmentsPage() {
       {/* Create Appointment Modal */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={ES.appointments.create}
+        onClose={() => { setIsModalOpen(false); setEditingAppointment(null); }}
+        title={editingAppointment ? ES.appointments.editTitle : ES.appointments.create}
       >
         <div className="space-y-4">
           <Input
@@ -398,8 +429,8 @@ export default function AppointmentsPage() {
             <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
               {ES.actions.cancel}
             </Button>
-            <Button onClick={handleCreateAppointment} loading={loading}>
-              {ES.appointments.create}
+            <Button onClick={handleSaveAppointment} loading={loading}>
+              {editingAppointment ? ES.actions.save : ES.appointments.create}
             </Button>
           </div>
         </div>

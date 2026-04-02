@@ -29,6 +29,22 @@ export function Input({
           if (props.type === 'number' || props.type === 'text') e.target.select();
           props.onFocus?.(e);
         }}
+        onBeforeInput={(e) => {
+          // Normalize comma to period for decimal input on Android/international keyboards
+          const inputEvent = e as unknown as InputEvent;
+          if (props.type === 'number' && inputEvent.data === ',') {
+            e.preventDefault();
+            const target = e.target as HTMLInputElement;
+            const start = target.selectionStart ?? target.value.length;
+            const end = target.selectionEnd ?? start;
+            const newValue = target.value.slice(0, start) + '.' + target.value.slice(end);
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+            nativeInputValueSetter?.call(target, newValue);
+            target.selectionStart = target.selectionEnd = start + 1;
+            target.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          props.onBeforeInput?.(e);
+        }}
         className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
           error ? 'border-red-500' : 'border-gray-300'
         } ${className}`}

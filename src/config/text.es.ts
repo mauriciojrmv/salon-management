@@ -176,6 +176,8 @@ export const ES = {
     startTime: 'Hora de Inicio',
     endTime: 'Hora de Fin',
     created: '¡Cita creada!',
+    updated: '¡Cita actualizada!',
+    editTitle: 'Editar Cita',
     confirmed2: '¡Cita confirmada!',
     createFailed: 'Error al crear cita',
     confirmFailed: 'Error al confirmar cita',
@@ -245,6 +247,7 @@ export const ES = {
     deleteConfirm: '¿Eliminar este miembro del equipo?',
     updated: 'Personal actualizado',
     deleted: 'Personal eliminado',
+    cannotDeleteHasWork: 'No se puede eliminar: tiene trabajos registrados',
     earnings: 'Ganancias',
     totalEarnings: 'Ganancias Totales',
     servicesOffered: 'Servicios que Realiza',
@@ -267,6 +270,7 @@ export const ES = {
     tabEarnings: 'Ganancias',
     tabAppointments: 'Reservas',
     myCommissionToday: 'Comisión del día',
+    myRevenueToday: 'Mis Ingresos del Día',
     noEarningsToday: 'Sin servicios completados hoy',
     noAppointmentsToday: 'Sin reservas para hoy',
     advancePending: 'Iniciar',
@@ -373,6 +377,7 @@ export const ES = {
     registerPayment: 'Registrar Pago',
     registerPaymentConfirm: '¿Confirmar que se realizó el pago a este trabajador?',
     paymentRegistered: 'Pago registrado en gastos.',
+    paid: 'Pagado',
     payrollPayment: 'Pago de nómina',
   },
 
@@ -650,6 +655,10 @@ export const ES = {
     catInsurance: 'Seguro',
     catOther: 'Otro',
     filterByMonth: 'Filtrar por mes',
+    thisMonth: 'Este Mes',
+    last7Days: 'Últimos 7 días',
+    from: 'Desde',
+    to: 'Hasta',
   },
 
   // Loyalty Program

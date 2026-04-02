@@ -8,6 +8,7 @@ import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { AppointmentService } from '@/lib/services/appointmentService';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
+import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import type { Appointment } from '@/types/models';
 import { getBoliviaDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
@@ -30,7 +31,8 @@ const STATUS_CLS: Record<string, string> = {
 
 export default function MyAppointmentsPage() {
   const { user, userData } = useAuth();
-  const { notifications, removeNotification } = useNotification();
+  const { notifications, removeNotification, success, error: showError } = useNotification();
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const staffId = user?.uid || '';
   const today = useMemo(() => getBoliviaDate(), []);
@@ -50,9 +52,32 @@ export default function MyAppointmentsPage() {
     return ClientRepository.getSalonClients(userData.salonId);
   }, [userData?.salonId]);
 
+  const { data: salonServices } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return ServiceRepository.getSalonServices(userData.salonId);
+  }, [userData?.salonId]);
+
   const getClientName = (id: string) => {
     const c = clients?.find((x) => x.id === id);
     return c ? `${c.firstName} ${c.lastName}` : '-';
+  };
+
+  const getServiceNames = (ids: string[]) => {
+    if (!ids?.length) return '';
+    return ids
+      .map((id) => salonServices?.find((s) => s.id === id)?.name)
+      .filter(Boolean)
+      .join(', ');
+  };
+
+  const handleConfirm = async (aptId: string) => {
+    try {
+      await AppointmentService.updateAppointmentStatus(aptId, 'confirmed');
+      success(ES.appointments.confirmed);
+      setConfirmingId(null);
+    } catch {
+      showError(ES.messages.operationFailed);
+    }
   };
 
   const sorted = (appointments as Appointment[] || [])
@@ -113,14 +138,28 @@ export default function MyAppointmentsPage() {
             <Card key={apt.id}>
               <CardBody>
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900">{getClientName(apt.clientId)}</p>
                     <p className="text-sm text-gray-500">{apt.startTime} – {apt.endTime}</p>
+                    {apt.serviceIds?.length > 0 && (
+                      <p className="text-sm text-blue-600 mt-0.5">{getServiceNames(apt.serviceIds)}</p>
+                    )}
                     {apt.notes && <p className="text-xs text-gray-400 mt-1 italic">{apt.notes}</p>}
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_CLS[apt.status] || 'bg-gray-100 text-gray-600'}`}>
-                    {STATUS_LABEL[apt.status] || apt.status}
-                  </span>
+                  <div className="flex flex-col items-end gap-2 ml-3">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_CLS[apt.status] || 'bg-gray-100 text-gray-600'}`}>
+                      {STATUS_LABEL[apt.status] || apt.status}
+                    </span>
+                    {apt.status === 'pending' && (
+                      <button
+                        type="button"
+                        onClick={() => handleConfirm(apt.id)}
+                        className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700"
+                      >
+                        {ES.appointments.confirm}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </CardBody>
             </Card>

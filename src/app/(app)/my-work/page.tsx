@@ -20,7 +20,7 @@ import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { batchUpdate, firebaseConstraints } from '@/lib/firebase/db';
 import type { Session, SessionServiceItem } from '@/types/models';
-import { toDate, fmtBs } from '@/lib/utils/helpers';
+import { toDate, fmtBs, getBoliviaDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 interface MaterialEntry {
@@ -57,7 +57,7 @@ export default function MyWorkPage() {
 
   const staffId = user?.uid || '';
 
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const today = useMemo(() => getBoliviaDate(), []);
   const sessionConstraints = useMemo(() => [
     firebaseConstraints.where('salonId', '==', userData?.salonId || ''),
     firebaseConstraints.where('date', '==', today),
@@ -513,7 +513,7 @@ export default function MyWorkPage() {
         title={`${ES.sessions.materialsUsed} — ${materialModal?.serviceName || ''}`}
         size="lg"
       >
-        <div className="space-y-4">
+        <div className="space-y-4 pb-16 sm:pb-0">
           {materials.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-2">{ES.sessions.noMaterials}</p>
           ) : (
@@ -587,11 +587,20 @@ export default function MyWorkPage() {
           </button>
           <SearchableSelect
             label={`${ES.staff.selectService} (opcional)`}
-            options={(salonServices || []).filter((s) => s.isActive).map((s) => ({
-              value: s.id,
-              label: s.name,
-              secondary: `Bs. ${s.price}`,
-            }))}
+            options={(() => {
+              const myStaff = staffList?.find((s) => s.id === staffId);
+              const myServiceIds = (myStaff as typeof myStaff & { serviceIds?: string[] })?.serviceIds;
+              const filtered = (salonServices || []).filter((s) => {
+                if (!s.isActive) return false;
+                if (myServiceIds && myServiceIds.length > 0) return myServiceIds.includes(s.id);
+                return true;
+              });
+              return filtered.map((s) => ({
+                value: s.id,
+                label: s.name,
+                secondary: `Bs. ${s.price}`,
+              }));
+            })()}
             value={selectedServiceId}
             onChange={setSelectedServiceId}
             placeholder={ES.actions.search}
