@@ -3,6 +3,7 @@ import { Session, DailyMetrics, ServiceMetric, StaffMetric } from '@/types/model
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
+import { ProductRepository } from '@/lib/repositories/productRepository';
 import { DEFAULT_COMMISSION_RATE } from '@/lib/utils/helpers';
 
 export interface PayrollServiceDetail {
@@ -33,6 +34,9 @@ export class AnalyticsService {
       firebaseConstraints.where('status', '==', 'completed'),
     ]) as Session[];
 
+    const products = await ProductRepository.getSalonProducts(salonId);
+    const productCostMap = new Map(products.map(p => [p.id, p.cost]));
+
     const totalRevenue = sessions.reduce((sum, s) => sum + s.totalAmount, 0);
     const totalTransactions = sessions.length;
     const uniqueClients = new Set(sessions.map(s => s.clientId)).size;
@@ -42,7 +46,7 @@ export class AnalyticsService {
     sessions.forEach(session => {
       session.services.forEach(service => {
         const existing = serviceMap.get(service.serviceId) || { name: service.serviceName, count: 0, revenue: 0, materialCost: 0 };
-        const matCost = (service.materialsUsed || []).reduce((sum, m) => sum + m.cost, 0);
+        const matCost = (service.materialsUsed || []).reduce((sum, m) => sum + (productCostMap.get(m.productId) ?? 0) * m.quantity, 0);
         serviceMap.set(service.serviceId, {
           name: existing.name || service.serviceName,
           count: existing.count + 1,
@@ -64,15 +68,15 @@ export class AnalyticsService {
     const staffList = await StaffRepository.getSalonStaff(salonId);
     const staffNameMap = new Map(staffList.map(s => [s.id, `${s.firstName} ${s.lastName}`]));
 
-    // Calculate staff metrics using default commission rate minus material costs
+    // Calculate staff metrics: commission = (service price - material buy cost) * rate
     const staffMap = new Map<string, { sessionsCompleted: number; earnings: number }>();
     sessions.forEach(session => {
       session.services.forEach(service => {
-        const materialCost = (service.materialsUsed || []).reduce((sum, m) => sum + m.cost, 0);
+        const materialCost = (service.materialsUsed || []).reduce((sum, m) => sum + (productCostMap.get(m.productId) ?? 0) * m.quantity, 0);
         service.assignedStaff.forEach(staffId => {
           const existing = staffMap.get(staffId) || { sessionsCompleted: 0, earnings: 0 };
           const rate = service.commissionRate ?? DEFAULT_COMMISSION_RATE;
-          const commission = (service.price * rate / 100) - materialCost;
+          const commission = (service.price - materialCost) * rate / 100;
           staffMap.set(staffId, {
             sessionsCompleted: existing.sessionsCompleted + 1,
             earnings: existing.earnings + Math.max(0, commission),
@@ -127,10 +131,14 @@ export class AnalyticsService {
   }
 
   static async getServiceProfitability(salonId: string, startDate: string, endDate: string) {
-    const sessions = await queryDocuments('sessions', [
-      firebaseConstraints.where('salonId', '==', salonId),
-      firebaseConstraints.where('status', '==', 'completed'),
-    ]) as Session[];
+    const [sessions, products] = await Promise.all([
+      queryDocuments('sessions', [
+        firebaseConstraints.where('salonId', '==', salonId),
+        firebaseConstraints.where('status', '==', 'completed'),
+      ]) as Promise<Session[]>,
+      ProductRepository.getSalonProducts(salonId),
+    ]);
+    const productCostMap = new Map(products.map(p => [p.id, p.cost]));
 
     const serviceMetrics = new Map<string, {
       serviceName: string;
@@ -149,8 +157,8 @@ export class AnalyticsService {
             count: 0,
           };
 
-          // Use per-service materials instead of session-level (more accurate)
-          const materialCost = (service.materialsUsed || []).reduce((sum, m) => sum + m.cost, 0);
+          // Use actual buy cost from products, not stored sell price
+          const materialCost = (service.materialsUsed || []).reduce((sum, m) => sum + (productCostMap.get(m.productId) ?? 0) * m.quantity, 0);
 
           serviceMetrics.set(service.serviceId, {
             serviceName: existing.serviceName || service.serviceName,
@@ -175,15 +183,17 @@ export class AnalyticsService {
   }
 
   static async getStaffPerformance(salonId: string, month: string) {
-    const [sessions, staffList] = await Promise.all([
+    const [sessions, staffList, products] = await Promise.all([
       queryDocuments('sessions', [
         firebaseConstraints.where('salonId', '==', salonId),
         firebaseConstraints.where('status', '==', 'completed'),
       ]) as Promise<Session[]>,
       StaffRepository.getSalonStaff(salonId),
+      ProductRepository.getSalonProducts(salonId),
     ]);
 
     const staffNameMap = new Map(staffList.map(s => [s.id, `${s.firstName} ${s.lastName}`]));
+    const productCostMap = new Map(products.map(p => [p.id, p.cost]));
 
     const staffStats = new Map<string, {
       servicesCompleted: number;
@@ -201,9 +211,9 @@ export class AnalyticsService {
               earnings: 0,
             };
 
-            const materialCost = (service.materialsUsed || []).reduce((sum, m) => sum + m.cost, 0);
+            const materialCost = (service.materialsUsed || []).reduce((sum, m) => sum + (productCostMap.get(m.productId) ?? 0) * m.quantity, 0);
             const rate = service.commissionRate ?? DEFAULT_COMMISSION_RATE;
-            const commission = (service.price * rate / 100) - materialCost;
+            const commission = (service.price - materialCost) * rate / 100;
             staffStats.set(staffId, {
               servicesCompleted: existing.servicesCompleted + 1,
               revenue: existing.revenue + service.price,
@@ -222,17 +232,19 @@ export class AnalyticsService {
   }
 
   static async getStaffPayroll(salonId: string, startDate: string, endDate: string): Promise<PayrollStaffEntry[]> {
-    const [sessions, staffList, clients] = await Promise.all([
+    const [sessions, staffList, clients, products] = await Promise.all([
       queryDocuments('sessions', [
         firebaseConstraints.where('salonId', '==', salonId),
         firebaseConstraints.where('status', '==', 'completed'),
       ]) as Promise<Session[]>,
       StaffRepository.getSalonStaff(salonId),
       ClientRepository.getSalonClients(salonId),
+      ProductRepository.getSalonProducts(salonId),
     ]);
 
     const staffNameMap = new Map(staffList.map(s => [s.id, `${s.firstName} ${s.lastName}`]));
     const clientNameMap = new Map(clients.map(c => [c.id, `${c.firstName} ${c.lastName}`]));
+    const productCostMap = new Map(products.map(p => [p.id, p.cost]));
 
     const staffPayroll = new Map<string, {
       servicesCompleted: number;
@@ -254,9 +266,9 @@ export class AnalyticsService {
               details: [],
             };
 
-            const matCost = (service.materialsUsed || []).reduce((sum, m) => sum + m.cost, 0);
+            const matCost = (service.materialsUsed || []).reduce((sum, m) => sum + (productCostMap.get(m.productId) ?? 0) * m.quantity, 0);
             const rate = service.commissionRate ?? DEFAULT_COMMISSION_RATE;
-            const commission = Math.max(0, (service.price * rate / 100) - matCost);
+            const commission = Math.max(0, (service.price - matCost) * rate / 100);
 
             existing.servicesCompleted += 1;
             existing.revenue += service.price;

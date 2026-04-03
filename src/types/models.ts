@@ -216,7 +216,7 @@ export interface MaterialUsage {
   productName: string;
   quantity: number;
   unit: string;
-  cost: number; // Total cost
+  cost: number; // Total buy cost (product.cost * quantity)
   usedAt: Date;
 }
 

@@ -245,7 +245,7 @@ export default function MyWorkPage() {
   const productOptions = (products || []).map((p) => ({
     value: p.id,
     label: p.name,
-    secondary: `${ES.sessions.materialSellPrice}: Bs. ${p.price}/${p.unit || 'ud'} · Stock: ${p.currentStock}`,
+    secondary: `${ES.sessions.materialSellPrice}: ${fmtBs(p.cost)}/${p.unit || 'ud'} · Stock: ${p.currentStock}`,
   }));
 
   const handleAddMaterialRow = () => {
@@ -261,8 +261,8 @@ export default function MyWorkPage() {
       productId,
       productName: product.name,
       unit: product.unit || 'ud',
-      pricePerUnit: product.price,
-      totalPrice: product.price * updated[index].quantity,
+      pricePerUnit: product.cost,
+      totalPrice: product.cost * updated[index].quantity,
     };
     setMaterials(updated);
   };
@@ -317,13 +317,13 @@ export default function MyWorkPage() {
         usedAt: new Date(),
       }));
       const allMaterials = [...(session.materialsUsed || []), ...sessionMats];
+      // totalAmount = service prices ONLY — materials are internal cost tracking
       const servicePrices = (session.services || []).reduce((sum, s) => sum + s.price, 0);
-      const materialSellPrices = allMaterials.reduce((sum, m) => sum + m.cost, 0);
 
       await SessionRepository.updateSession(materialModal.sessionId, {
         services: updatedServices,
         materialsUsed: allMaterials,
-        totalAmount: servicePrices + materialSellPrices,
+        totalAmount: servicePrices,
       });
 
       const stockUpdates = await Promise.all(

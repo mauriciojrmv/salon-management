@@ -387,6 +387,20 @@ Found during real-user testing with salon staff aged 35–70 across Admin, Geren
 - [x] **Print report is a browser screenshot, not a formatted document** — Fixed 2026-04-02: Added print-only header with report title and date range (dd/mm/yyyy). Added `break-inside: avoid` for cleaner page breaks.
 - [x] **"Materiales Usados" vs "Materiales Vendidos" — mixed framing** — Fixed 2026-04-02: Dashboard now shows "Costo Materiales" computed from actual product buy cost. Consistent with reports page cost-based framing.
 
+#### P6 — Commission/Cost Fixes + UX Improvements (2026-04-02)
+
+- [x] **Commission formula inverted** — Fixed 2026-04-02: Was `(price * rate%) - materialCost`, now `(price - materialCost) * rate%`. Fixed in `analyticsService.ts` (getDailyMetrics, getServiceProfitability, getStaffPerformance, getStaffPayroll), `my-earnings/page.tsx`, `dashboard/page.tsx`.
+- [x] **Material cost using sell price instead of buy cost** — Fixed 2026-04-02: All `m.cost` (sell price stored in session) replaced with `productCostMap` lookup using `product.cost * quantity`. Fixed in analyticsService (all 4 methods), my-earnings, dashboard staff KPIs. `MaterialUsage.cost` field now stores buy cost.
+- [x] **Material entry saving sell price instead of buy cost** — Fixed 2026-04-02: `sessions/page.tsx` and `my-work/page.tsx` material handlers changed from `product.price` to `product.cost` when building MaterialEntry. Dropdown secondary label changed from "P. Venta" to "Costo" showing buy cost.
+- [x] **my-work totalAmount included material sell prices** — Fixed 2026-04-02: `totalAmount` was `servicePrices + materialSellPrices`. Now `totalAmount = servicePrices` only (materials are internal cost tracking).
+- [x] **No staff edit/assign after service creation** — Fixed 2026-04-02: Added `onEditStaff` prop to `SessionCard.tsx`. Shows "+ Asignar Trabajador" button when no staff assigned, edit icon next to existing staff. Edit Staff modal with SearchableSelect in `sessions/page.tsx`.
+- [x] **Product sales UX: no category filter or search** — Fixed 2026-04-02: Sales modal now has search bar + category filter tabs (pills). Products shown in 2-column grid with tap-to-add and inline +/− quantity controls. Payment/client/notes section appears only when cart has items.
+- [x] **Dashboard missing daily expenses and net total** — Fixed 2026-04-02: Added `ExpenseRepository` daily fetch. Two new KPI cards: "Gastos del Día" (red) and "Balance Neto" (green/red) = `(serviceRevenue + retailSales) - expenses`.
+- [x] **Modal UX inconsistency: action buttons scroll away on long modals** — Fixed 2026-04-02: Added optional `footer` prop to `Modal.tsx` — renders sticky bottom bar below scroll area. Applied to: sessions Add Service, Payment, Edit Materials, Edit Staff modals + sales modal. Buttons always visible.
+- [x] **Sales page used custom overlay instead of Modal component** — Fixed 2026-04-02: Refactored to use `<Modal footer={...}>`. All 64+ modals now use the same base component.
+- [x] **Sales: no client selection or loyalty points** — Fixed 2026-04-03: Sales modal now has client selection matching sessions pattern: "Sin Cliente (Eventual)" walk-in sentinel, inline quick-client creation form, loyalty points awarded on purchase (`floor(saleTotal / 50)`). Client stats (totalSpent) updated on sale.
+- [x] **Client defaults to empty on new session/sale — extra tap required** — Fixed 2026-04-03: Both sessions and sales now default `clientId` to `'__walkin__'` (Sin Cliente Eventual). Eliminates one tap for the most common flow (walk-in). Users can still change to a specific client.
+
 ### P3 — LOW (future hardening)
 
 - [x] **No confirmation dialogs for delete actions** — Fixed 2026-03-28: All `window.confirm()` calls replaced with custom `Modal` confirmations with Spanish buttons. Zero browser confirm dialogs remain.

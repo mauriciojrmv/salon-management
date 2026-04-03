@@ -10,6 +10,7 @@ import { AnalyticsService } from '@/lib/services/analyticsService';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { RetailSaleRepository } from '@/lib/repositories/retailSaleRepository';
+import { ExpenseRepository } from '@/lib/repositories/expenseRepository';
 import { firebaseConstraints } from '@/lib/firebase/db';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { Session, Client, Product } from '@/types/models';
@@ -59,6 +60,14 @@ export default function Dashboard() {
     if (!userData?.salonId) return [];
     return RetailSaleRepository.getSalonDailySales(userData.salonId, selectedDate);
   }, [userData?.salonId, selectedDate]);
+
+  // Daily expenses
+  const { data: dailyExpenses } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return ExpenseRepository.getSalonExpensesByDateRange(userData.salonId, selectedDate, selectedDate);
+  }, [userData?.salonId, selectedDate]);
+
+  const expenseTotal = (dailyExpenses || []).reduce((sum, e) => sum + e.amount, 0);
 
   const retailTotal = (retailSales || []).reduce((sum, s) => sum + s.totalAmount, 0);
   const retailCount = (retailSales || []).length;
@@ -153,13 +162,13 @@ export default function Dashboard() {
         if (svc.assignedStaff?.includes(user.uid) && svc.status === 'completed') {
           completedCount++;
           totalRevenue += svc.price;
-          const matCost = (svc.materialsUsed || []).reduce((s, m) => s + (m.cost || 0), 0);
+          const matCost = (svc.materialsUsed || []).reduce((s, m) => s + (productCostMap[m.productId] ?? 0) * m.quantity, 0);
           totalCommission += Math.max(0, (svc.price - matCost) * ((svc.commissionRate || 50) / 100));
         }
       });
     });
     return { completedCount, totalRevenue, totalCommission };
-  }, [isStaff, user?.uid, staffSessions]);
+  }, [isStaff, user?.uid, staffSessions, productCostMap]);
 
   const today = getBoliviaDate();
   const yesterday = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' }); })();
@@ -269,7 +278,7 @@ export default function Dashboard() {
           </Card>
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           <Card>
             <CardBody>
               <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.totalRevenue}</p>
@@ -314,6 +323,20 @@ export default function Dashboard() {
             <CardBody>
               <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.materialsConsumed}</p>
               <p className="text-2xl font-bold text-orange-600">{fmtBs(materialsConsumed)}</p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.dailyExpenses}</p>
+              <p className="text-2xl font-bold text-red-600">{fmtBs(expenseTotal)}</p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <p className="text-gray-600 text-sm font-medium mb-1">{ES.dashboard.netTotal}</p>
+              <p className={`text-2xl font-bold ${((metrics?.totalRevenue ?? 0) + retailTotal - expenseTotal) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {fmtBs((metrics?.totalRevenue ?? 0) + retailTotal - expenseTotal)}
+              </p>
             </CardBody>
           </Card>
         </div>

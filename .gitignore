@@ -6,6 +6,9 @@ node_modules/
 # Testing
 coverage/
 .nyc_output
+e2e/.auth/
+playwright-report/
+test-results/
 
 # Next.js
 .next/

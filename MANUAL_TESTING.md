@@ -76,7 +76,9 @@
 | 3.9 | Low-stock alert appears if products below minimum (red banner) | | | |
 | 3.10 | "Atenciones de Hoy" table shows service names + assigned staff per row | | | |
 | 3.11 | Top Services and Top Staff sections visible | | | |
-| 3.12 | All dates display dd/mm/yyyy format (not YYYY-MM-DD) | | | FIXED |
+| 3.12 | "Gastos del Día" card shows daily expense total (red) | | | NEW |
+| 3.13 | "Balance Neto" card shows income minus expenses (green/red) | | | NEW |
+| 3.14 | All dates display dd/mm/yyyy format (not YYYY-MM-DD) | | | FIXED |
 
 ### 3B. Staff
 
@@ -96,8 +98,8 @@
 | # | Action | Admin | Manager | Notes |
 |---|--------|-------|---------|-------|
 | 4.1 | Tap "+ Nueva Atencion" button | | | Renamed from "Trabajo" |
-| 4.2 | Client search dropdown works (by name and phone) | | | |
-| 4.3 | "Sin Cliente (Eventual)" option appears at start of list | | | |
+| 4.2 | Client defaults to "Sin Cliente (Eventual)" — no extra tap needed | | | NEW: auto-default walk-in |
+| 4.3 | Can change to specific client via search dropdown (name or phone) | | | |
 | 4.4 | Tap "Nuevo cliente rapido" → form appears INLINE (no second modal) | | | FIXED: was nested modal |
 | 4.5 | Fill quick-client name → save → auto-selects new client | | | |
 | 4.6 | Tap "Volver" → returns to client selection | | | |
@@ -338,12 +340,18 @@
 
 | # | Action | Admin | Manager | Notes |
 |---|--------|-------|---------|-------|
-| 12.1 | Create product sale at counter | | | |
-| 12.2 | Cash → change calculator appears | | | |
-| 12.3 | Enter amount given → shows change | | | |
-| 12.4 | Stock deducted on confirm | | | |
-| 12.5 | Daily sales summary shown on page | | | |
-| 12.6 | Dashboard retail KPIs match | | | |
+| 12.1 | Open sale modal → client defaults to "Sin Cliente (Eventual)" | | | NEW: auto-default walk-in |
+| 12.2 | Search/select specific client from dropdown | | | |
+| 12.3 | Tap "Nuevo cliente rápido" → inline form appears (no nested modal) | | | NEW |
+| 12.4 | Category filter pills shown for product list | | | NEW |
+| 12.5 | Search bar filters products by name | | | NEW |
+| 12.6 | Tap product → adds to cart with +/− quantity controls | | | NEW |
+| 12.7 | Cash → change calculator appears | | | |
+| 12.8 | Enter amount given → shows change | | | |
+| 12.9 | Stock deducted on confirm | | | |
+| 12.10 | Loyalty points awarded to client on purchase (floor(total/50)) | | | NEW |
+| 12.11 | Daily sales summary shown on page | | | |
+| 12.12 | Dashboard retail KPIs match | | | |
 
 ---
 

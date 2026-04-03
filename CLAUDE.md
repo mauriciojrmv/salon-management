@@ -69,7 +69,7 @@
 * Multi-service sessions (services added dynamically)
 * Staff assignment per service, not per session
 * Material usage tied to a service, with stock auto-deduction
-* Commission model (INTERNAL only, never shown to client): 50% of service price minus material buy cost
+* Commission model (INTERNAL only, never shown to client): (service price - material buy cost) * 50% — deduct materials FIRST, then apply commission rate
 * Client-facing total: service price ONLY — materials are internal cost tracking, NOT charged to the client separately
 * Materials tracked for: (1) stock deduction, (2) internal commission deduction from staff earnings — never shown on client receipt or client payment total
 * **CRITICAL**: `totalAmount` = sum of service prices ONLY. Materials are NEVER added to client-facing totals, receipts, or payment calculations
@@ -131,6 +131,7 @@
 * `Input` component has built-in comma→period normalization for `type="number"` via `onBeforeInput` — do not reimplement
 * Loading states should be per-item (e.g., per-SessionCard), not a single shared boolean for the whole page — prevents UI flickering on unrelated cards
 * Print/receipt output must match on-screen styling — use matching CSS utility classes in print stylesheets
+* `Modal` component supports optional `footer` prop — renders a sticky bottom bar below the scroll area. Use for action buttons on complex/long modals (payment, add service, materials, sales). Confirmation dialogs (sm) don't need it. All modals MUST use the `<Modal>` component — no custom overlays.
 
 ## Performance
 

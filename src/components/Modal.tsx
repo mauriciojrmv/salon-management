@@ -6,9 +6,11 @@ interface ModalProps {
   title?: string;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg';
+  /** Sticky footer rendered below the scrollable body — always visible */
+  footer?: React.ReactNode;
 }
 
-export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, size = 'md', footer }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -50,6 +52,11 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
           </div>
         )}
         <div className="p-6 overflow-y-auto flex-1">{children}</div>
+        {footer && (
+          <div className="flex-shrink-0 border-t border-gray-200 px-6 py-4 bg-white rounded-b-none sm:rounded-b-lg">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

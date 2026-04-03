@@ -18,6 +18,7 @@ interface SessionCardProps {
   onRemoveService?: (serviceItemId: string) => void;
   onUpdateServiceStatus?: (serviceItemId: string, newStatus: 'pending' | 'in_progress' | 'completed') => void;
   onEditMaterials?: (serviceItemId: string, serviceName: string) => void;
+  onEditStaff?: (serviceItemId: string, serviceName: string, currentStaff: string[]) => void;
   canCancel?: boolean; // admin/manager only
   loading?: boolean;
 }
@@ -41,6 +42,7 @@ export function SessionCard({
   onRemoveService,
   onUpdateServiceStatus,
   onEditMaterials,
+  onEditStaff,
   canCancel = false,
   loading = false,
 }: SessionCardProps) {
@@ -122,10 +124,29 @@ export function SessionCard({
                               </span>
                             )}
                           </div>
-                          {service.assignedStaff?.length > 0 && (
+                          {service.assignedStaff?.length > 0 ? (
                             <p className="text-xs text-gray-500 mt-0.5">
                               {service.assignedStaff.map((id) => getStaffName(id)).join(', ')}
+                              {onEditStaff && session.status === 'active' && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); onEditStaff(service.id, service.serviceName, service.assignedStaff || []); }}
+                                  className="ml-2 text-blue-500 hover:text-blue-700 text-xs font-medium"
+                                >
+                                  ✎
+                                </button>
+                              )}
                             </p>
+                          ) : (
+                            onEditStaff && session.status === 'active' && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); onEditStaff(service.id, service.serviceName, []); }}
+                                className="text-xs text-orange-600 hover:text-orange-800 font-medium mt-0.5 px-2 py-1 rounded hover:bg-orange-50"
+                              >
+                                + {ES.sessions.assignStaff}
+                              </button>
+                            )
                           )}
                         </div>
                         <div className="flex items-center gap-2">

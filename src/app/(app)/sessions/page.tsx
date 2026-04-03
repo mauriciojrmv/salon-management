@@ -31,8 +31,8 @@ interface MaterialEntry {
   productName: string;
   quantity: number;
   unit: string;
-  pricePerUnit: number; // selling price per unit
-  totalPrice: number; // pricePerUnit * quantity
+  pricePerUnit: number; // buy cost per unit
+  totalPrice: number; // pricePerUnit * quantity (buy cost total)
 }
 
 interface PaymentEntry {
@@ -50,7 +50,7 @@ export default function SessionsPage() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isQuickClientOpen, setIsQuickClientOpen] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [clientId, setClientId] = useState('');
+  const [clientId, setClientId] = useState('__walkin__');
   const [loading, setLoading] = useState(false);
   const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
   const [historyClientId, setHistoryClientId] = useState<string | null>(null);
@@ -65,6 +65,10 @@ export default function SessionsPage() {
   // Edit materials on existing service
   const [editMaterialModal, setEditMaterialModal] = useState<{ sessionId: string; serviceId: string; serviceName: string } | null>(null);
   const [editMaterials, setEditMaterials] = useState<MaterialEntry[]>([]);
+
+  // Edit staff on existing service
+  const [editStaffModal, setEditStaffModal] = useState<{ sessionId: string; serviceId: string; serviceName: string } | null>(null);
+  const [editStaffId, setEditStaffId] = useState('');
 
   // Quick client form
   const [quickClient, setQuickClient] = useState({ firstName: '', lastName: '', phone: '' });
@@ -172,7 +176,7 @@ export default function SessionsPage() {
   const productOptions = (products || []).map((p) => ({
     value: p.id,
     label: p.name,
-    secondary: `${ES.sessions.materialSellPrice}: ${fmtBs(p.price)}/${unitLabel(p.unit)} · Stock: ${p.currentStock}${p.currentStock <= p.minStock ? ' ⚠' : ''}`,
+    secondary: `${ES.sessions.materialSellPrice}: ${fmtBs(p.cost)}/${unitLabel(p.unit)} · Stock: ${p.currentStock}${p.currentStock <= p.minStock ? ' ⚠' : ''}`,
   }));
 
   // Low-stock products for alert banner
@@ -213,8 +217,8 @@ export default function SessionsPage() {
       productId,
       productName: product.name,
       unit: product.unit || 'ud',
-      pricePerUnit: product.price,
-      totalPrice: product.price * updated[index].quantity,
+      pricePerUnit: product.cost,
+      totalPrice: product.cost * updated[index].quantity,
     };
     setMaterials(updated);
   };
@@ -302,6 +306,35 @@ export default function SessionsPage() {
     }
   };
 
+  // Edit staff on existing service
+  const openEditStaff = (sessionId: string, serviceId: string, serviceName: string, currentStaff: string[]) => {
+    setEditStaffId(currentStaff[0] || '');
+    setEditStaffModal({ sessionId, serviceId, serviceName });
+  };
+
+  const handleSaveEditStaff = async () => {
+    if (!editStaffModal) return;
+    setLoading(true);
+    try {
+      const session = await SessionRepository.getSession(editStaffModal.sessionId);
+      if (!session) throw new Error('Session not found');
+
+      const updatedServices = (session.services || []).map((svc) => {
+        if (svc.id !== editStaffModal.serviceId) return svc;
+        return { ...svc, assignedStaff: editStaffId ? [editStaffId] : [] };
+      });
+
+      await SessionRepository.updateSession(editStaffModal.sessionId, { services: updatedServices });
+      success(ES.actions.success);
+      setEditStaffModal(null);
+      setEditStaffId('');
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handlers
   const handleCreateSession = async () => {
     if (!clientId || !userData?.salonId) {
@@ -319,7 +352,7 @@ export default function SessionsPage() {
       });
       success(ES.sessions.sessionCreated);
       setIsCreateModalOpen(false);
-      setClientId('');
+      setClientId('__walkin__');
 
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
@@ -632,7 +665,8 @@ export default function SessionsPage() {
                 const allSvcIds = (session.services || []).map((s) => s.id);
                 setSelectedPaymentServiceIds(allSvcIds);
                 const paid = (session.payments || []).reduce((sum, p) => sum + p.amount, 0);
-                const remaining = session.totalAmount - paid;
+                const totalFromServices = (session.services || []).reduce((sum, s) => sum + s.price, 0);  // ← NUEVA LÍNEA
+                const remaining = totalFromServices - paid;  // ← LÍNEA MODIFICADA
                 setSessionRemainingForPayment(remaining);
                 setPaymentEntries([{ amount: remaining, method: 'cash', payerNote: '', amountGiven: 0 }]);
                 setShowAdvancedPayment(false);
@@ -647,6 +681,7 @@ export default function SessionsPage() {
               onRemoveService={(serviceItemId) => handleRemoveService(session.id, serviceItemId)}
               onUpdateServiceStatus={(serviceItemId, newStatus) => handleUpdateServiceStatus(session.id, serviceItemId, newStatus)}
               onEditMaterials={(serviceItemId, serviceName) => openEditMaterials(session.id, serviceItemId, serviceName)}
+              onEditStaff={(serviceItemId, serviceName, currentStaff) => openEditStaff(session.id, serviceItemId, serviceName, currentStaff)}
               canCancel={canCancel}
               loading={(loading && activeSessionId === session.id) || loadingSessionId === session.id}
             />
@@ -920,7 +955,22 @@ export default function SessionsPage() {
       </Modal>
 
       {/* Add Service Modal — with editable price + materials */}
-      <Modal isOpen={isAddServiceModalOpen} onClose={() => setIsAddServiceModalOpen(false)} title={ES.sessions.addService} size="lg">
+      <Modal
+        isOpen={isAddServiceModalOpen}
+        onClose={() => setIsAddServiceModalOpen(false)}
+        title={ES.sessions.addService}
+        size="lg"
+        footer={
+          <div className="flex gap-2">
+            <Button variant="secondary" className="flex-1" onClick={() => setIsAddServiceModalOpen(false)}>
+              {ES.actions.cancel}
+            </Button>
+            <Button className="flex-1" onClick={handleAddService} loading={loading}>
+              {ES.sessions.addService}
+            </Button>
+          </div>
+        }
+      >
         <div className="space-y-4">
           {/* Suggested services based on client history */}
           {suggestedServices.length > 0 && !serviceForm.serviceId && (
@@ -1046,19 +1096,26 @@ export default function SessionsPage() {
             </div>
           )}
 
-          <div className="flex gap-2 pt-2">
-            <Button variant="secondary" onClick={() => setIsAddServiceModalOpen(false)}>
-              {ES.actions.cancel}
-            </Button>
-            <Button onClick={handleAddService} loading={loading}>
-              {ES.sessions.addService}
-            </Button>
-          </div>
         </div>
       </Modal>
 
       {/* Payment Modal — simple default: big total → tap method → confirm. Advanced: split + per-service */}
-      <Modal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} title={ES.payments.processPayment} size="lg">
+      <Modal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        title={ES.payments.processPayment}
+        size="lg"
+        footer={
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={() => setIsPaymentModalOpen(false)} size="lg" className="flex-1">
+              {ES.actions.cancel}
+            </Button>
+            <Button onClick={handleProcessPayment} loading={loading} size="lg" className="flex-1">
+              {ES.payments.confirmPayments}
+            </Button>
+          </div>
+        }
+      >
         <div className="space-y-4">
 
           {/* Advanced toggle */}
@@ -1085,7 +1142,8 @@ export default function SessionsPage() {
                     const newIds = allSelected ? [] : allIds;
                     setSelectedPaymentServiceIds(newIds);
                     // Recalculate amount
-                    const selectedTotal = allSelected ? 0 : paymentSessionRef.totalAmount;
+                    const totalFromServices = (paymentSessionRef.services || []).reduce((sum, s) => sum + s.price, 0);  // ← NUEVA LÍNEA
+                    const selectedTotal = allSelected ? 0 : totalFromServices;  // ← LÍNEA MODIFICADA
                     const paid = (paymentSessionRef.payments || []).reduce((sum, p) => sum + p.amount, 0);
                     const remaining = Math.max(0, selectedTotal - paid);
                     setSessionRemainingForPayment(remaining);
@@ -1107,8 +1165,7 @@ export default function SessionsPage() {
                       const coveredCount = (p.serviceIds || []).length;
                       return sum + (coveredCount > 0 ? p.amount / coveredCount : 0);
                     }, 0);
-                  const svcMaterialCost = (svc.materialsUsed || []).reduce((sum, m) => sum + m.cost, 0);
-                  const svcTotal = svc.price + svcMaterialCost;
+                  const svcTotal = svc.price;
                   const svcRemaining = Math.max(0, svcTotal - alreadyPaidForService);
 
                   return (
@@ -1124,10 +1181,7 @@ export default function SessionsPage() {
                           // Recalculate selected total
                           const allSvcs = paymentSessionRef.services || [];
                           const selectedSvcs = allSvcs.filter((s) => newIds.includes(s.id));
-                          const selectedSvcTotal = selectedSvcs.reduce((sum, s) => {
-                            const matCost = (s.materialsUsed || []).reduce((ms, m) => ms + m.cost, 0);
-                            return sum + s.price + matCost;
-                          }, 0);
+                          const selectedSvcTotal = selectedSvcs.reduce((sum, s) => sum + s.price, 0);  // ← LÍNEA MODIFICADA
                           const paid = (paymentSessionRef.payments || []).reduce((sum, p) => sum + p.amount, 0);
                           const remaining = Math.max(0, selectedSvcTotal - paid);
                           setSessionRemainingForPayment(remaining);
@@ -1371,15 +1425,6 @@ export default function SessionsPage() {
             </div>
           )}
 
-          {/* Action buttons */}
-          <div className="flex gap-3 pt-2">
-            <Button variant="secondary" onClick={() => setIsPaymentModalOpen(false)} size="lg" className="flex-1">
-              {ES.actions.cancel}
-            </Button>
-            <Button onClick={handleProcessPayment} loading={loading} size="lg" className="flex-1">
-              ✓ {ES.payments.confirmPayments}
-            </Button>
-          </div>
         </div>
       </Modal>
 
@@ -1409,8 +1454,18 @@ export default function SessionsPage() {
         onClose={() => { setEditMaterialModal(null); setEditMaterials([]); }}
         title={`${ES.sessions.materialsUsed} — ${editMaterialModal?.serviceName || ''}`}
         size="lg"
+        footer={
+          <div className="flex gap-2">
+            <Button variant="secondary" className="flex-1" onClick={() => { setEditMaterialModal(null); setEditMaterials([]); }}>
+              {ES.actions.cancel}
+            </Button>
+            <Button className="flex-1" onClick={handleSaveEditMaterials} loading={loading}>
+              {ES.actions.save}
+            </Button>
+          </div>
+        }
       >
-        <div className="space-y-4 pb-16 sm:pb-0">
+        <div className="space-y-4">
           {editMaterials.length === 0 ? (
             <p className="text-sm text-gray-500 text-center py-2">{ES.sessions.noMaterials}</p>
           ) : (
@@ -1419,13 +1474,13 @@ export default function SessionsPage() {
                 <div key={idx} className="border border-gray-200 rounded-xl p-3 space-y-2">
                   <SearchableSelect
                     label=""
-                    options={(products || []).map((p) => ({ value: p.id, label: p.name, secondary: `${fmtBs(p.price)} / ${p.unit || 'ud'}` }))}
+                    options={(products || []).map((p) => ({ value: p.id, label: p.name, secondary: `${fmtBs(p.cost)} / ${p.unit || 'ud'}` }))}
                     value={mat.productId}
                     onChange={(v) => {
                       const product = products?.find((p) => p.id === v);
                       if (!product) return;
                       const updated = [...editMaterials];
-                      updated[idx] = { ...updated[idx], productId: v, productName: product.name, unit: product.unit || 'ud', pricePerUnit: product.price, totalPrice: product.price * updated[idx].quantity };
+                      updated[idx] = { ...updated[idx], productId: v, productName: product.name, unit: product.unit || 'ud', pricePerUnit: product.cost, totalPrice: product.cost * updated[idx].quantity };
                       setEditMaterials(updated);
                     }}
                     placeholder={ES.material.product}
@@ -1466,15 +1521,37 @@ export default function SessionsPage() {
           >
             {ES.sessions.addMaterial}
           </button>
-          <div className="flex gap-2 pt-2">
-            <Button variant="secondary" className="flex-1 py-3" onClick={() => { setEditMaterialModal(null); setEditMaterials([]); }}>
+        </div>
+      </Modal>
+
+      {/* Edit Staff Modal */}
+      <Modal
+        isOpen={!!editStaffModal}
+        onClose={() => { setEditStaffModal(null); setEditStaffId(''); }}
+        title={`${ES.sessions.assignStaff} — ${editStaffModal?.serviceName || ''}`}
+        size="sm"
+        footer={
+          <div className="flex gap-2">
+            <Button variant="secondary" className="flex-1" onClick={() => { setEditStaffModal(null); setEditStaffId(''); }}>
               {ES.actions.cancel}
             </Button>
-            <Button className="flex-1 py-3" onClick={handleSaveEditMaterials} loading={loading}>
+            <Button className="flex-1" onClick={handleSaveEditStaff} loading={loading}>
               {ES.actions.save}
             </Button>
           </div>
-        </div>
+        }
+      >
+        <SearchableSelect
+          label={ES.sessions.selectStaff}
+          options={(staffList || []).map((s) => ({
+            value: s.id,
+            label: `${s.firstName} ${s.lastName}`,
+            secondary: busyStaffIds.has(s.id) ? ES.staff.busy : undefined,
+          }))}
+          value={editStaffId}
+          onChange={setEditStaffId}
+          placeholder={ES.actions.search}
+        />
       </Modal>
 
       {/* Receipt Modal */}

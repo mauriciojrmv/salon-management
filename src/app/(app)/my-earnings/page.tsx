@@ -5,8 +5,10 @@ import { Card, CardBody } from '@/components/Card';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useRealtime } from '@/hooks/useRealtime';
+import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { firebaseConstraints } from '@/lib/firebase/db';
+import { ProductRepository } from '@/lib/repositories/productRepository';
 import type { Session } from '@/types/models';
 import { fmtBs, getBoliviaDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
@@ -28,13 +30,22 @@ export default function MyEarningsPage() {
     firebaseConstraints.where('date', '==', selectedDate),
   ], [userData?.salonId, selectedDate]);
   const { data: sessions } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId);
+  const { data: allProducts } = useAsync(
+    () => userData?.salonId ? ProductRepository.getSalonProducts(userData.salonId) : Promise.resolve([]),
+    [userData?.salonId]
+  );
+  const productCostMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    (allProducts || []).forEach((p) => { map[p.id] = p.cost; });
+    return map;
+  }, [allProducts]);
 
   const myCompletedServices = useMemo(() => {
     const result: { serviceName: string; price: number; materialCost: number; commission: number; rate: number }[] = [];
     (sessions || []).forEach((session) => {
       (session.services || []).forEach((svc) => {
         if (svc.assignedStaff?.includes(staffId) && svc.status === 'completed') {
-          const materialCost = (svc.materialsUsed || []).reduce((s, m) => s + (m.cost || 0), 0);
+          const materialCost = (svc.materialsUsed || []).reduce((s, m) => s + (productCostMap[m.productId] ?? 0) * m.quantity, 0);
           const rate = svc.commissionRate || 50;
           const commission = Math.max(0, (svc.price - materialCost) * (rate / 100));
           result.push({ serviceName: svc.serviceName, price: svc.price, materialCost, commission, rate });
@@ -42,7 +53,7 @@ export default function MyEarningsPage() {
       });
     });
     return result;
-  }, [sessions, staffId]);
+  }, [sessions, staffId, productCostMap]);
 
   const totals = myCompletedServices.reduce(
     (acc, s) => ({ revenue: acc.revenue + s.price, commission: acc.commission + s.commission }),
