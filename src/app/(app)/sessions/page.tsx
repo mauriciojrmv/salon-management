@@ -307,6 +307,20 @@ export default function SessionsPage() {
   };
 
   // Edit staff on existing service
+  const handleEditPrice = async (sessionId: string, serviceItemId: string, newPrice: number) => {
+    try {
+      const session = await SessionRepository.getSession(sessionId);
+      if (!session) return;
+      const updatedServices = (session.services || []).map((svc) =>
+        svc.id === serviceItemId ? { ...svc, price: newPrice } : svc
+      );
+      const totalAmount = updatedServices.reduce((sum, s) => sum + s.price, 0);
+      await SessionRepository.updateSession(sessionId, { services: updatedServices, totalAmount });
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    }
+  };
+
   const openEditStaff = (sessionId: string, serviceId: string, serviceName: string, currentStaff: string[]) => {
     setEditStaffId(currentStaff[0] || '');
     setEditStaffModal({ sessionId, serviceId, serviceName });
@@ -682,6 +696,7 @@ export default function SessionsPage() {
               onUpdateServiceStatus={(serviceItemId, newStatus) => handleUpdateServiceStatus(session.id, serviceItemId, newStatus)}
               onEditMaterials={(serviceItemId, serviceName) => openEditMaterials(session.id, serviceItemId, serviceName)}
               onEditStaff={(serviceItemId, serviceName, currentStaff) => openEditStaff(session.id, serviceItemId, serviceName, currentStaff)}
+              onEditPrice={(serviceItemId, newPrice) => handleEditPrice(session.id, serviceItemId, newPrice)}
               canCancel={canCancel}
               loading={(loading && activeSessionId === session.id) || loadingSessionId === session.id}
             />

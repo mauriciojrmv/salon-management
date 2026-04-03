@@ -39,10 +39,14 @@ export default function MyWorkPage() {
 
   // Create trabajo modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [clientId, setClientId] = useState('');
+  const [clientId, setClientId] = useState('__walkin__');
   const [selectedServiceId, setSelectedServiceId] = useState('');
   const [isQuickClientOpen, setIsQuickClientOpen] = useState(false);
   const [quickClient, setQuickClient] = useState({ firstName: '', lastName: '', phone: '' });
+
+  // Inline price edit state
+  const [editingPrice, setEditingPrice] = useState<{ sessionId: string; serviceId: string } | null>(null);
+  const [editPriceValue, setEditPriceValue] = useState('');
 
   // Material modal state
   const [materialModal, setMaterialModal] = useState<{
@@ -134,7 +138,7 @@ export default function MyWorkPage() {
       }
       success(ES.sessions.sessionCreated);
       setIsCreateModalOpen(false);
-      setClientId('');
+      setClientId('__walkin__');
       setSelectedServiceId('');
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
@@ -347,6 +351,34 @@ export default function MyWorkPage() {
     }
   };
 
+  const handleSavePrice = async (sessionId: string, serviceId: string) => {
+    const newPrice = parseFloat(editPriceValue);
+    if (isNaN(newPrice) || newPrice < 0) {
+      error(ES.messages.fillRequiredFields);
+      return;
+    }
+    setLoading(true);
+    try {
+      const session = await SessionService.getSession(sessionId);
+      if (!session) throw new Error('Session not found');
+
+      const updatedServices = (session.services || []).map((svc) =>
+        svc.id === serviceId ? { ...svc, price: newPrice } : svc
+      );
+      const servicePrices = updatedServices.reduce((sum, s) => sum + s.price, 0);
+
+      await SessionRepository.updateSession(sessionId, {
+        services: updatedServices,
+        totalAmount: servicePrices,
+      });
+      setEditingPrice(null);
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const statusBadge = (status: string) => {
     if (status === 'pending') return { label: ES.staff.statusPending, cls: 'bg-yellow-100 text-yellow-700' };
     if (status === 'in_progress') return { label: ES.staff.statusInProgress, cls: 'bg-blue-100 text-blue-700' };
@@ -395,7 +427,28 @@ export default function MyWorkPage() {
                           </p>
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          <span className="text-lg font-bold text-gray-900">{fmtBs(service.price)}</span>
+                          {editingPrice?.sessionId === session.id && editingPrice?.serviceId === service.id ? (
+                            <div className="flex items-center gap-1">
+                              <Input
+                                type="number"
+                                value={editPriceValue}
+                                onChange={(e) => setEditPriceValue(e.target.value)}
+                                className="w-20 text-right text-sm py-1"
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleSavePrice(session.id, service.id); if (e.key === 'Escape') setEditingPrice(null); }}
+                                autoFocus
+                              />
+                              <button onClick={() => handleSavePrice(session.id, service.id)} className="text-green-600 hover:text-green-800 text-sm font-bold px-1">✓</button>
+                              <button onClick={() => setEditingPrice(null)} className="text-gray-400 hover:text-gray-600 text-sm px-1">✕</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setEditingPrice({ sessionId: session.id, serviceId: service.id }); setEditPriceValue(String(service.price)); }}
+                              className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors"
+                              title={ES.actions.edit}
+                            >
+                              {fmtBs(service.price)} <span className="text-xs text-gray-400">✎</span>
+                            </button>
+                          )}
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.cls}`}>{badge.label}</span>
                         </div>
                       </div>
@@ -572,7 +625,7 @@ export default function MyWorkPage() {
       </Modal>
 
       {/* === CREATE TRABAJO MODAL === */}
-      <Modal isOpen={isCreateModalOpen} onClose={() => { setIsCreateModalOpen(false); setClientId(''); setSelectedServiceId(''); }} title={ES.staff.createWork}>
+      <Modal isOpen={isCreateModalOpen} onClose={() => { setIsCreateModalOpen(false); setClientId('__walkin__'); setSelectedServiceId(''); }} title={ES.staff.createWork}>
         <div className="space-y-4">
           <SearchableSelect
             label={ES.sessions.selectClient}
@@ -606,7 +659,7 @@ export default function MyWorkPage() {
             placeholder={ES.actions.search}
           />
           <div className="flex gap-2 pt-2">
-            <Button variant="secondary" className="flex-1 py-3" onClick={() => { setIsCreateModalOpen(false); setClientId(''); setSelectedServiceId(''); }}>
+            <Button variant="secondary" className="flex-1 py-3" onClick={() => { setIsCreateModalOpen(false); setClientId('__walkin__'); setSelectedServiceId(''); }}>
               {ES.actions.cancel}
             </Button>
             <Button className="flex-1 py-3" onClick={handleCreateTrabajo} loading={loading}>

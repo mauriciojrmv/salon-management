@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Card, CardBody, CardHeader } from '@/components/Card';
 import { Button } from '@/components/Button';
+import { Input } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { Session } from '@/types/models';
 import { toDate, fmtBs } from '@/lib/utils/helpers';
@@ -19,6 +20,7 @@ interface SessionCardProps {
   onUpdateServiceStatus?: (serviceItemId: string, newStatus: 'pending' | 'in_progress' | 'completed') => void;
   onEditMaterials?: (serviceItemId: string, serviceName: string) => void;
   onEditStaff?: (serviceItemId: string, serviceName: string, currentStaff: string[]) => void;
+  onEditPrice?: (serviceItemId: string, newPrice: number) => void;
   canCancel?: boolean; // admin/manager only
   loading?: boolean;
 }
@@ -43,6 +45,7 @@ export function SessionCard({
   onUpdateServiceStatus,
   onEditMaterials,
   onEditStaff,
+  onEditPrice,
   canCancel = false,
   loading = false,
 }: SessionCardProps) {
@@ -50,6 +53,8 @@ export function SessionCard({
   const [confirmRemoveServiceId, setConfirmRemoveServiceId] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [editPriceValue, setEditPriceValue] = useState('');
 
   const sessionServices = session.services || [];
   const sessionPayments = session.payments || [];
@@ -95,98 +100,120 @@ export function SessionCard({
                   const borderColor = statusBorderColor[service.status || 'pending'] || statusBorderColor.pending;
 
                   return (
-                    <div key={service.id} className={`py-2 pl-3 border-b border-gray-100 border-l-4 ${borderColor} rounded-l-sm`}>
-                      <div className="flex items-center justify-between">
+                    <div key={service.id} className={`py-3 pl-3 pr-1 border-b border-gray-100 border-l-4 ${borderColor} rounded-l-sm space-y-2`}>
+                      {/* Row 1: Service name + time | Price */}
+                      <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-medium text-gray-900">{service.serviceName}</p>
-                            <span className="text-xs text-gray-500">
+                          <p className="text-sm font-medium text-gray-900">{service.serviceName}</p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="text-xs text-gray-400">
                               {toDate(service.startTime).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                             </span>
-                            {onUpdateServiceStatus && svcStatus.next ? (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onUpdateServiceStatus(service.id, svcStatus.next!);
-                                }}
-                                className={`px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium ${svcStatus.badgeColor} hover:opacity-80 transition-opacity flex flex-col items-center`}
-                                title={svcStatus.next === 'in_progress' ? ES.sessions.inProgressService : ES.sessions.completedService}
-                              >
-                                <span>{svcStatus.label} →</span>
-                                <span className="text-[10px] opacity-70 font-normal">
-                                  {svcStatus.next === 'in_progress' ? ES.sessions.tapToStart : ES.sessions.tapToComplete}
-                                </span>
-                              </button>
-                            ) : (
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${svcStatus.badgeColor}`}>
-                                {svcStatus.label}
+                            {service.assignedStaff?.length > 0 ? (
+                              <span className="text-xs text-gray-500">
+                                {service.assignedStaff.map((id) => getStaffName(id)).join(', ')}
+                                {onEditStaff && session.status === 'active' && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); onEditStaff(service.id, service.serviceName, service.assignedStaff || []); }}
+                                    className="ml-1 text-blue-500 hover:text-blue-700 text-xs font-medium"
+                                  >✎</button>
+                                )}
                               </span>
-                            )}
-                          </div>
-                          {service.assignedStaff?.length > 0 ? (
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {service.assignedStaff.map((id) => getStaffName(id)).join(', ')}
-                              {onEditStaff && session.status === 'active' && (
+                            ) : (
+                              onEditStaff && session.status === 'active' && (
                                 <button
                                   type="button"
-                                  onClick={(e) => { e.stopPropagation(); onEditStaff(service.id, service.serviceName, service.assignedStaff || []); }}
-                                  className="ml-2 text-blue-500 hover:text-blue-700 text-xs font-medium"
-                                >
-                                  ✎
-                                </button>
-                              )}
-                            </p>
-                          ) : (
-                            onEditStaff && session.status === 'active' && (
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); onEditStaff(service.id, service.serviceName, []); }}
-                                className="text-xs text-orange-600 hover:text-orange-800 font-medium mt-0.5 px-2 py-1 rounded hover:bg-orange-50"
-                              >
-                                + {ES.sessions.assignStaff}
-                              </button>
-                            )
-                          )}
+                                  onClick={(e) => { e.stopPropagation(); onEditStaff(service.id, service.serviceName, []); }}
+                                  className="text-xs text-orange-600 hover:text-orange-800 font-medium"
+                                >+ {ES.sessions.assignStaff}</button>
+                              )
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {onEditMaterials && session.status === 'active' && (
+                        <div className="text-right shrink-0">
+                          {onEditPrice && session.status === 'active' && editingPriceId === service.id ? (
+                            <div className="flex items-center gap-1">
+                              <Input
+                                type="number"
+                                value={editPriceValue}
+                                onChange={(e) => setEditPriceValue(e.target.value)}
+                                className="w-20 text-right text-sm py-1"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') { const v = parseFloat(editPriceValue); if (!isNaN(v) && v >= 0) { onEditPrice(service.id, v); setEditingPriceId(null); } }
+                                  if (e.key === 'Escape') setEditingPriceId(null);
+                                }}
+                                autoFocus
+                              />
+                              <button onClick={() => { const v = parseFloat(editPriceValue); if (!isNaN(v) && v >= 0) { onEditPrice(service.id, v); setEditingPriceId(null); } }} className="text-green-600 hover:text-green-800 text-sm font-bold px-1">✓</button>
+                              <button onClick={() => setEditingPriceId(null)} className="text-gray-400 hover:text-gray-600 text-sm px-1">✕</button>
+                            </div>
+                          ) : onEditPrice && session.status === 'active' ? (
                             <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onEditMaterials(service.id, service.serviceName);
-                              }}
-                              className="text-blue-500 hover:text-blue-700 text-xs font-medium px-2 py-1 rounded hover:bg-blue-50"
-                              title={ES.sessions.addMaterial}
+                              onClick={(e) => { e.stopPropagation(); setEditingPriceId(service.id); setEditPriceValue(String(service.price)); }}
+                              className="text-sm font-bold text-gray-900 hover:text-blue-600 transition-colors"
                             >
-                              + Mat.
+                              {fmtBs(service.price)} <span className="text-xs text-gray-400">✎</span>
                             </button>
-                          )}
-                          <p className="text-sm font-semibold">{fmtBs(service.price)}</p>
-                          {onRemoveService && canCancel && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setConfirmRemoveServiceId(service.id);
-                              }}
-                              className="text-red-400 hover:text-red-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded"
-                              title={ES.sessions.removeService}
-                            >
-                              ✕
-                            </button>
+                          ) : (
+                            <p className="text-sm font-bold text-gray-900">{fmtBs(service.price)}</p>
                           )}
                         </div>
                       </div>
+
+                      {/* Materials (if any) */}
                       {service.materialsUsed?.length > 0 && (
-                        <div className="mt-1 pl-3 border-l-2 border-gray-200">
+                        <div className="pl-2 border-l-2 border-gray-200">
                           {service.materialsUsed.map((mat, i) => (
-                            <p key={i} className="text-xs text-gray-500">
+                            <p key={i} className="text-xs text-gray-400">
                               {mat.productName}: {mat.quantity} {mat.unit} · {fmtBs(mat.cost)}
                             </p>
                           ))}
                         </div>
+                      )}
+
+                      {/* Row 2: Action pills — only on active sessions */}
+                      {session.status === 'active' && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {onUpdateServiceStatus && svcStatus.next && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); onUpdateServiceStatus(service.id, svcStatus.next!); }}
+                              className={`px-3 py-1.5 min-h-[36px] rounded-full text-xs font-medium ${svcStatus.badgeColor} hover:opacity-80 transition-opacity`}
+                            >
+                              {svcStatus.label} →
+                            </button>
+                          )}
+                          {!svcStatus.next && (
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${svcStatus.badgeColor}`}>
+                              {svcStatus.label}
+                            </span>
+                          )}
+                          {onEditMaterials && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); onEditMaterials(service.id, service.serviceName); }}
+                              className="px-3 py-1.5 min-h-[36px] rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                            >
+                              + Mat.
+                            </button>
+                          )}
+                          {onRemoveService && canCancel && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setConfirmRemoveServiceId(service.id); }}
+                              className="px-3 py-1.5 min-h-[36px] rounded-full text-xs font-medium bg-red-50 text-red-500 hover:bg-red-100 transition-colors ml-auto"
+                            >
+                              {ES.sessions.removeService}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {/* Completed/non-active: just show status badge */}
+                      {session.status !== 'active' && (
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${svcStatus.badgeColor}`}>
+                          {svcStatus.label}
+                        </span>
                       )}
                     </div>
                   );
