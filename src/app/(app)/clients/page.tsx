@@ -377,23 +377,27 @@ export default function ClientsPage() {
             value={formData.firstName}
             onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
             required
+            maxLength={30}
           />
           <Input
             label={ES.clients.lastName}
             value={formData.lastName}
             onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+            maxLength={30}
           />
           <Input
             label={ES.clients.phoneOptional}
             type="tel"
             value={formData.phone}
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            maxLength={10}
           />
           <Input
             label={ES.clients.emailOptional}
             type="email"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            maxLength={50}
           />
           <Input
             label={ES.clients.dateOfBirth}
@@ -406,6 +410,7 @@ export default function ClientsPage() {
             value={formData.notes}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
             placeholder={ES.clients.notesPlaceholder}
+            maxLength={200}
           />
           <div className="flex gap-2">
             <Button variant="secondary" onClick={closeModal}>
@@ -437,6 +442,7 @@ export default function ClientsPage() {
             value={creditAmount || ''}
             onChange={(e) => setCreditAmount(parseFloat(e.target.value) || 0)}
             required
+            min={0}
           />
           <div className="flex gap-2 pt-2">
             <Button variant="secondary" onClick={() => setCreditModalClient(null)}>

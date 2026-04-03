@@ -316,6 +316,7 @@ export default function ExpensesPage() {
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             placeholder="Ej: Alquiler local mes de marzo"
             required
+            maxLength={200}
           />
           <Input
             label={ES.expenses.amount}
@@ -323,6 +324,7 @@ export default function ExpensesPage() {
             value={formData.amount || ''}
             onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
             required
+            min={0}
           />
           <Input
             label={ES.expenses.date}
@@ -336,6 +338,7 @@ export default function ExpensesPage() {
             value={formData.paidTo}
             onChange={(e) => setFormData({ ...formData, paidTo: e.target.value })}
             placeholder="Ej: Inmobiliaria XYZ"
+            maxLength={50}
           />
 
           {/* Payment method */}

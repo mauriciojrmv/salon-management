@@ -183,28 +183,33 @@ export default function SalonsPage() {
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             required
+            maxLength={50}
           />
           <Input
             label={ES.salons.address}
             value={formData.address}
             onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            maxLength={100}
           />
           <Input
             label={ES.salons.city}
             value={formData.city}
             onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+            maxLength={50}
           />
           <Input
             label={ES.salons.phone}
             type="tel"
             value={formData.phone}
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            maxLength={10}
           />
           <Input
             label={ES.salons.email}
             type="email"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            maxLength={50}
           />
           <div className="flex gap-2 pt-2">
             <Button variant="secondary" onClick={() => setIsModalOpen(false)}>

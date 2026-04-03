@@ -30,6 +30,7 @@ interface MaterialEntry {
   unit: string;
   pricePerUnit: number;
   totalPrice: number;
+  maxStock: number;
 }
 
 export default function MyWorkPage() {
@@ -253,30 +254,34 @@ export default function MyWorkPage() {
   }));
 
   const handleAddMaterialRow = () => {
-    setMaterials([...materials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0 }]);
+    setMaterials([...materials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0, maxStock: 0 }]);
   };
 
   const handleMaterialProductSelect = (index: number, productId: string) => {
     const product = products?.find((p) => p.id === productId);
     if (!product) return;
     const updated = [...materials];
+    const qty = Math.min(updated[index].quantity, product.currentStock);
     updated[index] = {
       ...updated[index],
       productId,
       productName: product.name,
       unit: product.unit || 'ud',
       pricePerUnit: product.cost,
-      totalPrice: product.cost * updated[index].quantity,
+      maxStock: product.currentStock,
+      quantity: qty,
+      totalPrice: product.cost * qty,
     };
     setMaterials(updated);
   };
 
   const handleMaterialQuantityChange = (index: number, qty: number) => {
     const updated = [...materials];
+    const capped = Math.min(Math.max(0, qty), updated[index].maxStock || Infinity);
     updated[index] = {
       ...updated[index],
-      quantity: qty,
-      totalPrice: updated[index].pricePerUnit * qty,
+      quantity: capped,
+      totalPrice: updated[index].pricePerUnit * capped,
     };
     setMaterials(updated);
   };
@@ -294,6 +299,17 @@ export default function MyWorkPage() {
     }
     setLoading(true);
     try {
+      // Validate stock BEFORE saving — prevent partial saves
+      const stockUpdates = await Promise.all(
+        validMaterials.map(async (m) => {
+          const product = await ProductRepository.getProduct(m.productId);
+          if (!product) throw new Error(`Producto no encontrado: ${m.productName}`);
+          const newStock = product.currentStock - m.quantity;
+          if (newStock < 0) throw new Error(`Stock insuficiente para ${m.productName} (disponible: ${product.currentStock})`);
+          return { collection: 'products', docId: m.productId, data: { currentStock: newStock } as Record<string, unknown> };
+        })
+      );
+
       const session = await SessionService.getSession(materialModal.sessionId);
       if (!session) throw new Error('Session not found');
 
@@ -321,7 +337,6 @@ export default function MyWorkPage() {
         usedAt: new Date(),
       }));
       const allMaterials = [...(session.materialsUsed || []), ...sessionMats];
-      // totalAmount = service prices ONLY — materials are internal cost tracking
       const servicePrices = (session.services || []).reduce((sum, s) => sum + s.price, 0);
 
       await SessionRepository.updateSession(materialModal.sessionId, {
@@ -330,15 +345,6 @@ export default function MyWorkPage() {
         totalAmount: servicePrices,
       });
 
-      const stockUpdates = await Promise.all(
-        validMaterials.map(async (m) => {
-          const product = await ProductRepository.getProduct(m.productId);
-          if (!product) throw new Error(`Product not found: ${m.productName}`);
-          const newStock = product.currentStock - m.quantity;
-          if (newStock < 0) throw new Error(`Stock insuficiente: ${m.productName}`);
-          return { collection: 'products', docId: m.productId, data: { currentStock: newStock } as Record<string, unknown> };
-        })
-      );
       await batchUpdate(stockUpdates);
 
       success(ES.staff.materialAdded);
@@ -568,38 +574,70 @@ export default function MyWorkPage() {
       >
         <div className="space-y-4 pb-16 sm:pb-0">
           {materials.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-2">{ES.sessions.noMaterials}</p>
+            <p className="text-sm text-gray-500 text-center py-4">{ES.sessions.noMaterials}</p>
           ) : (
             <div className="space-y-3">
               {materials.map((mat, idx) => (
-                <div key={idx} className="border border-gray-200 rounded-xl p-3 space-y-2">
-                  <SearchableSelect
-                    label=""
-                    options={productOptions}
-                    value={mat.productId}
-                    onChange={(v) => handleMaterialProductSelect(idx, v)}
-                    placeholder={ES.material.product}
-                  />
-                  <div className="flex gap-3 items-end">
+                <div key={idx} className="border border-gray-200 rounded-xl p-3 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
-                      <Input
-                        label={ES.sessions.quantity}
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={mat.quantity}
-                        onChange={(e) => handleMaterialQuantityChange(idx, parseFloat(e.target.value) || 0)}
+                      <SearchableSelect
+                        label=""
+                        options={productOptions}
+                        value={mat.productId}
+                        onChange={(v) => handleMaterialProductSelect(idx, v)}
+                        placeholder={ES.material.product}
                       />
                     </div>
-                    {mat.unit && <span className="text-sm text-gray-500 pb-3">{mat.unit}</span>}
-                    <div className="text-right pb-3">
-                      <p className="text-xs text-gray-500">{fmtBs(mat.pricePerUnit)}/{mat.unit}</p>
-                      <p className="text-sm font-semibold">{fmtBs(mat.totalPrice)}</p>
-                    </div>
-                    <button type="button" onClick={() => handleRemoveMaterial(idx)} className="text-red-500 hover:text-red-700 text-sm pb-3 font-medium">
+                    <button type="button" onClick={() => handleRemoveMaterial(idx)} className="text-red-400 hover:text-red-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-red-50 shrink-0 mt-1">
                       ✕
                     </button>
                   </div>
+
+                  {mat.productId && (
+                    <>
+                      {/* Stock indicator */}
+                      <div className="flex items-center justify-between text-xs text-gray-400">
+                        <span>Stock: {mat.maxStock} {mat.unit}</span>
+                        <span>{fmtBs(mat.pricePerUnit)}/{mat.unit}</span>
+                      </div>
+
+                      {/* Stepper: big -/+ buttons with quantity in center */}
+                      <div className="flex items-center justify-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleMaterialQuantityChange(idx, mat.quantity - (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.5))}
+                          disabled={mat.quantity <= 0}
+                          className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-xl font-bold text-gray-700 flex items-center justify-center transition-colors"
+                        >
+                          −
+                        </button>
+                        <div className="text-center min-w-[80px]">
+                          <input
+                            type="number"
+                            value={mat.quantity}
+                            onChange={(e) => handleMaterialQuantityChange(idx, parseFloat(e.target.value) || 0)}
+                            step="0.01"
+                            min="0"
+                            max={mat.maxStock}
+                            className="w-20 text-center text-2xl font-bold text-gray-900 border-b-2 border-gray-300 focus:border-blue-500 outline-none bg-transparent"
+                          />
+                          <p className="text-xs text-gray-400 mt-0.5">{mat.unit}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleMaterialQuantityChange(idx, mat.quantity + (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.5))}
+                          disabled={mat.quantity >= mat.maxStock}
+                          className="w-12 h-12 rounded-xl bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-xl font-bold text-blue-700 flex items-center justify-center transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      {/* Cost total */}
+                      <p className="text-center text-sm font-semibold text-gray-700">{fmtBs(mat.totalPrice)}</p>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -672,9 +710,9 @@ export default function MyWorkPage() {
       {/* Quick Client Modal */}
       <Modal isOpen={isQuickClientOpen} onClose={() => setIsQuickClientOpen(false)} title={ES.clients.quickAddTitle}>
         <div className="space-y-4">
-          <Input label={ES.clients.name} value={quickClient.firstName} onChange={(e) => setQuickClient({ ...quickClient, firstName: e.target.value })} required />
-          <Input label={ES.clients.lastName} value={quickClient.lastName} onChange={(e) => setQuickClient({ ...quickClient, lastName: e.target.value })} />
-          <Input label={ES.clients.phoneOptional} type="tel" value={quickClient.phone} onChange={(e) => setQuickClient({ ...quickClient, phone: e.target.value })} />
+          <Input label={ES.clients.name} value={quickClient.firstName} onChange={(e) => setQuickClient({ ...quickClient, firstName: e.target.value })} required maxLength={30} />
+          <Input label={ES.clients.lastName} value={quickClient.lastName} onChange={(e) => setQuickClient({ ...quickClient, lastName: e.target.value })} maxLength={30} />
+          <Input label={ES.clients.phoneOptional} type="tel" value={quickClient.phone} onChange={(e) => setQuickClient({ ...quickClient, phone: e.target.value })} maxLength={10} />
           <div className="flex gap-2 pt-2">
             <Button variant="secondary" className="flex-1 py-3" onClick={() => setIsQuickClientOpen(false)}>
               {ES.actions.cancel}

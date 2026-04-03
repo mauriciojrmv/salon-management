@@ -235,11 +235,13 @@ export default function InventoryPage() {
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             required
+            maxLength={50}
           />
           <Input
             label={ES.inventory.sku}
             value={formData.sku}
             onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+            maxLength={20}
           />
           <Select
             label={ES.inventory.category}
@@ -288,6 +290,7 @@ export default function InventoryPage() {
             value={formData.currentStock}
             onChange={(e) => setFormData({ ...formData, currentStock: parseFloat(e.target.value) })}
             required
+            min={0}
           />
           <Input
             label={ES.inventory.minStock}
@@ -295,6 +298,7 @@ export default function InventoryPage() {
             value={formData.minStock}
             onChange={(e) => setFormData({ ...formData, minStock: parseFloat(e.target.value) })}
             required
+            min={0}
           />
           <Input
             label={ES.inventory.maxStock}
@@ -302,6 +306,7 @@ export default function InventoryPage() {
             value={formData.maxStock}
             onChange={(e) => setFormData({ ...formData, maxStock: parseFloat(e.target.value) })}
             required
+            min={0}
           />
           <Input
             label={ES.inventory.costPerUnit}
@@ -309,6 +314,7 @@ export default function InventoryPage() {
             value={formData.cost}
             onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) })}
             required
+            min={0}
           />
           <Input
             label={ES.inventory.sellingPrice}
@@ -316,6 +322,7 @@ export default function InventoryPage() {
             value={formData.price}
             onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
             required
+            min={0}
           />
           <div className="flex gap-2">
             <Button variant="secondary" onClick={closeModal}>

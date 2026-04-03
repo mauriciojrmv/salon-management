@@ -200,11 +200,13 @@ export default function ServicesPage() {
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             required
+            maxLength={50}
           />
           <Input
             label={ES.services.description}
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            maxLength={200}
           />
           <Select
             label={ES.services.category}
@@ -219,6 +221,7 @@ export default function ServicesPage() {
             value={formData.price}
             onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
             required
+            min={0}
           />
           <Input
             label={ES.services.duration}
@@ -226,6 +229,8 @@ export default function ServicesPage() {
             value={formData.duration}
             onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
             required
+            min={1}
+            max={480}
           />
           <div className="flex gap-2">
             <Button variant="secondary" onClick={closeModal}>

@@ -455,11 +455,13 @@ export default function AppointmentsPage() {
             value={quickClient.firstName}
             onChange={(e) => setQuickClient({ ...quickClient, firstName: e.target.value })}
             required
+            maxLength={30}
           />
           <Input
             label={ES.clients.lastName}
             value={quickClient.lastName}
             onChange={(e) => setQuickClient({ ...quickClient, lastName: e.target.value })}
+            maxLength={30}
           />
           <Input
             label={ES.clients.phone}
@@ -467,6 +469,7 @@ export default function AppointmentsPage() {
             value={quickClient.phone}
             onChange={(e) => setQuickClient({ ...quickClient, phone: e.target.value })}
             required
+            maxLength={10}
           />
           <div className="flex gap-2 pt-2">
             <Button variant="secondary" onClick={() => setIsQuickClientOpen(false)}>

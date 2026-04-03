@@ -283,6 +283,7 @@ export default function StaffPage() {
                 setFormData({ ...formData, firstName: e.target.value })
               }
               required
+              maxLength={30}
             />
             <Input
               label={ES.staff.lastName}
@@ -291,6 +292,7 @@ export default function StaffPage() {
                 setFormData({ ...formData, lastName: e.target.value })
               }
               required
+              maxLength={30}
             />
           </div>
           <Input
@@ -301,6 +303,7 @@ export default function StaffPage() {
               setFormData({ ...formData, email: e.target.value })
             }
             required
+            maxLength={50}
           />
           <Input
             label={ES.staff.phone}
@@ -309,6 +312,7 @@ export default function StaffPage() {
               setFormData({ ...formData, phone: e.target.value })
             }
             required
+            maxLength={10}
           />
 
           <Select
@@ -405,6 +409,8 @@ export default function StaffPage() {
               })
             }
             required
+            min={0}
+            max={formData.commissionType === 'percentage' ? 100 : undefined}
           />
 
           <div className="flex gap-2">

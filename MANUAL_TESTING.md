@@ -12,9 +12,9 @@
 
 | Role | Email | Password |
 |------|-------|----------|
-| Admin | michelleadmin@salon.com | 123456 |
-| Manager | michellegerente@salon.com | 123456 |
-| Staff | michelletrabajadora@salon.com | 123456 |
+| Admin | admin@salon.com | 21090411 |
+| Manager | gerente@salon.com | 21090411 |
+| Staff | trabajador@salon.com | 21090411 |
 
 ---
 
@@ -33,12 +33,12 @@
 
 | # | Action | Admin | Manager | Staff | Notes |
 |---|--------|-------|---------|-------|-------|
-| 1.1 | Open the app on mobile — login screen renders correctly | | | | |
-| 1.2 | Enter wrong email → error in Spanish (not raw Firebase) | | | | |
-| 1.3 | Enter wrong password → error in Spanish | | | | |
-| 1.4 | Enter correct credentials → redirects to dashboard/my-work | | | | |
-| 1.5 | Logout from sidebar → returns to login | | | | |
-| 1.6 | No self-registration option visible on login page | | | | |
+| 1.1 | Open the app on mobile — login screen renders correctly |Pass |Pass |Pass | Pass|
+| 1.2 | Enter wrong email → error in Spanish (not raw Firebase) |Pass |Pass |Pass | Pass|
+| 1.3 | Enter wrong password → error in Spanish |Pass |Pass |Pass | Pass|
+| 1.4 | Enter correct credentials → redirects to dashboard/my-work |Pass |Pass |Pass | Pass|
+| 1.5 | Logout from sidebar → returns to login |Pass |Pass |Pass | Pass|
+| 1.6 | No self-registration option visible on login page |Pass |Pass |Pass | Pass|
 
 ---
 
@@ -46,16 +46,16 @@
 
 | # | Action | Admin | Manager | Staff | Notes |
 |---|--------|-------|---------|-------|-------|
-| 2.1 | Mobile: hamburger opens sidebar drawer | | | | |
-| 2.2 | Mobile: tapping a nav item closes the drawer | | | | |
-| 2.3 | Desktop: sidebar collapses/expands with toggle | | | | |
-| 2.4 | Sidebar shows 4 group labels: Operaciones, Mi Area, Gestion, Sistema | | | | NEW: grouped nav |
-| 2.5 | Group dividers/labels visible when sidebar expanded | | | | |
-| 2.6 | Admin sees all sections including Sistema group | | | | |
-| 2.7 | Manager does NOT see Sistema group (Recompensas, Sucursales, Usuarios) | | | | |
-| 2.8 | Staff sees ONLY Mi Area group (Mis Atenciones, Mis Ganancias, Mis Reservas) + Panel | | | | |
-| 2.9 | Salon switcher visible for Admin with multiple salons | | | | |
-| 2.10 | Switch salon → data updates instantly (no page reload) | | | | Uses onSnapshot |
+| 2.1 | Mobile: hamburger opens sidebar drawer |Pass |Pass |Pass | Pass|
+| 2.2 | Mobile: tapping a nav item closes the drawer |Pass |Pass |Pass | Pass|
+| 2.3 | Desktop: sidebar collapses/expands with toggle |Pass |Pass |Pass | Pass|
+| 2.4 | Sidebar shows 4 group labels: Operaciones, Mi Area, Gestion, Sistema |Pass |Pass |Pass | Pass| NEW: grouped nav |pass
+| 2.5 | Group dividers/labels visible when sidebar expanded |Pass |Pass |Pass | Pass|
+| 2.6 | Admin sees all sections including Sistema group |Pass |Pass |Pass | Pass|
+| 2.7 | Manager does NOT see Sistema group (Recompensas, Sucursales, Usuarios) |Pass |Pass |Pass | Pass|
+| 2.8 | Staff sees ONLY Mi Area group (Mis Atenciones, Mis Ganancias, Mis Reservas) + Panel |Pass |Pass |Pass | Pass|
+| 2.9 | Salon switcher visible for Admin with multiple salons |Pass |Pass |Pass | Pass|
+| 2.10 | Switch salon → data updates instantly (no page reload) |didnt test no secondary salon yet Uses onSnapshot |
 
 ---
 

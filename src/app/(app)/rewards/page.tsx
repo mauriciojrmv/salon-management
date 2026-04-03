@@ -208,12 +208,14 @@ export default function RewardsPage() {
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="Ej: 10% descuento en siguiente visita"
             required
+            maxLength={50}
           />
           <Input
             label={ES.loyalty.rewardDescription}
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             placeholder="Ej: Valido en cualquier servicio"
+            maxLength={200}
           />
           <Input
             label={ES.loyalty.pointsCost}
@@ -221,6 +223,7 @@ export default function RewardsPage() {
             value={formData.pointsCost || ''}
             onChange={(e) => setFormData({ ...formData, pointsCost: parseInt(e.target.value) || 0 })}
             required
+            min={1}
           />
           <Select
             label={ES.loyalty.rewardType}
@@ -234,6 +237,8 @@ export default function RewardsPage() {
             value={formData.value || ''}
             onChange={(e) => setFormData({ ...formData, value: parseFloat(e.target.value) || 0 })}
             required
+            min={0}
+            max={formData.type === 'discount' ? 100 : undefined}
           />
           <div className="flex gap-2 pt-2">
             <Button variant="secondary" onClick={() => setIsModalOpen(false)}>

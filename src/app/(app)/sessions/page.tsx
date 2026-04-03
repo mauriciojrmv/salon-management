@@ -33,6 +33,7 @@ interface MaterialEntry {
   unit: string;
   pricePerUnit: number; // buy cost per unit
   totalPrice: number; // pricePerUnit * quantity (buy cost total)
+  maxStock: number; // available stock for validation
 }
 
 interface PaymentEntry {
@@ -205,30 +206,34 @@ export default function SessionsPage() {
 
   // Material helpers
   const handleAddMaterialRow = () => {
-    setMaterials([...materials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0 }]);
+    setMaterials([...materials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0, maxStock: 0 }]);
   };
 
   const handleMaterialProductSelect = (index: number, productId: string) => {
     const product = products?.find((p) => p.id === productId);
     if (!product) return;
     const updated = [...materials];
+    const qty = Math.min(updated[index].quantity, product.currentStock);
     updated[index] = {
       ...updated[index],
       productId,
       productName: product.name,
       unit: product.unit || 'ud',
       pricePerUnit: product.cost,
-      totalPrice: product.cost * updated[index].quantity,
+      maxStock: product.currentStock,
+      quantity: qty,
+      totalPrice: product.cost * qty,
     };
     setMaterials(updated);
   };
 
   const handleMaterialQuantityChange = (index: number, qty: number) => {
     const updated = [...materials];
+    const capped = Math.min(Math.max(0, qty), updated[index].maxStock || Infinity);
     updated[index] = {
       ...updated[index],
-      quantity: qty,
-      totalPrice: updated[index].pricePerUnit * qty,
+      quantity: capped,
+      totalPrice: updated[index].pricePerUnit * capped,
     };
     setMaterials(updated);
   };
@@ -243,14 +248,18 @@ export default function SessionsPage() {
   const openEditMaterials = (sessionId: string, serviceId: string, serviceName: string) => {
     const session = sessions?.find((s) => s.id === sessionId);
     const svc = session?.services?.find((s) => s.id === serviceId);
-    const existing: MaterialEntry[] = (svc?.materialsUsed || []).map((m) => ({
+    const existing: MaterialEntry[] = (svc?.materialsUsed || []).map((m) => {
+      const product = products?.find((p) => p.id === m.productId);
+      return {
       productId: m.productId,
       productName: m.productName,
       quantity: m.quantity,
       unit: m.unit || 'ud',
       pricePerUnit: m.cost / (m.quantity || 1),
       totalPrice: m.cost,
-    }));
+      maxStock: (product?.currentStock || 0) + m.quantity, // available = current + already deducted
+    };
+    });
     setEditMaterials(existing);
     setEditMaterialModal({ sessionId, serviceId, serviceName });
   };
@@ -262,11 +271,27 @@ export default function SessionsPage() {
       const session = await SessionRepository.getSession(editMaterialModal.sessionId);
       if (!session) throw new Error('Session not found');
 
+      const oldSvc = session.services?.find((s) => s.id === editMaterialModal.serviceId);
+      const oldMats = oldSvc?.materialsUsed || [];
+      const newMats = editMaterials.filter((m) => m.productId);
+
+      // Validate stock BEFORE saving — account for restoring old stock first
+      for (const nm of newMats) {
+        const product = await ProductRepository.getProduct(nm.productId);
+        if (!product) throw new Error(`Producto no encontrado: ${nm.productName}`);
+        // Restored amount from old materials for this same product
+        const restoredQty = oldMats.filter((om) => om.productId === nm.productId).reduce((sum, om) => sum + om.quantity, 0);
+        const availableStock = product.currentStock + restoredQty;
+        if (nm.quantity > availableStock) {
+          throw new Error(`Stock insuficiente para ${nm.productName} (disponible: ${availableStock})`);
+        }
+      }
+
       const updatedServices = (session.services || []).map((svc) => {
         if (svc.id !== editMaterialModal.serviceId) return svc;
         return {
           ...svc,
-          materialsUsed: editMaterials.filter((m) => m.productId).map((m) => ({
+          materialsUsed: newMats.map((m) => ({
             productId: m.productId,
             productName: m.productName,
             quantity: m.quantity,
@@ -285,10 +310,6 @@ export default function SessionsPage() {
       });
 
       // Restore old stock, then deduct new stock
-      const oldSvc = session.services?.find((s) => s.id === editMaterialModal.serviceId);
-      const oldMats = oldSvc?.materialsUsed || [];
-      const newMats = editMaterials.filter((m) => m.productId);
-
       for (const om of oldMats) {
         await ProductRepository.restockProduct(om.productId, om.quantity);
       }
@@ -388,6 +409,21 @@ export default function SessionsPage() {
 
     setLoading(true);
     try {
+      // Validate stock BEFORE saving — prevent partial saves
+      let stockUpdates: { collection: string; docId: string; data: Record<string, unknown> }[] = [];
+      if (validMaterials.length > 0) {
+        stockUpdates = await Promise.all(
+          validMaterials.map(async (m) => {
+            const product = await ProductRepository.getProduct(m.productId);
+            if (!product) throw new Error(`Producto no encontrado: ${m.productName}`);
+            const newStock = product.currentStock - m.quantity;
+            if (newStock < 0) throw new Error(`Stock insuficiente para ${m.productName} (disponible: ${product.currentStock})`);
+            return { collection: 'products', docId: m.productId, data: { currentStock: newStock } as Record<string, unknown> };
+          })
+        );
+      }
+
+      // Stock validated — now save service and deduct stock
       await SessionService.addServiceToSession({
         sessionId: activeSessionId,
         serviceId: svc.id,
@@ -403,17 +439,7 @@ export default function SessionsPage() {
         })),
       });
 
-      // Deduct stock atomically for all materials
-      if (validMaterials.length > 0) {
-        const stockUpdates = await Promise.all(
-          validMaterials.map(async (m) => {
-            const product = await ProductRepository.getProduct(m.productId);
-            if (!product) throw new Error(`Product not found: ${m.productName}`);
-            const newStock = product.currentStock - m.quantity;
-            if (newStock < 0) throw new Error(`Insufficient stock for ${m.productName}`);
-            return { collection: 'products', docId: m.productId, data: { currentStock: newStock } as Record<string, unknown> };
-          })
-        );
+      if (stockUpdates.length > 0) {
         await batchUpdate(stockUpdates);
       }
 
@@ -874,6 +900,7 @@ export default function SessionsPage() {
             onChange={(e) => setCancelReason(e.target.value)}
             placeholder={ES.sessions.cancelReasonPlaceholder}
             required
+            maxLength={200}
           />
           <div className="flex gap-2 pt-2">
             <Button variant="secondary" onClick={() => setCancelSessionId(null)}>
@@ -895,6 +922,7 @@ export default function SessionsPage() {
             onChange={(e) => setNoteText(e.target.value)}
             placeholder={ES.sessions.notePlaceholder}
             required
+            maxLength={200}
           />
           <div className="flex gap-2 pt-2">
             <Button variant="secondary" onClick={() => setNoteSessionId(null)}>
@@ -944,17 +972,20 @@ export default function SessionsPage() {
                 value={quickClient.firstName}
                 onChange={(e) => setQuickClient({ ...quickClient, firstName: e.target.value })}
                 required
+                maxLength={30}
               />
               <Input
                 label={ES.clients.lastName}
                 value={quickClient.lastName}
                 onChange={(e) => setQuickClient({ ...quickClient, lastName: e.target.value })}
+                maxLength={30}
               />
               <Input
                 label={ES.clients.phoneOptional}
                 type="tel"
                 value={quickClient.phone}
                 onChange={(e) => setQuickClient({ ...quickClient, phone: e.target.value })}
+                maxLength={10}
               />
               <div className="flex gap-2 pt-2">
                 <Button variant="secondary" onClick={() => setIsQuickClientOpen(false)}>
@@ -1024,6 +1055,7 @@ export default function SessionsPage() {
               value={serviceForm.price}
               onChange={(e) => setServiceForm({ ...serviceForm, price: parseFloat(e.target.value) || 0 })}
               required
+              min={0}
             />
           )}
 
@@ -1065,13 +1097,17 @@ export default function SessionsPage() {
                         onChange={(v) => handleMaterialProductSelect(idx, v)}
                         placeholder={ES.material.product}
                       />
+                      {mat.productId && mat.maxStock > 0 && (
+                        <p className="text-xs text-gray-400">Stock: {mat.maxStock} {mat.unit}</p>
+                      )}
                       <div className="flex gap-3 items-end">
                         <div className="flex-1">
                           <Input
                             label={ES.sessions.quantity}
                             type="number"
                             step="0.01"
-                            min="0"
+                            min={0}
+                            max={mat.maxStock || undefined}
                             value={mat.quantity}
                             onChange={(e) => handleMaterialQuantityChange(idx, parseFloat(e.target.value) || 0)}
                           />
@@ -1313,6 +1349,7 @@ export default function SessionsPage() {
                           setPaymentEntries(updated);
                         }}
                         placeholder={ES.payments.payerNotePlaceholder}
+                        maxLength={50}
                       />
                     </div>
                     <button
@@ -1495,11 +1532,17 @@ export default function SessionsPage() {
                       const product = products?.find((p) => p.id === v);
                       if (!product) return;
                       const updated = [...editMaterials];
-                      updated[idx] = { ...updated[idx], productId: v, productName: product.name, unit: product.unit || 'ud', pricePerUnit: product.cost, totalPrice: product.cost * updated[idx].quantity };
+                      const oldMat = editMaterials[idx];
+                      const availStock = product.currentStock + (oldMat.productId === v ? oldMat.quantity : 0);
+                      const qty = Math.min(updated[idx].quantity, availStock);
+                      updated[idx] = { ...updated[idx], productId: v, productName: product.name, unit: product.unit || 'ud', pricePerUnit: product.cost, maxStock: availStock, quantity: qty, totalPrice: product.cost * qty };
                       setEditMaterials(updated);
                     }}
                     placeholder={ES.material.product}
                   />
+                  {mat.productId && mat.maxStock > 0 && (
+                    <p className="text-xs text-gray-400">Stock: {mat.maxStock} {mat.unit}</p>
+                  )}
                   <div className="flex gap-3 items-end">
                     <div className="flex-1">
                       <Input
@@ -1509,11 +1552,13 @@ export default function SessionsPage() {
                         min="0"
                         value={mat.quantity}
                         onChange={(e) => {
-                          const qty = parseFloat(e.target.value) || 0;
+                          const raw = parseFloat(e.target.value) || 0;
+                          const qty = Math.min(Math.max(0, raw), mat.maxStock || Infinity);
                           const updated = [...editMaterials];
                           updated[idx] = { ...updated[idx], quantity: qty, totalPrice: updated[idx].pricePerUnit * qty };
                           setEditMaterials(updated);
                         }}
+                        max={mat.maxStock || undefined}
                       />
                     </div>
                     {mat.unit && <span className="text-sm text-gray-500 pb-3">{mat.unit}</span>}
@@ -1531,7 +1576,7 @@ export default function SessionsPage() {
           )}
           <button
             type="button"
-            onClick={() => setEditMaterials([...editMaterials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0 }])}
+            onClick={() => setEditMaterials([...editMaterials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0, maxStock: 0 }])}
             className="w-full py-3.5 border-2 border-dashed border-gray-300 rounded-xl text-sm text-blue-600 font-medium hover:border-blue-400 hover:bg-blue-50 transition-colors"
           >
             {ES.sessions.addMaterial}

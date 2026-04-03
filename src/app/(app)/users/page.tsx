@@ -233,12 +233,14 @@ export default function UsersPage() {
               value={formData.firstName}
               onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
               required
+              maxLength={30}
             />
             <Input
               label={ES.auth.lastName}
               value={formData.lastName}
               onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
               required
+              maxLength={30}
             />
           </div>
 
@@ -248,6 +250,7 @@ export default function UsersPage() {
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             required
+            maxLength={50}
           />
 
           <Input
@@ -255,6 +258,7 @@ export default function UsersPage() {
             type="tel"
             value={formData.phone}
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            maxLength={10}
           />
 
           <Select
@@ -276,6 +280,8 @@ export default function UsersPage() {
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               required
+              minLength={6}
+              maxLength={30}
             />
             <Input
               label={ES.users.confirmPassword}
@@ -283,6 +289,8 @@ export default function UsersPage() {
               value={formData.confirmPassword}
               onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
               required
+              minLength={6}
+              maxLength={30}
             />
           </div>
 

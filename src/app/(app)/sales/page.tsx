@@ -344,17 +344,20 @@ export default function SalesPage() {
                 value={quickClient.firstName}
                 onChange={(e) => setQuickClient({ ...quickClient, firstName: e.target.value })}
                 required
+                maxLength={30}
               />
               <Input
                 label={ES.clients.lastName}
                 value={quickClient.lastName}
                 onChange={(e) => setQuickClient({ ...quickClient, lastName: e.target.value })}
+                maxLength={30}
               />
               <Input
                 label={ES.clients.phoneOptional}
                 type="tel"
                 value={quickClient.phone}
                 onChange={(e) => setQuickClient({ ...quickClient, phone: e.target.value })}
+                maxLength={10}
               />
               <div className="flex gap-2">
                 <Button variant="secondary" size="sm" onClick={() => setIsQuickClientOpen(false)}>
