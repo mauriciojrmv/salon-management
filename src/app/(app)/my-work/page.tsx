@@ -18,7 +18,10 @@ import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
-import { batchUpdate, firebaseConstraints } from '@/lib/firebase/db';
+import { AppointmentService } from '@/lib/services/appointmentService';
+import { useRouter } from 'next/navigation';
+import type { Appointment } from '@/types/models';
+import { firebaseConstraints } from '@/lib/firebase/db';
 import type { Session, SessionServiceItem } from '@/types/models';
 import { toDate, fmtBs, getBoliviaDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
@@ -67,7 +70,7 @@ export default function MyWorkPage() {
     firebaseConstraints.where('salonId', '==', userData?.salonId || ''),
     firebaseConstraints.where('date', '==', today),
   ], [userData?.salonId, today]);
-  const { data: sessions } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId);
+  const { data: sessions } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId, [userData?.salonId, today]);
 
   const { data: clients, refetch: refetchClients } = useAsync(async () => {
     if (!userData?.salonId) return [];
@@ -88,6 +91,26 @@ export default function MyWorkPage() {
     if (!userData?.salonId) return [];
     return ServiceRepository.getSalonServices(userData.salonId);
   }, [userData?.salonId]);
+
+  // Today's appointments assigned to this worker — used for "ready to start" prompt
+  const { data: myTodayAppointments } = useAsync(async () => {
+    if (!userData?.salonId || !staffId) return [] as Appointment[];
+    return AppointmentService.getStaffAppointments(userData.salonId, staffId, today);
+  }, [userData?.salonId, staffId, today]);
+
+  const router = useRouter();
+
+  // Appointments whose start time is within the next 30 min and not yet completed/cancelled
+  const readyAppointments = React.useMemo(() => {
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    return (myTodayAppointments || []).filter((a) => {
+      if (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show') return false;
+      const [h, m] = a.startTime.split(':').map(Number);
+      const startMin = h * 60 + m;
+      return startMin - nowMin <= 30; // within 30 min from now or already started
+    });
+  }, [myTodayAppointments]);
 
   const getClientName = (id: string) => {
     if (!id) return ES.staff.walkInClient;
@@ -290,54 +313,63 @@ export default function MyWorkPage() {
     setMaterials(materials.filter((_, i) => i !== index));
   };
 
+  const openMaterialModal = (session: Session, service: SessionServiceItem) => {
+    const existing: MaterialEntry[] = (service.materialsUsed || []).map((m) => {
+      const product = products?.find((p) => p.id === m.productId);
+      return {
+        productId: m.productId,
+        productName: m.productName,
+        quantity: m.quantity,
+        unit: m.unit || 'ud',
+        pricePerUnit: m.cost / (m.quantity || 1),
+        totalPrice: m.cost,
+        maxStock: (product?.currentStock || 0) + m.quantity,
+      };
+    });
+    setMaterials(existing);
+    setMaterialModal({ sessionId: session.id, serviceId: service.id, serviceName: service.serviceName });
+  };
+
   const handleSaveMaterials = async () => {
     if (!materialModal) return;
-    const validMaterials = materials.filter((m) => m.productId && m.quantity > 0);
-    if (validMaterials.length === 0) {
-      error(ES.messages.fillRequiredFields);
-      return;
-    }
+    const newMats = materials.filter((m) => m.productId && m.quantity > 0);
     setLoading(true);
     try {
-      // Validate stock BEFORE saving — prevent partial saves
-      const stockUpdates = await Promise.all(
-        validMaterials.map(async (m) => {
-          const product = await ProductRepository.getProduct(m.productId);
-          if (!product) throw new Error(`Producto no encontrado: ${m.productName}`);
-          const newStock = product.currentStock - m.quantity;
-          if (newStock < 0) throw new Error(`Stock insuficiente para ${m.productName} (disponible: ${product.currentStock})`);
-          return { collection: 'products', docId: m.productId, data: { currentStock: newStock } as Record<string, unknown> };
-        })
-      );
-
       const session = await SessionService.getSession(materialModal.sessionId);
       if (!session) throw new Error('Session not found');
 
+      const oldSvc = session.services?.find((s) => s.id === materialModal.serviceId);
+      const oldMats = oldSvc?.materialsUsed || [];
+
+      // Validate stock — account for restoring old materials first
+      for (const nm of newMats) {
+        const product = await ProductRepository.getProduct(nm.productId);
+        if (!product) throw new Error(`Producto no encontrado: ${nm.productName}`);
+        const restoredQty = oldMats
+          .filter((om) => om.productId === nm.productId)
+          .reduce((sum, om) => sum + om.quantity, 0);
+        const availableStock = product.currentStock + restoredQty;
+        if (nm.quantity > availableStock) {
+          throw new Error(`Stock insuficiente para ${nm.productName} (disponible: ${availableStock})`);
+        }
+      }
+
       const updatedServices = (session.services || []).map((svc) => {
-        if (svc.id === materialModal.serviceId) {
-          const newMats = validMaterials.map((m) => ({
+        if (svc.id !== materialModal.serviceId) return svc;
+        return {
+          ...svc,
+          materialsUsed: newMats.map((m) => ({
             productId: m.productId,
             productName: m.productName,
             quantity: m.quantity,
             unit: m.unit,
             cost: m.totalPrice,
-            usedAt: new Date(),
-          }));
-          return { ...svc, materialsUsed: [...(svc.materialsUsed || []), ...newMats] };
-        }
-        return svc;
+          })),
+        };
       });
 
-      const sessionMats = validMaterials.map((m) => ({
-        productId: m.productId,
-        productName: m.productName,
-        quantity: m.quantity,
-        unit: m.unit,
-        cost: m.totalPrice,
-        usedAt: new Date(),
-      }));
-      const allMaterials = [...(session.materialsUsed || []), ...sessionMats];
-      const servicePrices = (session.services || []).reduce((sum, s) => sum + s.price, 0);
+      const allMaterials = updatedServices.flatMap((svc) => svc.materialsUsed || []);
+      const servicePrices = updatedServices.reduce((sum, s) => sum + s.price, 0);
 
       await SessionRepository.updateSession(materialModal.sessionId, {
         services: updatedServices,
@@ -345,7 +377,13 @@ export default function MyWorkPage() {
         totalAmount: servicePrices,
       });
 
-      await batchUpdate(stockUpdates);
+      // Restore old stock, then deduct new stock
+      for (const om of oldMats) {
+        await ProductRepository.restockProduct(om.productId, om.quantity);
+      }
+      for (const nm of newMats) {
+        await ProductRepository.updateStock(nm.productId, nm.quantity);
+      }
 
       success(ES.staff.materialAdded);
       setMaterialModal(null);
@@ -407,6 +445,35 @@ export default function MyWorkPage() {
           </Button>
         </div>
       </div>
+
+      {/* === READY-TO-START APPOINTMENT BANNER === */}
+      {readyAppointments.length > 0 && (
+        <div className="space-y-2">
+          {readyAppointments.map((apt) => {
+            const client = clients?.find((c) => c.id === apt.clientId);
+            const cName = client ? `${client.firstName} ${client.lastName}` : 'Cliente';
+            return (
+              <Card key={apt.id} className="bg-blue-50 border border-blue-200">
+                <CardBody>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-blue-600 font-medium">{ES.appointments.startNow}</p>
+                      <p className="text-sm font-semibold text-blue-900 truncate">{cName} · {apt.startTime}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => router.push('/my-appointments')}
+                      className="shrink-0 text-xs"
+                    >
+                      {ES.sessions.create}
+                    </Button>
+                  </div>
+                </CardBody>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
       {/* === MY ACTIVE SERVICES === */}
       <section>
@@ -483,10 +550,7 @@ export default function MyWorkPage() {
                           size="lg"
                           variant="secondary"
                           className="py-3 px-3 text-sm"
-                          onClick={() => {
-                            setMaterialModal({ sessionId: session.id, serviceId: service.id, serviceName: service.serviceName });
-                            setMaterials([]);
-                          }}
+                          onClick={() => openMaterialModal(session, service)}
                         >
                           {ES.staff.addMyMaterial}
                         </Button>

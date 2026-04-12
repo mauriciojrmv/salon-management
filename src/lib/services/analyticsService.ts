@@ -4,6 +4,7 @@ import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { ProductRepository } from '@/lib/repositories/productRepository';
+import { PayrollPaymentRepository } from '@/lib/repositories/payrollPaymentRepository';
 import { DEFAULT_COMMISSION_RATE } from '@/lib/utils/helpers';
 
 export interface PayrollServiceDetail {
@@ -24,6 +25,8 @@ export interface PayrollStaffEntry {
   materialCost: number;
   totalCommission: number;
   details: PayrollServiceDetail[];
+  // Unpaid session/service refs covered by this entry, used to mark paid on payout
+  unpaidSessionServiceIds: string[];
 }
 
 export class AnalyticsService {
@@ -144,6 +147,7 @@ export class AnalyticsService {
       serviceName: string;
       revenue: number;
       materialCost: number;
+      payrollCost: number;
       count: number;
     }>();
 
@@ -154,32 +158,45 @@ export class AnalyticsService {
             serviceName: service.serviceName,
             revenue: 0,
             materialCost: 0,
+            payrollCost: 0,
             count: 0,
           };
 
           // Use actual buy cost from products, not stored sell price
           const materialCost = (service.materialsUsed || []).reduce((sum, m) => sum + (productCostMap.get(m.productId) ?? 0) * m.quantity, 0);
 
+          // Staff commission per CLAUDE.md: (price - materialCost) * commissionRate%
+          // Only counted when at least one staff is assigned
+          const hasStaff = (service.assignedStaff?.length || 0) > 0;
+          const rate = service.commissionRate || 0;
+          const commissionBase = Math.max(0, service.price - materialCost);
+          const payrollCost = hasStaff ? (commissionBase * rate) / 100 : 0;
+
           serviceMetrics.set(service.serviceId, {
             serviceName: existing.serviceName || service.serviceName,
             revenue: existing.revenue + service.price,
             materialCost: existing.materialCost + materialCost,
+            payrollCost: existing.payrollCost + payrollCost,
             count: existing.count + 1,
           });
         });
       }
     });
 
-    return Array.from(serviceMetrics.entries()).map(([serviceId, data]) => ({
-      serviceId,
-      serviceName: data.serviceName || serviceId,
-      revenue: data.revenue,
-      materialCost: data.materialCost,
-      count: data.count,
-      profit: data.revenue - data.materialCost,
-      profitMargin: data.revenue > 0 ? ((data.revenue - data.materialCost) / data.revenue) * 100 : 0,
-      averageProfit: data.count > 0 ? (data.revenue - data.materialCost) / data.count : 0,
-    }));
+    return Array.from(serviceMetrics.entries()).map(([serviceId, data]) => {
+      const profit = data.revenue - data.materialCost - data.payrollCost;
+      return {
+        serviceId,
+        serviceName: data.serviceName || serviceId,
+        revenue: data.revenue,
+        materialCost: data.materialCost,
+        payrollCost: data.payrollCost,
+        count: data.count,
+        profit,
+        profitMargin: data.revenue > 0 ? (profit / data.revenue) * 100 : 0,
+        averageProfit: data.count > 0 ? profit / data.count : 0,
+      };
+    });
   }
 
   static async getStaffPerformance(salonId: string, month: string) {
@@ -232,7 +249,7 @@ export class AnalyticsService {
   }
 
   static async getStaffPayroll(salonId: string, startDate: string, endDate: string): Promise<PayrollStaffEntry[]> {
-    const [sessions, staffList, clients, products] = await Promise.all([
+    const [sessions, staffList, clients, products, paidRefs] = await Promise.all([
       queryDocuments('sessions', [
         firebaseConstraints.where('salonId', '==', salonId),
         firebaseConstraints.where('status', '==', 'completed'),
@@ -240,6 +257,7 @@ export class AnalyticsService {
       StaffRepository.getSalonStaff(salonId),
       ClientRepository.getSalonClients(salonId),
       ProductRepository.getSalonProducts(salonId),
+      PayrollPaymentRepository.getPaidServiceRefs(salonId),
     ]);
 
     const staffNameMap = new Map(staffList.map(s => [s.id, `${s.firstName} ${s.lastName}`]));
@@ -252,18 +270,24 @@ export class AnalyticsService {
       materialCost: number;
       totalCommission: number;
       details: PayrollServiceDetail[];
+      unpaidSessionServiceIds: string[];
     }>();
 
     sessions.forEach(session => {
       if (session.date >= startDate && session.date <= endDate) {
         session.services.forEach(service => {
           service.assignedStaff.forEach(staffId => {
+            // Skip already-paid (session, service, staff) combos
+            const ref = `${session.id}__${service.id}__${staffId}`;
+            if (paidRefs.has(ref)) return;
+
             const existing = staffPayroll.get(staffId) || {
               servicesCompleted: 0,
               revenue: 0,
               materialCost: 0,
               totalCommission: 0,
               details: [],
+              unpaidSessionServiceIds: [],
             };
 
             const matCost = (service.materialsUsed || []).reduce((sum, m) => sum + (productCostMap.get(m.productId) ?? 0) * m.quantity, 0);
@@ -283,6 +307,7 @@ export class AnalyticsService {
               commissionRate: rate,
               commission,
             });
+            existing.unpaidSessionServiceIds.push(ref);
 
             staffPayroll.set(staffId, existing);
           });

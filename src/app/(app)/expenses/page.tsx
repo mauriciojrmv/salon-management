@@ -23,6 +23,7 @@ const categoryOptions: { value: ExpenseCategory; label: string }[] = [
   { value: 'marketing', label: ES.expenses.catMarketing },
   { value: 'maintenance', label: ES.expenses.catMaintenance },
   { value: 'insurance', label: ES.expenses.catInsurance },
+  { value: 'refreshments', label: ES.expenses.catRefreshments },
   { value: 'other', label: ES.expenses.catOther },
 ];
 
@@ -200,10 +201,12 @@ export default function ExpensesPage() {
           <div>
             <label className="block text-xs text-gray-500 mb-1">{ES.expenses.from}</label>
             <input type="date" value={filterStart} onChange={(e) => setFilterStart(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            <span className="text-[10px] text-gray-500 mt-0.5 block">{fmtDate(filterStart)}</span>
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">{ES.expenses.to}</label>
             <input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            <span className="text-[10px] text-gray-500 mt-0.5 block">{fmtDate(filterEnd)}</span>
           </div>
           <Card className="flex-1">
             <CardBody>

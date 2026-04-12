@@ -1,22 +1,27 @@
 import { useEffect, useState, useRef } from 'react';
-import { subscribeToQuery, firebaseConstraints } from '@/lib/firebase/db';
+import { subscribeToQuery } from '@/lib/firebase/db';
 import type { QueryConstraint } from 'firebase/firestore';
 
 /**
  * Real-time Firestore subscription hook.
  * Returns live data that updates automatically when any user changes the data.
  * Replaces useAsync for collections that need multi-user sync (e.g., sessions).
+ *
+ * Pass `deps` containing the values that should retrigger the subscription
+ * (e.g. salonId, selectedDate). Relying on constraint identity is unreliable
+ * because Firebase QueryConstraint objects don't serialize their values.
  */
 export function useRealtime<T>(
   collectionName: string,
   constraints: QueryConstraint[],
   enabled: boolean = true,
+  deps: ReadonlyArray<unknown> = [],
 ) {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  // Serialize constraints to detect changes
-  const constraintsKey = JSON.stringify(constraints.map(String));
+  const constraintsRef = useRef(constraints);
+  constraintsRef.current = constraints;
 
   useEffect(() => {
     if (!enabled) {
@@ -28,7 +33,7 @@ export function useRealtime<T>(
     setLoading(true);
     const unsubscribe = subscribeToQuery(
       collectionName,
-      constraints,
+      constraintsRef.current,
       (docs) => {
         setData(docs as T[]);
         setLoading(false);
@@ -42,7 +47,7 @@ export function useRealtime<T>(
 
     return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collectionName, constraintsKey, enabled]);
+  }, [collectionName, enabled, ...deps]);
 
   return { data, loading, error };
 }

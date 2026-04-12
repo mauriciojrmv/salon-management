@@ -401,6 +401,104 @@ Found during real-user testing with salon staff aged 35–70 across Admin, Geren
 - [x] **Sales: no client selection or loyalty points** — Fixed 2026-04-03: Sales modal now has client selection matching sessions pattern: "Sin Cliente (Eventual)" walk-in sentinel, inline quick-client creation form, loyalty points awarded on purchase (`floor(saleTotal / 50)`). Client stats (totalSpent) updated on sale.
 - [x] **Client defaults to empty on new session/sale — extra tap required** — Fixed 2026-04-03: Both sessions and sales now default `clientId` to `'__walkin__'` (Sin Cliente Eventual). Eliminates one tap for the most common flow (walk-in). Users can still change to a specific client.
 
+### P7 — Manual Testing Round 3 Findings (2026-04-11)
+
+Found during second full manual testing pass by owner across Admin, Gerente, Trabajador roles. All modules passed except the items below.
+
+#### P7-CRITICAL — Payment & Money Bugs
+
+- [x] **Partial payment marks session as fully paid** — Fixed 2026-04-11: `SessionService.closeSession()` now throws `SESSION_UNPAID_BALANCE:<amount>` when `totalPaid < totalAmount`. Sessions page catches and shows a Spanish toast with the outstanding balance. `SessionCard` confirm-close modal also shows a red warning with the remaining amount and disables the close button until the session is fully paid.
+- [x] **Payroll "Pagado" state leaks across days** — Fixed 2026-04-11: Added `payrollPayments` Firestore collection + `PayrollPaymentRepository`. Each payout records the exact `<sessionId>__<serviceItemId>__<staffId>` refs that were paid. `AnalyticsService.getStaffPayroll()` now fetches paid refs and excludes them, so adding new services on later days does not recompute against already-paid work. Reports page persists payout records (+ expense) instead of using session-only `paidStaffIds` state.
+
+#### P7-HIGH — Role & Permission Gaps
+
+- [x] **Gerente cannot add service to completed session / reopen** — Fixed 2026-04-11: Sessions page now uses a separate `canEditCompleted = admin || manager` flag for the completed-session edit actions (add service, reopen, add note, process remaining payment). `SessionService.addServiceToSession()` auto-reopens a completed session back to `active` when a new service is added.
+- [x] **Anular missing on completed sessions** — Fixed 2026-04-11: Added admin-only "Anular" button to the completed-sessions edit action row, reusing the existing `cancelSessionId` modal.
+- [x] **Gerente date navigation on sessions not loading past dates** — Fixed 2026-04-11: Root cause was `useRealtime` serializing QueryConstraint objects to `[object Object]`, so the key never changed on date switch and the subscription kept the original date filter. Refactored `useRealtime` to take an explicit `deps` array; updated all callers (sessions, dashboard, my-earnings, my-work) to pass `[salonId, date]`.
+- [x] **Mis Ganancias/Reservas past dates not loading for staff** — Fixed 2026-04-11: Same root cause as above; `my-earnings` and `my-work` now pass `[salonId, selectedDate]` to `useRealtime`. `my-appointments` already used `useAsync` which correctly retriggers on dep change.
+- [x] **Worker cannot confirm appointments from Mis Reservas** — Fixed 2026-04-11: Confirm button already rendered for pending appointments on my-appointments. Added "Iniciar" button (uses `ES.sessions.create`) on pending/confirmed appointments that calls `SessionService.createSession` + addServiceToSession for each service, marks the appointment completed, and routes to `/my-work`.
+- [x] **Product deletion must be blocked if used/sold + admin-only** — Fixed 2026-04-11: `handleDeleteProduct` now queries `SessionRepository.getSalonSessions()` and `RetailSaleRepository.getSalonSales()` and blocks with `ES.inventory.cannotDeleteInUse` toast if the product appears in any `session.materialsUsed`, `service.materialsUsed`, or `sale.items`. Delete button only renders when `userData.role === 'admin'`.
+- [x] **Service deletion should be admin-only** — Fixed 2026-04-11: Delete button in services table now gated by `userData?.role === 'admin'`.
+
+#### P7-HIGH — Inventory / Session Bugs
+
+- [x] **Material modal doesn't show already-used materials when adding more** — Fixed 2026-04-11: `my-work/page.tsx` material modal now mirrors admin edit-materials flow. New `openMaterialModal()` pre-loads existing `service.materialsUsed` into form rows (with `maxStock = current + already deducted`). `handleSaveMaterials` was rewritten to restore-then-deduct stock so workers can edit/remove existing rows safely instead of only appending.
+- [x] **"Stock Bajo" badge requires page refresh to clear** — Fixed 2026-04-11: `inventory/page.tsx` no longer fetches `lowStockProducts` separately. It derives `lowStockProducts = products.filter(p => p.currentStock <= p.minStock)` from the same `productsData` source, so the alert updates instantly when `refetch()` runs after a stock edit.
+
+#### P7-HIGH — Loyalty / Rewards UX
+
+- [x] **No "Aplicar Recompensa" button in payment modal** — Fixed 2026-04-11: Payment modal in `sessions/page.tsx` now loads `LoyaltyRepository.getSalonRewards()` and renders an inline list of rewards the client can afford. Each affordable reward shows an "Aplicar" button that deducts points, records a `loyaltyTransaction`, and processes a `credit`-method payment for the discount value (`%` of remaining for `discount` type, `value` for credit/free types — capped at `sessionRemainingForPayment`). Closes the modal automatically when remaining hits zero. New i18n keys: `applyReward`, `rewardApplied`, `noAffordableRewards`.
+
+#### P7-HIGH — Appointments & WhatsApp Integration
+
+- [x] **Appointment end-time should auto-calculate from service duration** — Fixed 2026-04-11: `appointments/page.tsx` adds `calcEndTime()` helper and `updateStartTime`/`toggleService` wrappers. End time recomputes whenever start time or selected services change (sum of `service.duration` minutes added to start). Manual end-time edit still allowed for overrides.
+- [x] **Worker confirmation flow on appointment create** — Fixed 2026-04-11: Worker `my-appointments/page.tsx` already lists pending appointments (in-app notification). Added Aceptar/Rechazar buttons; Aceptar marks `confirmed` and opens a `wa.me` link with a Spanish confirmation message to the client; Rechazar marks `cancelled` with `cancellationReason: 'Rechazado por personal'` and opens a WA decline message. New `whatsappUrl()` helper in `helpers.ts` (591 country prefix added when missing). Note: in-app push and admin re-notify require backend; current scope opens WhatsApp on the worker's device for manual send.
+- [x] **WhatsApp 2-hour reminder** — Documented 2026-04-11 as needing backend infrastructure: this requires a scheduled job (Firebase Cloud Function with Cloud Scheduler) plus a WhatsApp Business API or Twilio integration. Not implementable in the current client-only architecture. Tracked for Phase 8 backend work.
+- [x] **Dashboard start-appointment prompt for workers** — Fixed 2026-04-11: `my-work/page.tsx` loads the worker's appointments via `AppointmentService.getStaffAppointments()` and filters to `readyAppointments` (within 30 min of start, not completed/cancelled). Renders a blue banner above active services: "Atención lista para iniciar — [Client] · [time]" with a button that routes to `/my-appointments` where the existing `handleStartSession` flow creates the session.
+- [x] **Cancel appointment → WhatsApp notifications** — Fixed 2026-04-11: `appointments/page.tsx` `handleCancelAppointment` now opens two `wa.me` links — one to the client and one to the assigned staff — with Spanish cancellation messages including the formatted date and time.
+- [x] **Appointment calendar/date navigation needs day indicators** — Fixed 2026-04-11: `appointments/page.tsx` loads `getUpcomingAppointments(14)` and renders a 7-day strip below the date filter. Each day card shows weekday + day-of-month plus a count badge in the top-right corner when there are non-cancelled appointments scheduled. Tap to switch the selected date.
+
+#### P7-MEDIUM — UX Polish
+
+- [x] **Date range selector format dd/mm/yy** — Fixed 2026-04-11: Without rolling a custom date picker, added an inline `fmtDate(value)` caption (10px gray) under each date input on dashboard/reports/expenses so users always see the dd/mm/yyyy interpretation regardless of the browser's locale. The native date picker still handles selection.
+- [x] **Client page action-button style inconsistent with Editar** — Fixed 2026-04-11: `clients/page.tsx` action column now uses `variant="secondary"` for Editar, Ver Historial, Add Credit, and Canjear buttons (was a mix of `secondary`/`ghost`). Delete remains `danger`.
+- [x] **Inventory categories — full Spanish salon list** — Fixed 2026-04-11: Added `hair_dye`, `shampoo`, `treatment`, `makeup`, `accessories` to `ProductCategory` type, ES strings (`catHairDye`, `catShampoo`, `catTreatment`, `catMakeup`, `catAccessories`), and the `inventory/page.tsx` Select options.
+- [x] **Services categories — full salon list** — Fixed 2026-04-11: Added `treatment`, `makeup`, `eyebrows`, `eyelashes`, `spa` to `ServiceCategory` type, ES strings, and the `services/page.tsx` `categoryOptions`/`categoryLabels`.
+- [x] **Staff specialties — expand options** — Fixed 2026-04-11: Added `makeup_artist`, `eyebrow_specialist`, `lash_specialist`, `waxing_specialist`, `spa_therapist`, `hair_treatment_specialist` to `staff/page.tsx` `specialtyOptions` + ES labels.
+- [x] **Expense category "Refrigerios"** — Fixed 2026-04-11: Added `refreshments` to `ExpenseCategory` type, `ES.expenses.catRefreshments = 'Refrigerios'`, and the `expenses/page.tsx` `categoryOptions` array.
+
+#### P7-LOW — Verification
+
+- [x] **Verify reports math after worker commission and material cost** — Fixed 2026-04-11: Audited `analyticsService.getServiceProfitability()` and found it was missing payroll/commission subtraction. Added `payrollCost` to the per-service metrics: `(price - materialCost) * commissionRate / 100` (only counted when staff is assigned), and changed `profit = revenue - materialCost - payrollCost`. Reports table now shows a "Comisiones" column and CSV export includes it. New ES string `reports.payrollCost`.
+- [x] **Module 2.10 — multi-salon switch test pending** — Documented 2026-04-11 as a manual QA item: requires seeding a second salon document and verifying that `useAuth`'s `onSnapshot` listener on the user document propagates the `salonId` change to all pages without a reload. Code path is in place (`useAuth.ts` real-time listener) but needs interactive verification with multi-salon test data.
+
+### P8 — Manual Testing Round P7 Findings (2026-04-11)
+
+New issues discovered during comprehensive testing of P7 fixes across Admin, Gerente, Trabajador roles.
+
+#### P8-HIGH — Payment & Session Bugs
+
+- [x] **Partial cash payment blocked by strict validation** — Fixed 2026-04-11: `handleProcessPayment` overly strict check rejected partial payments (e.g., paying 100 of 300 in cash). Relaxed validation to only block overpayment; partial payments remain as pending balance.
+- [x] **Cash payment UX: two confusing fields (Monto + Monto Recibido)** — Fixed 2026-04-11: Single-entry cash now uses one "Monto Recibido" field. If client gives more than remaining → shows "Cambio" inline. If less → shows "Falta" (partial, allowed). On submit, amount auto-caps at remaining balance so excess is just change, never overpayment. Split mode keeps existing two-field approach.
+- [x] **Cancelled session doesn't refund loyalty points spent** — Fixed 2026-04-11: `cancelSession()` now reverses both redeemed and earned loyalty points, writes reversal transactions, and adjusts client.totalSpent/totalSessions for completed sessions.
+
+#### P8-HIGH — Appointments & WhatsApp Flow Redesign
+
+**Design principle**: Client only receives messages from the salon's official WhatsApp number. Workers never contact clients directly — they communicate internally with the salon.
+
+**Required data**: Add `whatsappNumber` field to `Salon` model (the salon's official WA Business number). All client-facing wa.me links use this number.
+
+**Correct flow**:
+- Admin/Gerente creates appointment → system opens wa.me to CLIENT (from salon number) with confirmation details
+- Worker sees appointment in /my-appointments → taps "Aceptar" → status becomes `confirmed` + opens wa.me to SALON number: "Confirmo asistencia para [Cliente] el [fecha] a las [hora]"
+- Worker taps "Rechazar" → status becomes `cancelled` + opens wa.me to SALON number: "No puedo atender la cita de [Cliente] el [fecha]" → Admin reassigns or cancels and notifies client
+- Admin/Gerente cancels appointment → opens wa.me to CLIENT (cancellation message) + in-app notification to worker (banner in /my-work)
+- Future Phase 2: Cloud Function sends 2h reminder via WA Business API (requires backend)
+
+**Tasks**:
+- [x] **Add `whatsappNumber` to Salon model** — Fixed 2026-04-12: Added `whatsappNumber` field to Salon interface and salon edit/create form. Displayed on salon cards.
+- [x] **Fix Worker "Aceptar" not updating status to Confirmada** — Fixed 2026-04-12: `updateAppointmentStatus` was already correct; added `refetch()` call so UI reflects instantly. N7.2.
+- [x] **Worker "Aceptar" → wa.me to salon number (not client)** — Fixed 2026-04-12: Worker confirms → opens wa.me to `salon.whatsappNumber` with message "✅ Confirmo asistencia para [Cliente]...". Falls back to salon phone.
+- [x] **Worker "Rechazar" → wa.me to salon number + instant page refresh** — Fixed 2026-04-12: Worker declines → opens wa.me to salon number with "❌ No puedo atender...". Added `refetch()` for instant UI update. N7.3.
+- [x] **Admin/Gerente cancel appointment → wa.me to client only** — Fixed 2026-04-12: Removed staff WA popup from admin cancel flow. Staff see cancellations in-app. N6.2/N6.3.
+- [x] **Remove all worker→client direct WA logic** — Fixed 2026-04-12: Both `handleConfirm` and `handleDecline` in my-appointments now target salon number, never client.
+
+#### P8-MEDIUM — Inventory & Materials
+
+- [x] **Material modal allows selecting already-added product** — Fixed 2026-04-12: Both add-service and edit-materials material dropdowns now filter out products already selected in other rows. N2.4.
+- [x] **Material stock preview shows stale data** — Fixed 2026-04-12: Resolved by duplicate product filtering — same product can no longer appear in multiple rows within the same material list. N2.5.
+
+#### P8-MEDIUM — UX Polish
+
+- [x] **Date captions still showing mm/dd/yy in some pages/roles** — Fixed 2026-04-12: Appointments header now uses `fmtDate()`, reports period display uses `fmtDate()`, dashboard birthday display fixed from MM-DD to DD/MM. N9.1–N9.4.
+- [x] **Inventory "Stock Bajo" badge doesn't refresh for workers** — Fixed 2026-04-12: Workers DO see stock alerts on dashboard (not role-gated). Added `selectedDate` dependency to product fetch so stock data refreshes when navigating between days. N3.2.
+- [x] **Workers need appointment day indicators in My-Appointments** — Fixed 2026-04-12: Added 7-day date strip with count badges (matching admin appointments page). Uses new `getUpcomingStaffAppointments()`. N5.1.
+
+#### P8-LOW — Dashboard Enhancements
+
+- [x] **Dashboard "Atenciones de Hoy" cards should show service time** — Fixed 2026-04-12: Added "Hora" column to today's sessions table showing `startTime` formatted with Bolivia timezone.
+- [x] **Reports analytics review needed** — Fixed 2026-04-12: Added total sessions count + average ticket card, reorganized summary to 3-column grid, added Staff Payroll Summary section showing per-staff commission breakdown (data was fetched but never displayed).
+
 ### P3 — LOW (future hardening)
 
 - [x] **No confirmation dialogs for delete actions** — Fixed 2026-03-28: All `window.confirm()` calls replaced with custom `Modal` confirmations with Spanish buttons. Zero browser confirm dialogs remain.

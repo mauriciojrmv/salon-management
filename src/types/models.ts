@@ -10,6 +10,7 @@ export interface Salon {
   country: string;
   currency: 'BOB' | 'USD' | 'EUR' | 'GBP' | 'INR' | 'BRL';
   timezone: string;
+  whatsappNumber?: string; // Official salon WA Business number for client-facing messages
   logo?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -132,7 +133,20 @@ export interface Service {
   materialsUsed?: MaterialUsage[]; // Default materials
 }
 
-export type ServiceCategory = 'haircut' | 'coloring' | 'styling' | 'nails' | 'waxing' | 'skincare' | 'massage' | 'other';
+export type ServiceCategory =
+  | 'haircut'
+  | 'coloring'
+  | 'styling'
+  | 'treatment'
+  | 'nails'
+  | 'waxing'
+  | 'skincare'
+  | 'makeup'
+  | 'eyebrows'
+  | 'eyelashes'
+  | 'massage'
+  | 'spa'
+  | 'other';
 
 export interface Session {
   id: string;
@@ -209,7 +223,19 @@ export interface Product {
   updatedAt: Date;
 }
 
-export type ProductCategory = 'hair_products' | 'skincare' | 'wax' | 'nail_products' | 'tools' | 'supplies' | 'other';
+export type ProductCategory =
+  | 'hair_products'
+  | 'hair_dye'
+  | 'shampoo'
+  | 'treatment'
+  | 'skincare'
+  | 'makeup'
+  | 'wax'
+  | 'nail_products'
+  | 'tools'
+  | 'accessories'
+  | 'supplies'
+  | 'other';
 
 export interface MaterialUsage {
   productId: string;
@@ -322,7 +348,7 @@ export interface Expense {
   updatedAt: Date;
 }
 
-export type ExpenseCategory = 'rent' | 'utilities' | 'salaries' | 'supplies' | 'marketing' | 'maintenance' | 'insurance' | 'other';
+export type ExpenseCategory = 'rent' | 'utilities' | 'salaries' | 'supplies' | 'marketing' | 'maintenance' | 'insurance' | 'refreshments' | 'other';
 
 // Staff Commission Report
 export interface CommissionReport {

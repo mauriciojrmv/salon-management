@@ -314,13 +314,13 @@ export default function ClientsPage() {
           <Button variant="secondary" size="sm" onClick={() => openEditModal(item)}>
             {ES.actions.edit}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setHistoryClient(item)}>
+          <Button variant="secondary" size="sm" onClick={() => setHistoryClient(item)}>
             {ES.clients.viewHistory}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => { setCreditModalClient(item); setCreditAmount(0); }}>
+          <Button variant="secondary" size="sm" onClick={() => { setCreditModalClient(item); setCreditAmount(0); }}>
             {ES.payments.addCredit}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => openLoyaltyModal(item)}>
+          <Button variant="secondary" size="sm" onClick={() => openLoyaltyModal(item)}>
             {ES.clients.redeemPoints}
           </Button>
           <Button variant="danger" size="sm" onClick={() => setConfirmDeleteClientId(item.id)}>

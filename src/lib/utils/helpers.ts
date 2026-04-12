@@ -26,6 +26,15 @@ export function fmtDate(dateStr: string): string {
   return `${d}/${m}/${y}`;
 }
 
+// Build a wa.me link with a pre-filled Spanish message.
+// `phone` may include spaces/dashes; we strip non-digits and assume Bolivia (591) if missing country code.
+export function whatsappUrl(phone: string, message: string): string {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  const intl = digits.length === 8 ? `591${digits}` : digits;
+  return `https://wa.me/${intl}?text=${encodeURIComponent(message)}`;
+}
+
 // Date utilities
 export function formatDate(date: Date | string): string {
   const d = new Date(date);

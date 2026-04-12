@@ -17,7 +17,7 @@ import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { Appointment } from '@/types/models';
-import { fmtBs, getBoliviaDate } from '@/lib/utils/helpers';
+import { fmtBs, getBoliviaDate, fmtDate, whatsappUrl } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 export default function AppointmentsPage() {
@@ -42,6 +42,33 @@ export default function AppointmentsPage() {
     if (!userData?.salonId) return [];
     return AppointmentService.getSalonAppointments(userData.salonId, selectedDate);
   }, [userData?.salonId, selectedDate]);
+
+  // Upcoming appointments for the next 14 days — used for date strip indicators
+  const { data: upcomingAppointments } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return AppointmentService.getUpcomingAppointments(userData.salonId, 14);
+  }, [userData?.salonId, selectedDate]);
+
+  // Build a date strip: 7 days starting today
+  const dateStrip = React.useMemo(() => {
+    const days: { iso: string; label: string; weekday: string; count: number }[] = [];
+    const counts = new Map<string, number>();
+    (upcomingAppointments || []).forEach((a) => {
+      if (a.status !== 'cancelled') counts.set(a.appointmentDate, (counts.get(a.appointmentDate) || 0) + 1);
+    });
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      const iso = d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+      days.push({
+        iso,
+        label: String(d.getDate()),
+        weekday: d.toLocaleDateString('es-ES', { weekday: 'short', timeZone: 'America/La_Paz' }),
+        count: counts.get(iso) || 0,
+      });
+    }
+    return days;
+  }, [upcomingAppointments]);
 
   // Load lookup data for dropdowns
   const { data: clients, refetch: refetchClients } = useAsync(async () => {
@@ -87,6 +114,34 @@ export default function AppointmentsPage() {
   const getStaffName = (id: string) => {
     const s = staffList?.find((x) => x.id === id);
     return s ? `${s.firstName} ${s.lastName}` : '-';
+  };
+
+  // Auto-calc end time from start + sum of selected service durations
+  const calcEndTime = (start: string, serviceIds: string[]): string => {
+    if (!start || !serviceIds.length) return start;
+    const totalMin = serviceIds.reduce((sum, id) => {
+      const svc = services?.find((s) => s.id === id);
+      return sum + (svc?.duration || 0);
+    }, 0);
+    if (totalMin <= 0) return start;
+    const [h, m] = start.split(':').map(Number);
+    const total = h * 60 + m + totalMin;
+    const eh = Math.floor((total % (24 * 60)) / 60);
+    const em = total % 60;
+    return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+  };
+
+  const updateStartTime = (startTime: string) => {
+    setFormData((f) => ({ ...f, startTime, endTime: calcEndTime(startTime, f.serviceIds) }));
+  };
+
+  const toggleService = (serviceId: string, checked: boolean) => {
+    setFormData((f) => {
+      const serviceIds = checked
+        ? [...f.serviceIds, serviceId]
+        : f.serviceIds.filter((id) => id !== serviceId);
+      return { ...f, serviceIds, endTime: calcEndTime(f.startTime, serviceIds) };
+    });
   };
 
   const handleQuickCreateClient = async () => {
@@ -184,10 +239,20 @@ export default function AppointmentsPage() {
 
   const handleCancelAppointment = async (appointmentId: string) => {
     try {
+      const apt = appointments?.find((a) => a.id === appointmentId);
       await AppointmentService.updateAppointmentStatus(appointmentId, 'cancelled');
       success(ES.appointments.cancelled);
       setCancelApptId(null);
       refetch();
+      // Open WhatsApp cancellation notification to CLIENT only (staff sees it in-app)
+      if (apt) {
+        const client = clients?.find((c) => c.id === apt.clientId);
+        const dateLabel = `${fmtDate(apt.appointmentDate)} ${apt.startTime}`;
+        if (client?.phone) {
+          const msg = `Hola ${client.firstName}, su reserva del ${dateLabel} ha sido cancelada. Disculpe los inconvenientes; contáctenos para reagendar.`;
+          window.open(whatsappUrl(client.phone, msg), '_blank');
+        }
+      }
     } catch (err) {
       error(err instanceof Error ? err.message : ES.appointments.cancelFailed || ES.messages.operationFailed);
     }
@@ -324,6 +389,36 @@ export default function AppointmentsPage() {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg"
           />
+          {/* 7-day strip with appointment count badges */}
+          <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
+            {dateStrip.map((d) => {
+              const isSelected = d.iso === selectedDate;
+              return (
+                <button
+                  key={d.iso}
+                  type="button"
+                  onClick={() => setSelectedDate(d.iso)}
+                  className={`flex flex-col items-center justify-center min-w-[52px] py-2 px-2 rounded-lg border text-xs font-medium relative ${
+                    isSelected
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="capitalize">{d.weekday.replace('.', '')}</span>
+                  <span className="text-base font-bold">{d.label}</span>
+                  {d.count > 0 && (
+                    <span
+                      className={`absolute top-1 right-1 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full text-[10px] font-bold ${
+                        isSelected ? 'bg-white text-blue-600' : 'bg-blue-600 text-white'
+                      }`}
+                    >
+                      {d.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </CardBody>
       </Card>
 
@@ -331,7 +426,7 @@ export default function AppointmentsPage() {
       <Card>
         <CardHeader>
           <h2 className="text-xl font-semibold text-gray-900">
-            {ES.appointments.forDate} {selectedDate}
+            {ES.appointments.forDate} {fmtDate(selectedDate)}
           </h2>
         </CardHeader>
         <CardBody>
@@ -393,12 +488,7 @@ export default function AppointmentsPage() {
                   <input
                     type="checkbox"
                     checked={formData.serviceIds.includes(opt.value)}
-                    onChange={(e) => {
-                      const ids = e.target.checked
-                        ? [...formData.serviceIds, opt.value]
-                        : formData.serviceIds.filter((id) => id !== opt.value);
-                      setFormData({ ...formData, serviceIds: ids });
-                    }}
+                    onChange={(e) => toggleService(opt.value, e.target.checked)}
                     className="rounded"
                   />
                   <span className="text-sm">{opt.label}</span>
@@ -413,7 +503,7 @@ export default function AppointmentsPage() {
               label={ES.appointments.startTime}
               type="time"
               value={formData.startTime}
-              onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+              onChange={(e) => updateStartTime(e.target.value)}
               required
             />
             <Input

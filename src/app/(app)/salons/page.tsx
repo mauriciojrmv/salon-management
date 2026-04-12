@@ -19,6 +19,7 @@ const initialForm = {
   city: '',
   phone: '',
   email: '',
+  whatsappNumber: '',
 };
 
 export default function SalonsPage() {
@@ -55,6 +56,7 @@ export default function SalonsPage() {
       city: salon.city || '',
       phone: salon.phone || '',
       email: salon.email || '',
+      whatsappNumber: salon.whatsappNumber || '',
     });
     setIsModalOpen(true);
   };
@@ -73,6 +75,7 @@ export default function SalonsPage() {
           city: formData.city,
           phone: formData.phone,
           email: formData.email,
+          whatsappNumber: formData.whatsappNumber,
         } as Partial<Salon>);
         success(ES.salons.updated);
       } else {
@@ -82,6 +85,7 @@ export default function SalonsPage() {
           city: formData.city,
           phone: formData.phone,
           email: formData.email,
+          whatsappNumber: formData.whatsappNumber,
           owner: user?.uid || '',
           currency: 'BOB',
           country: '',
@@ -146,6 +150,7 @@ export default function SalonsPage() {
                 {salon.address && <p className="text-sm text-gray-600 mb-1">{salon.address}</p>}
                 {salon.phone && <p className="text-sm text-gray-500">{salon.phone}</p>}
                 {salon.email && <p className="text-sm text-gray-500">{salon.email}</p>}
+                {salon.whatsappNumber && <p className="text-sm text-green-600">WA: {salon.whatsappNumber}</p>}
                 <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
                   <Button size="sm" variant="secondary" onClick={() => openEdit(salon)}>
                     {ES.actions.edit}
@@ -211,6 +216,16 @@ export default function SalonsPage() {
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             maxLength={50}
           />
+          <div>
+            <Input
+              label={ES.salons.whatsappNumber}
+              type="tel"
+              value={formData.whatsappNumber}
+              onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
+              maxLength={15}
+            />
+            <p className="text-xs text-gray-400 mt-1">{ES.salons.whatsappHint}</p>
+          </div>
           <div className="flex gap-2 pt-2">
             <Button variant="secondary" onClick={() => setIsModalOpen(false)}>
               {ES.actions.cancel}

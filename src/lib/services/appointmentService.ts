@@ -86,6 +86,15 @@ export class AppointmentService {
     return results.filter((a) => a.appointmentDate >= today).sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate));
   }
 
+  static async getUpcomingStaffAppointments(salonId: string, staffId: string): Promise<Appointment[]> {
+    const today = getBoliviaDate();
+    const results = await queryDocuments('appointments', [
+      firebaseConstraints.where('salonId', '==', salonId),
+      firebaseConstraints.where('staffId', '==', staffId),
+    ]) as Appointment[];
+    return results.filter((a) => a.appointmentDate >= today && a.status !== 'cancelled').sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate));
+  }
+
   static async checkStaffAvailability(
     staffId: string,
     date: string,

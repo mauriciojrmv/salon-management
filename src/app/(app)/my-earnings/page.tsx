@@ -29,7 +29,7 @@ export default function MyEarningsPage() {
     firebaseConstraints.where('salonId', '==', userData?.salonId || ''),
     firebaseConstraints.where('date', '==', selectedDate),
   ], [userData?.salonId, selectedDate]);
-  const { data: sessions } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId);
+  const { data: sessions } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId, [userData?.salonId, selectedDate]);
   const { data: allProducts } = useAsync(
     () => userData?.salonId ? ProductRepository.getSalonProducts(userData.salonId) : Promise.resolve([]),
     [userData?.salonId]

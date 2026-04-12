@@ -12,6 +12,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { ProductRepository } from '@/lib/repositories/productRepository';
+import { SessionRepository } from '@/lib/repositories/sessionRepository';
+import { RetailSaleRepository } from '@/lib/repositories/retailSaleRepository';
 import { Product, ProductCategory } from '@/types/models';
 import { fmtBs, unitLabel } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
@@ -45,12 +47,7 @@ export default function InventoryPage() {
 
   const products = productsData || [];
 
-  const { data: lowStockData } = useAsync(async () => {
-    if (!userData?.salonId) return [];
-    return ProductRepository.getLowStockProducts(userData.salonId);
-  }, [userData?.salonId]);
-
-  const lowStockProducts = lowStockData || [];
+  const lowStockProducts = products.filter((p) => p.currentStock <= p.minStock);
 
   const resetForm = () => {
     setFormData({ ...initialFormData });
@@ -123,7 +120,23 @@ export default function InventoryPage() {
   };
 
   const handleDeleteProduct = async (id: string) => {
+    if (!userData?.salonId) return;
     try {
+      // Block deletion if product is referenced in any session or retail sale
+      const [sessions, sales] = await Promise.all([
+        SessionRepository.getSalonSessions(userData.salonId),
+        RetailSaleRepository.getSalonSales(userData.salonId),
+      ]);
+      const usedInSession = sessions.some((s) =>
+        (s.materialsUsed || []).some((m) => m.productId === id) ||
+        (s.services || []).some((svc) => (svc.materialsUsed || []).some((m) => m.productId === id))
+      );
+      const usedInSale = sales.some((s) => (s.items || []).some((i) => i.productId === id));
+      if (usedInSession || usedInSale) {
+        error(ES.inventory.cannotDeleteInUse);
+        setConfirmDeleteId(null);
+        return;
+      }
       await ProductRepository.deleteProduct(id);
       success(ES.inventory.deleted);
       setConfirmDeleteId(null);
@@ -166,13 +179,15 @@ export default function InventoryPage() {
           >
             {ES.actions.edit}
           </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => setConfirmDeleteId(item.id)}
-          >
-            {ES.actions.delete}
-          </Button>
+          {userData?.role === 'admin' && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setConfirmDeleteId(item.id)}
+            >
+              {ES.actions.delete}
+            </Button>
+          )}
         </div>
       ),
     },
@@ -249,10 +264,15 @@ export default function InventoryPage() {
             onChange={(e) => setFormData({ ...formData, category: e.target.value as ProductCategory })}
             options={[
               { value: 'hair_products', label: ES.inventory.catHairProducts },
+              { value: 'hair_dye', label: ES.inventory.catHairDye },
+              { value: 'shampoo', label: ES.inventory.catShampoo },
+              { value: 'treatment', label: ES.inventory.catTreatment },
               { value: 'skincare', label: ES.inventory.catSkincare },
+              { value: 'makeup', label: ES.inventory.catMakeup },
               { value: 'wax', label: ES.inventory.catWax },
               { value: 'nail_products', label: ES.inventory.catNailProducts },
               { value: 'tools', label: ES.inventory.catTools },
+              { value: 'accessories', label: ES.inventory.catAccessories },
               { value: 'supplies', label: ES.inventory.catSupplies },
               { value: 'other', label: ES.inventory.catOther },
             ]}

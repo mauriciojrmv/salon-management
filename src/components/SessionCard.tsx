@@ -62,7 +62,7 @@ export function SessionCard({
 
   // Client-facing total: service prices only — materials are internal cost tracking
   const total = sessionServices.reduce((sum, s) => sum + s.price, 0);
-  const paidAmount = sessionPayments.reduce((sum, p) => sum + p.amount, 0);
+  const paidAmount = sessionPayments.filter((p) => p.status === 'completed').reduce((sum, p) => sum + p.amount, 0);
   const remaining = total - paidAmount;
 
   return (
@@ -306,12 +306,24 @@ export function SessionCard({
       {/* Confirm: close session */}
       <Modal isOpen={confirmClose} onClose={() => setConfirmClose(false)} title={ES.sessions.closeSession} size="sm">
         <div className="space-y-4">
-          <p className="text-gray-700">{ES.sessions.confirmClose}</p>
+          {remaining > 0.01 ? (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-700 font-medium">{ES.sessions.closeHasBalance}</p>
+              <p className="text-sm text-red-700 mt-1">{ES.payments.remaining}: <span className="font-bold">{fmtBs(remaining)}</span></p>
+            </div>
+          ) : (
+            <p className="text-gray-700">{ES.sessions.confirmClose}</p>
+          )}
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setConfirmClose(false)} className="flex-1">
               {ES.actions.cancel}
             </Button>
-            <Button variant="danger" onClick={() => { onCloseSession(); setConfirmClose(false); }} className="flex-1">
+            <Button
+              variant="danger"
+              onClick={() => { onCloseSession(); setConfirmClose(false); }}
+              className="flex-1"
+              disabled={remaining > 0.01}
+            >
               {ES.sessions.closeSession}
             </Button>
           </div>

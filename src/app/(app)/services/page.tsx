@@ -28,10 +28,15 @@ const categoryOptions = [
   { value: 'haircut', label: ES.services.haircut },
   { value: 'coloring', label: ES.services.coloring },
   { value: 'styling', label: ES.services.styling },
+  { value: 'treatment', label: ES.services.treatment },
   { value: 'nails', label: ES.services.nails },
   { value: 'waxing', label: ES.services.waxing },
   { value: 'skincare', label: ES.services.skincare },
+  { value: 'makeup', label: ES.services.makeup },
+  { value: 'eyebrows', label: ES.services.eyebrows },
+  { value: 'eyelashes', label: ES.services.eyelashes },
   { value: 'massage', label: ES.services.massage },
+  { value: 'spa', label: ES.services.spa },
   { value: 'other', label: ES.services.other },
 ];
 
@@ -39,10 +44,15 @@ const categoryLabels: Record<string, string> = {
   haircut: ES.services.haircut,
   coloring: ES.services.coloring,
   styling: ES.services.styling,
+  treatment: ES.services.treatment,
   nails: ES.services.nails,
   waxing: ES.services.waxing,
   skincare: ES.services.skincare,
+  makeup: ES.services.makeup,
+  eyebrows: ES.services.eyebrows,
+  eyelashes: ES.services.eyelashes,
   massage: ES.services.massage,
+  spa: ES.services.spa,
   other: ES.services.other,
 };
 
@@ -155,9 +165,11 @@ export default function ServicesPage() {
           <Button variant="secondary" size="sm" onClick={() => openEditModal(row)}>
             {ES.actions.edit}
           </Button>
-          <Button variant="danger" size="sm" onClick={() => setConfirmDeleteId(row.id)}>
-            {ES.actions.delete}
-          </Button>
+          {userData?.role === 'admin' && (
+            <Button variant="danger" size="sm" onClick={() => setConfirmDeleteId(row.id)}>
+              {ES.actions.delete}
+            </Button>
+          )}
         </div>
       ),
     },

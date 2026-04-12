@@ -26,6 +26,7 @@ import {
   ShoppingCart,
   Receipt,
   BarChart2,
+  Wallet,
   Gift,
   Building2,
   UserCog,
@@ -56,6 +57,7 @@ const allNavItems: NavItem[] = [
   { name: ES.nav.staff, href: '/staff', icon: UserCheck, group: 'manage' },
   { name: ES.expenses.title, href: '/expenses', icon: Receipt, group: 'manage' },
   { name: ES.nav.reports, href: '/reports', icon: BarChart2, group: 'manage' },
+  { name: ES.nav.pagos, href: '/pagos', icon: Wallet, group: 'manage' },
   // System
   { name: ES.loyalty.rewards, href: '/rewards', icon: Gift, adminOnly: true, group: 'system' },
   { name: ES.salons.title, href: '/salons', icon: Building2, adminOnly: true, group: 'system' },

@@ -15,7 +15,7 @@ import { firebaseConstraints } from '@/lib/firebase/db';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { Session, Client, Product } from '@/types/models';
 import ES from '@/config/text.es';
-import { fmtBs, unitLabel, getBoliviaDate } from '@/lib/utils/helpers';
+import { fmtBs, unitLabel, getBoliviaDate, fmtDate, toDate } from '@/lib/utils/helpers';
 
 export default function Dashboard() {
   const { user, userData, loading: authLoading } = useAuth();
@@ -31,7 +31,7 @@ export default function Dashboard() {
     firebaseConstraints.where('salonId', '==', userData?.salonId || ''),
     firebaseConstraints.where('date', '==', selectedDate),
   ], [userData?.salonId, selectedDate]);
-  const { data: sessions, loading: sessionsLoading } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId);
+  const { data: sessions, loading: sessionsLoading } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId, [userData?.salonId, selectedDate]);
 
   // Load clients to resolve names
   const { data: clients } = useAsync(async () => {
@@ -45,11 +45,11 @@ export default function Dashboard() {
     return StaffRepository.getSalonStaff(userData.salonId);
   }, [userData?.salonId]);
 
-  // All products (for buy cost lookup + low-stock alerts)
+  // All products (for buy cost lookup + low-stock alerts) — refetch on date change to pick up stock updates
   const { data: allProducts } = useAsync(async () => {
     if (!userData?.salonId) return [];
     return ProductRepository.getSalonProducts(userData.salonId);
-  }, [userData?.salonId]);
+  }, [userData?.salonId, selectedDate]);
 
   const lowStockProducts = useMemo(() => {
     return (allProducts || []).filter((p) => p.currentStock <= p.minStock);
@@ -184,6 +184,15 @@ export default function Dashboard() {
       render: (v) => getClientName(v as string),
     },
     {
+      key: 'startTime',
+      label: ES.appointments.time,
+      render: (v) => {
+        try {
+          return toDate(v as Date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'America/La_Paz' });
+        } catch { return '-'; }
+      },
+    },
+    {
       key: 'services',
       label: ES.sessions.services,
       render: (_, row) => (
@@ -246,12 +255,15 @@ export default function Dashboard() {
           >
             Ayer
           </button>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
-          />
+          <div className="flex flex-col">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
+            />
+            <span className="text-[10px] text-gray-500 mt-0.5">{fmtDate(selectedDate)}</span>
+          </div>
         </div>
       </div>
 
@@ -398,7 +410,7 @@ export default function Dashboard() {
                     const tier = getLoyaltyTier(c.totalSessions || 0);
                     return (
                       <div key={c.id} className="flex items-center justify-between text-sm py-1">
-                        <span className="text-gray-700">{c.firstName} {c.lastName} — {c.dateOfBirth?.slice(5)}</span>
+                        <span className="text-gray-700">{c.firstName} {c.lastName} — {c.dateOfBirth ? `${c.dateOfBirth.slice(8)}/${c.dateOfBirth.slice(5, 7)}` : ''}</span>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tier.color}`}>{tier.label}</span>
                       </div>
                     );

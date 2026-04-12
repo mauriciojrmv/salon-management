@@ -21,6 +21,8 @@ import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { ProductRepository } from '@/lib/repositories/productRepository';
+import { LoyaltyRepository } from '@/lib/repositories/loyaltyRepository';
+import type { LoyaltyReward } from '@/types/models';
 import { batchUpdate, firebaseConstraints } from '@/lib/firebase/db';
 import { fmtBs, unitLabel, toDate, getBoliviaDate } from '@/lib/utils/helpers';
 import type { Session } from '@/types/models';
@@ -102,7 +104,7 @@ export default function SessionsPage() {
     firebaseConstraints.where('salonId', '==', userData?.salonId || ''),
     firebaseConstraints.where('date', '==', selectedDate),
   ], [userData?.salonId, selectedDate]);
-  const { data: sessions } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId);
+  const { data: sessions } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId, [userData?.salonId, selectedDate]);
 
   const { data: clients, refetch: refetchClients } = useAsync(async () => {
     if (!userData?.salonId) return [];
@@ -122,6 +124,11 @@ export default function SessionsPage() {
   const { data: products } = useAsync(async () => {
     if (!userData?.salonId) return [];
     return ProductRepository.getSalonProducts(userData.salonId);
+  }, [userData?.salonId]);
+
+  const { data: loyaltyRewards } = useAsync(async () => {
+    if (!userData?.salonId) return [] as LoyaltyReward[];
+    return LoyaltyRepository.getSalonRewards(userData.salonId);
   }, [userData?.salonId]);
 
   // Dropdown options — walk-in sentinel first
@@ -457,9 +464,21 @@ export default function SessionsPage() {
 
   const handleProcessPayment = async () => {
     if (!activeSessionId) return;
-    const validEntries = paymentEntries.filter((e) => e.amount > 0);
-    if (validEntries.length === 0) {
+    const rawEntries = paymentEntries.filter((e) => e.amount > 0);
+    if (rawEntries.length === 0) {
       error(ES.messages.fillRequiredFields);
+      return;
+    }
+    // For single-entry cash: cap recorded amount at remaining (excess is change, not overpayment)
+    const validEntries = rawEntries.map((e) =>
+      rawEntries.length === 1 && e.method === 'cash' && e.amount > sessionRemainingForPayment
+        ? { ...e, amount: sessionRemainingForPayment }
+        : e
+    );
+    // Block overpayment only — partial payments are allowed and remain as pending balance
+    const entriesTotal = validEntries.reduce((sum, e) => sum + e.amount, 0);
+    if (entriesTotal - sessionRemainingForPayment > 0.01) {
+      error(`${ES.payments.exceedsBalance}: ${fmtBs(entriesTotal - sessionRemainingForPayment)}`);
       return;
     }
     setLoading(true);
@@ -491,7 +510,13 @@ export default function SessionsPage() {
       success(ES.sessions.sessionClosed);
 
     } catch (err) {
-      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+      const msg = err instanceof Error ? err.message : ES.messages.operationFailed;
+      if (msg.startsWith('SESSION_UNPAID_BALANCE:')) {
+        const bal = msg.split(':')[1];
+        error(`${ES.sessions.cannotCloseWithBalance} Bs. ${bal}`);
+      } else {
+        error(msg);
+      }
     } finally {
       setLoadingSessionId(null);
     }
@@ -591,7 +616,8 @@ export default function SessionsPage() {
   };
 
   const userRole = userData?.role || 'staff';
-  const canCancel = userRole === 'admin'; // only admin can void/cancel sessions
+  const canCancel = userRole === 'admin'; // only admin can void/cancel (Anular) sessions
+  const canEditCompleted = userRole === 'admin' || userRole === 'manager'; // admin + manager can add service/reopen/notes on completed
   const activeSessions = sessions?.filter((s) => s.status === 'active') || [];
   const completedSessions = (sessions?.filter((s) => s.status === 'completed') || [])
     .sort((a, b) => toDate(b.endTime ?? b.startTime).getTime() - toDate(a.endTime ?? a.startTime).getTime());
@@ -704,9 +730,9 @@ export default function SessionsPage() {
                 // Default: all services selected
                 const allSvcIds = (session.services || []).map((s) => s.id);
                 setSelectedPaymentServiceIds(allSvcIds);
-                const paid = (session.payments || []).reduce((sum, p) => sum + p.amount, 0);
-                const totalFromServices = (session.services || []).reduce((sum, s) => sum + s.price, 0);  // ← NUEVA LÍNEA
-                const remaining = totalFromServices - paid;  // ← LÍNEA MODIFICADA
+                const paid = (session.payments || []).filter((p) => p.status === 'completed').reduce((sum, p) => sum + p.amount, 0);
+                const totalFromServices = (session.services || []).reduce((sum, s) => sum + s.price, 0);
+                const remaining = Math.max(0, totalFromServices - paid);
                 setSessionRemainingForPayment(remaining);
                 setPaymentEntries([{ amount: remaining, method: 'cash', payerNote: '', amountGiven: 0 }]);
                 setShowAdvancedPayment(false);
@@ -779,8 +805,8 @@ export default function SessionsPage() {
                       <p className="text-xs text-gray-500 mt-2 italic">{session.notes}</p>
                     )}
 
-                    {/* Edit actions (admin/manager only) */}
-                    {canCancel && (
+                    {/* Edit actions (admin + manager) */}
+                    {canEditCompleted && (
                       <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
                         <Button size="sm" variant="secondary" onClick={async () => {
                           setActiveSessionId(session.id);
@@ -829,6 +855,14 @@ export default function SessionsPage() {
                         <Button size="sm" variant="ghost" onClick={() => setReopenSessionId(session.id)}>
                           {ES.sessions.reopenSession}
                         </Button>
+                        {canCancel && (
+                          <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => {
+                            setCancelSessionId(session.id);
+                            setCancelReason('');
+                          }}>
+                            {ES.sessions.cancelSession}
+                          </Button>
+                        )}
                       </div>
                     )}
                     <div className="flex flex-wrap gap-2 mt-2">
@@ -1088,11 +1122,15 @@ export default function SessionsPage() {
                 <p className="text-xs text-gray-500">{ES.sessions.noMaterials}</p>
               ) : (
                 <div className="space-y-3">
-                  {materials.map((mat, idx) => (
+                  {materials.map((mat, idx) => {
+                    // Filter out products already selected in other rows
+                    const usedIds = materials.filter((_, i) => i !== idx).map((m) => m.productId).filter(Boolean);
+                    const filteredOptions = productOptions.filter((o) => !usedIds.includes(o.value));
+                    return (
                     <div key={idx} className="border border-gray-200 rounded-lg p-3 space-y-2">
                       <SearchableSelect
                         label=""
-                        options={productOptions}
+                        options={filteredOptions}
                         value={mat.productId}
                         onChange={(v) => handleMaterialProductSelect(idx, v)}
                         placeholder={ES.material.product}
@@ -1128,7 +1166,8 @@ export default function SessionsPage() {
                         </button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1195,7 +1234,7 @@ export default function SessionsPage() {
                     // Recalculate amount
                     const totalFromServices = (paymentSessionRef.services || []).reduce((sum, s) => sum + s.price, 0);  // ← NUEVA LÍNEA
                     const selectedTotal = allSelected ? 0 : totalFromServices;  // ← LÍNEA MODIFICADA
-                    const paid = (paymentSessionRef.payments || []).reduce((sum, p) => sum + p.amount, 0);
+                    const paid = (paymentSessionRef.payments || []).filter((p) => p.status === 'completed').reduce((sum, p) => sum + p.amount, 0);
                     const remaining = Math.max(0, selectedTotal - paid);
                     setSessionRemainingForPayment(remaining);
                     setPaymentEntries([{ amount: remaining, method: paymentEntries[0]?.method || 'cash', payerNote: '', amountGiven: 0 }]);
@@ -1233,7 +1272,7 @@ export default function SessionsPage() {
                           const allSvcs = paymentSessionRef.services || [];
                           const selectedSvcs = allSvcs.filter((s) => newIds.includes(s.id));
                           const selectedSvcTotal = selectedSvcs.reduce((sum, s) => sum + s.price, 0);  // ← LÍNEA MODIFICADA
-                          const paid = (paymentSessionRef.payments || []).reduce((sum, p) => sum + p.amount, 0);
+                          const paid = (paymentSessionRef.payments || []).filter((p) => p.status === 'completed').reduce((sum, p) => sum + p.amount, 0);
                           const remaining = Math.max(0, selectedSvcTotal - paid);
                           setSessionRemainingForPayment(remaining);
                           setPaymentEntries([{ amount: remaining, method: paymentEntries[0]?.method || 'cash', payerNote: '', amountGiven: 0 }]);
@@ -1301,18 +1340,82 @@ export default function SessionsPage() {
             );
           })()}
 
-          {/* Loyalty points indicator */}
+          {/* Loyalty rewards — inline apply */}
           {(() => {
             const clientForLoyalty = paymentSessionRef ? clients?.find((c) => c.id === paymentSessionRef.clientId) : null;
-            const pts = (clientForLoyalty as { loyaltyPoints?: number } | null)?.loyaltyPoints || 0;
-            if (pts <= 0) return null;
+            const pts = clientForLoyalty?.loyaltyPoints || 0;
+            if (!clientForLoyalty || pts <= 0) return null;
+            const affordable = (loyaltyRewards || []).filter((r) => r.pointsCost <= pts);
             return (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between">
-                <div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
                   <p className="text-xs text-amber-600 font-medium">{ES.loyalty.points}</p>
                   <p className="text-lg font-bold text-amber-700">{pts} pts</p>
                 </div>
-                <p className="text-xs text-amber-600 max-w-[140px] text-right">{ES.loyalty.redeemFromClients}</p>
+                {affordable.length === 0 ? (
+                  <p className="text-xs text-amber-600">{ES.loyalty.noAffordableRewards}</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {affordable.map((reward) => {
+                      const discountAmount = reward.type === 'discount'
+                        ? Math.min(sessionRemainingForPayment, Math.round(sessionRemainingForPayment * reward.value) / 100)
+                        : Math.min(sessionRemainingForPayment, reward.value);
+                      return (
+                        <div key={reward.id} className="flex items-center justify-between bg-white rounded-lg p-2 border border-amber-200">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{reward.name}</p>
+                            <p className="text-xs text-gray-500">{reward.pointsCost} pts · {reward.type === 'discount' ? `${reward.value}%` : fmtBs(reward.value)}</p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={loading || discountAmount <= 0}
+                            onClick={async () => {
+                              if (!paymentSessionRef || !activeSessionId || !userData?.salonId) return;
+                              setLoading(true);
+                              try {
+                                await ClientRepository.updateClient(clientForLoyalty.id, {
+                                  loyaltyPoints: pts - reward.pointsCost,
+                                });
+                                await LoyaltyRepository.addTransaction({
+                                  salonId: userData.salonId,
+                                  clientId: clientForLoyalty.id,
+                                  type: 'redeemed',
+                                  points: reward.pointsCost,
+                                  description: reward.name,
+                                  sessionId: activeSessionId,
+                                  rewardId: reward.id,
+                                });
+                                await SessionService.processPayment({
+                                  sessionId: activeSessionId,
+                                  amount: discountAmount,
+                                  method: 'credit',
+                                  serviceIds: selectedPaymentServiceIds.length > 0 ? selectedPaymentServiceIds : undefined,
+                                });
+                                const newRemaining = Math.max(0, sessionRemainingForPayment - discountAmount);
+                                success(ES.loyalty.rewardApplied);
+                                refetchClients();
+                                if (newRemaining <= 0) {
+                                  setIsPaymentModalOpen(false);
+                                  setPaymentEntries([]);
+                                } else {
+                                  setSessionRemainingForPayment(newRemaining);
+                                  setPaymentEntries([{ amount: newRemaining, method: 'cash', payerNote: '', amountGiven: 0 }]);
+                                }
+                              } catch (err) {
+                                error(err instanceof Error ? err.message : ES.messages.operationFailed);
+                              } finally {
+                                setLoading(false);
+                              }
+                            }}
+                            className="ml-2 px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-semibold hover:bg-amber-700 disabled:bg-gray-300 shrink-0"
+                          >
+                            {ES.loyalty.applyReward}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -1325,6 +1428,8 @@ export default function SessionsPage() {
 
           {/* Payment entries */}
           {paymentEntries.map((entry, idx) => {
+            const isSingleCash = paymentEntries.length === 1 && entry.method === 'cash';
+            const singleCashChange = isSingleCash ? entry.amount - sessionRemainingForPayment : 0;
             const change = entry.method === 'cash' ? entry.amountGiven - entry.amount : 0;
             const methodLabels: Record<string, string> = {
               cash: `💵 ${ES.payments.cash}`,
@@ -1364,7 +1469,9 @@ export default function SessionsPage() {
 
                 {/* Amount — large, tappable */}
                 <div className="text-center">
-                  <label className="block text-xs text-gray-500 mb-1">{ES.payments.amount}</label>
+                  <label className="block text-xs text-gray-500 mb-1">
+                    {isSingleCash ? ES.payments.amountGiven : ES.payments.amount}
+                  </label>
                   <input
                     type="number"
                     value={entry.amount || ''}
@@ -1375,6 +1482,16 @@ export default function SessionsPage() {
                     }}
                     className="w-full text-center text-2xl font-bold border-b-2 border-gray-300 focus:border-blue-500 bg-transparent outline-none py-2"
                   />
+                  {isSingleCash && entry.amount > 0 && singleCashChange !== 0 && (
+                    <div className="mt-2">
+                      <span className="text-xs text-gray-500">
+                        {singleCashChange > 0 ? ES.payments.change : 'Falta'}
+                      </span>
+                      <p className={`text-2xl font-bold ${singleCashChange > 0 ? 'text-green-600' : 'text-orange-600'}`}>
+                        {fmtBs(Math.abs(singleCashChange))}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Payment method — large icon buttons */}
@@ -1400,8 +1517,8 @@ export default function SessionsPage() {
                   ))}
                 </div>
 
-                {/* Cash change calculator — yellow panel */}
-                {entry.method === 'cash' && (
+                {/* Cash change calculator — yellow panel (split mode only; single-cash uses inline display above) */}
+                {entry.method === 'cash' && !isSingleCash && (
                   <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
                     <label className="block text-xs text-yellow-700 mb-1">{ES.payments.amountGiven}</label>
                     <input
@@ -1522,11 +1639,17 @@ export default function SessionsPage() {
             <p className="text-sm text-gray-500 text-center py-2">{ES.sessions.noMaterials}</p>
           ) : (
             <div className="space-y-3">
-              {editMaterials.map((mat, idx) => (
+              {editMaterials.map((mat, idx) => {
+                // Filter out products already selected in other rows
+                const usedIds = editMaterials.filter((_, i) => i !== idx).map((m) => m.productId).filter(Boolean);
+                const editProductOptions = (products || [])
+                  .filter((p) => !usedIds.includes(p.id))
+                  .map((p) => ({ value: p.id, label: p.name, secondary: `${fmtBs(p.cost)} / ${p.unit || 'ud'}` }));
+                return (
                 <div key={idx} className="border border-gray-200 rounded-xl p-3 space-y-2">
                   <SearchableSelect
                     label=""
-                    options={(products || []).map((p) => ({ value: p.id, label: p.name, secondary: `${fmtBs(p.cost)} / ${p.unit || 'ud'}` }))}
+                    options={editProductOptions}
                     value={mat.productId}
                     onChange={(v) => {
                       const product = products?.find((p) => p.id === v);
@@ -1571,7 +1694,8 @@ export default function SessionsPage() {
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
           <button

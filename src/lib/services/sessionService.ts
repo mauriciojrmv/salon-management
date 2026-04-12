@@ -53,12 +53,16 @@ export class SessionService {
     // totalAmount = service prices only — materials are internal cost tracking, NOT charged to client
     const servicePrices = updatedServices.reduce((sum, s) => sum + s.price, 0);
 
+    // Adding a service to a completed session auto-reopens it so the new work can be processed
+    const reopen = session.status === 'completed';
+
     await SessionRepository.updateSession(data.sessionId, {
       services: updatedServices,
       materialsUsed: updatedSessionMaterials,
       totalAmount: servicePrices,
+      ...(reopen ? { status: 'active' } : {}),
     });
-    auditLog('SERVICE_ADDED', { sessionId: data.sessionId, serviceId: data.serviceId, serviceName: data.serviceName, price: data.price, materials: materials.length });
+    auditLog('SERVICE_ADDED', { sessionId: data.sessionId, serviceId: data.serviceId, serviceName: data.serviceName, price: data.price, materials: materials.length, reopened: reopen });
   }
 
   static async processPayment(data: ProcessPaymentRequest): Promise<void> {
@@ -100,6 +104,15 @@ export class SessionService {
     // totalAmount = service prices only — materials are internal cost tracking, NOT charged to client
     const servicePrices = (session.services || []).reduce((sum, s) => sum + s.price, 0);
     const totalAmount = servicePrices;
+
+    // Block close when there's an outstanding balance — session must be fully paid
+    const totalPaid = (session.payments || [])
+      .filter((p) => p.status === 'completed')
+      .reduce((sum, p) => sum + p.amount, 0);
+    const remaining = totalAmount - totalPaid;
+    if (remaining > 0.01) {
+      throw new Error(`SESSION_UNPAID_BALANCE:${remaining.toFixed(2)}`);
+    }
 
     // Guard: only award loyalty points once per session
     const alreadyAwarded = (session as unknown as Record<string, unknown>).loyaltyPointsAwarded === true;
@@ -146,6 +159,57 @@ export class SessionService {
     const session = await SessionRepository.getSession(sessionId);
     if (!session) throw new Error('Session not found');
     if (session.status === 'cancelled') throw new Error('Session already cancelled');
+
+    // Reverse loyalty activity on this session: refund redeemed points AND revoke earned points.
+    // Also reverse client stats if the session had been completed.
+    if (session.clientId) {
+      try {
+        const txs = await LoyaltyRepository.getClientTransactions(session.salonId, session.clientId);
+        const sessionTxs = txs.filter((t) => t.sessionId === sessionId);
+        const redeemedPoints = sessionTxs.filter((t) => t.type === 'redeemed').reduce((sum, t) => sum + t.points, 0);
+        const earnedPoints = sessionTxs.filter((t) => t.type === 'earned').reduce((sum, t) => sum + t.points, 0);
+        const netAdjustment = redeemedPoints - earnedPoints;
+        const client = await ClientRepository.getClient(session.clientId);
+        if (client) {
+          const updates: Record<string, unknown> = {};
+          if (netAdjustment !== 0) {
+            updates.loyaltyPoints = Math.max(0, (client.loyaltyPoints || 0) + netAdjustment);
+          }
+          // If session was completed, its close() had bumped totalSpent/totalSessions — reverse them
+          if (session.status === 'completed') {
+            updates.totalSpent = Math.max(0, (client.totalSpent || 0) - (session.totalAmount || 0));
+            updates.totalSessions = Math.max(0, (client.totalSessions || 0) - 1);
+          }
+          if (Object.keys(updates).length > 0) {
+            await ClientRepository.updateClient(session.clientId, updates);
+          }
+        }
+        if (netAdjustment !== 0) {
+          if (redeemedPoints > 0) {
+            await LoyaltyRepository.addTransaction({
+              salonId: session.salonId,
+              clientId: session.clientId,
+              type: 'earned',
+              points: redeemedPoints,
+              description: `Reembolso por anulación — Trabajo #${sessionId.slice(-6)}`,
+              sessionId,
+            });
+          }
+          if (earnedPoints > 0) {
+            await LoyaltyRepository.addTransaction({
+              salonId: session.salonId,
+              clientId: session.clientId,
+              type: 'redeemed',
+              points: earnedPoints,
+              description: `Reverso por anulación — Trabajo #${sessionId.slice(-6)}`,
+              sessionId,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to reverse loyalty on cancel:', err);
+      }
+    }
 
     // Restore stock for all materials used across all services
     const allMaterials = session.materialsUsed || [];
