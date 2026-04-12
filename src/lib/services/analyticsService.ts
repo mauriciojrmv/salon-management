@@ -9,6 +9,7 @@ import { DEFAULT_COMMISSION_RATE } from '@/lib/utils/helpers';
 
 export interface PayrollServiceDetail {
   date: string;
+  time: string;
   clientName: string;
   serviceName: string;
   price: number;
@@ -20,6 +21,7 @@ export interface PayrollServiceDetail {
 export interface PayrollStaffEntry {
   staffId: string;
   staffName: string;
+  staffPhone: string;
   servicesCompleted: number;
   revenue: number;
   materialCost: number;
@@ -261,6 +263,7 @@ export class AnalyticsService {
     ]);
 
     const staffNameMap = new Map(staffList.map(s => [s.id, `${s.firstName} ${s.lastName}`]));
+    const staffPhoneMap = new Map(staffList.map(s => [s.id, s.phone || '']));
     const clientNameMap = new Map(clients.map(c => [c.id, `${c.firstName} ${c.lastName}`]));
     const productCostMap = new Map(products.map(p => [p.id, p.cost]));
 
@@ -298,8 +301,17 @@ export class AnalyticsService {
             existing.revenue += service.price;
             existing.materialCost += matCost;
             existing.totalCommission += commission;
+            // Extract time from service startTime (Firestore Timestamp or Date)
+            let timeStr = '-';
+            try {
+              const st = service.startTime;
+              const d = st && typeof st === 'object' && 'toDate' in st ? (st as { toDate: () => Date }).toDate() : new Date(st as unknown as string);
+              timeStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'America/La_Paz' });
+            } catch { /* ignore */ }
+
             existing.details.push({
               date: session.date,
+              time: timeStr,
               clientName: clientNameMap.get(session.clientId) || '-',
               serviceName: service.serviceName,
               price: service.price,
@@ -319,6 +331,7 @@ export class AnalyticsService {
       .map(([staffId, data]) => ({
         staffId,
         staffName: staffNameMap.get(staffId) || staffId,
+        staffPhone: staffPhoneMap.get(staffId) || '',
         ...data,
       }))
       .sort((a, b) => b.totalCommission - a.totalCommission);

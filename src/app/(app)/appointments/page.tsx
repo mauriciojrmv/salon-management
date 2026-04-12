@@ -10,12 +10,14 @@ import { SearchableSelect } from '@/components/SearchableSelect';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
+import { useRealtime } from '@/hooks/useRealtime';
 import { useNotification } from '@/hooks/useNotification';
 import { AppointmentService } from '@/lib/services/appointmentService';
 import { SessionService } from '@/lib/services/sessionService';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
+import { firebaseConstraints } from '@/lib/firebase/db';
 import { Appointment } from '@/types/models';
 import { fmtBs, getBoliviaDate, fmtDate, whatsappUrl } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
@@ -38,10 +40,12 @@ export default function AppointmentsPage() {
   const [loading, setLoading] = useState(false);
   const [quickClient, setQuickClient] = useState({ firstName: '', lastName: '', phone: '' });
 
-  const { data: appointments, refetch } = useAsync(async () => {
-    if (!userData?.salonId) return [];
-    return AppointmentService.getSalonAppointments(userData.salonId, selectedDate);
-  }, [userData?.salonId, selectedDate]);
+  // Real-time appointments — syncs across admin/gerente/worker instantly
+  const appointmentConstraints = React.useMemo(() => [
+    firebaseConstraints.where('salonId', '==', userData?.salonId || ''),
+    firebaseConstraints.where('appointmentDate', '==', selectedDate),
+  ], [userData?.salonId, selectedDate]);
+  const { data: appointments } = useRealtime<Appointment>('appointments', appointmentConstraints, !!userData?.salonId, [userData?.salonId, selectedDate]);
 
   // Upcoming appointments for the next 14 days — used for date strip indicators
   const { data: upcomingAppointments } = useAsync(async () => {
@@ -216,7 +220,7 @@ export default function AppointmentsPage() {
         startTime: '09:00',
         endTime: '10:00',
       });
-      refetch();
+      // useRealtime auto-updates — no refetch needed
     } catch (err) {
       const msg = err instanceof Error && err.message === 'STAFF_DOUBLE_BOOKED'
         ? ES.appointments.staffDoubleBooked
@@ -231,7 +235,6 @@ export default function AppointmentsPage() {
     try {
       await AppointmentService.confirmAppointment(appointmentId);
       success(ES.appointments.confirmed2);
-      refetch();
     } catch (err) {
       error(err instanceof Error ? err.message : ES.appointments.confirmFailed);
     }
@@ -243,7 +246,6 @@ export default function AppointmentsPage() {
       await AppointmentService.updateAppointmentStatus(appointmentId, 'cancelled');
       success(ES.appointments.cancelled);
       setCancelApptId(null);
-      refetch();
       // Open WhatsApp cancellation notification to CLIENT only (staff sees it in-app)
       if (apt) {
         const client = clients?.find((c) => c.id === apt.clientId);
@@ -288,7 +290,6 @@ export default function AppointmentsPage() {
       // Mark appointment as completed
       await AppointmentService.updateAppointmentStatus(appointment.id, 'completed');
       success(ES.appointments.converted);
-      refetch();
     } catch (err) {
       error(err instanceof Error ? err.message : ES.appointments.convertFailed);
     } finally {
@@ -342,6 +343,31 @@ export default function AppointmentsPage() {
       label: '',
       render: (value, item) => (
         <div className="flex gap-2 flex-wrap">
+          {/* Worker confirmed → prompt admin to notify client via WA */}
+          {item.status === 'confirmed' && (() => {
+            const client = clients?.find((c) => c.id === item.clientId);
+            return client?.phone ? (
+              <Button size="sm" variant="primary" onClick={() => {
+                const svcNames = item.serviceIds?.map((id) => services?.find((s) => s.id === id)?.name).filter(Boolean).join(', ');
+                const msg = `Hola ${client.firstName}, su cita del ${fmtDate(item.appointmentDate)} a las ${item.startTime} ha sido confirmada${svcNames ? ` (${svcNames})` : ''}. ¡Le esperamos!`;
+                window.open(whatsappUrl(client.phone!, msg), '_blank');
+              }}>
+                📲 Avisar Cliente
+              </Button>
+            ) : null;
+          })()}
+          {/* Worker rejected → prompt admin to notify client via WA */}
+          {item.status === 'cancelled' && (item as Appointment & { cancellationReason?: string }).cancellationReason === 'Rechazado por personal' && (() => {
+            const client = clients?.find((c) => c.id === item.clientId);
+            return client?.phone ? (
+              <Button size="sm" variant="danger" onClick={() => {
+                const msg = `Hola ${client.firstName}, lamentablemente su cita del ${fmtDate(item.appointmentDate)} a las ${item.startTime} no puede ser atendida. Contáctenos para reagendar.`;
+                window.open(whatsappUrl(client.phone!, msg), '_blank');
+              }}>
+                📲 Avisar Cancelación
+              </Button>
+            ) : null;
+          })()}
           {item.status === 'pending' && (
             <Button size="sm" onClick={() => handleConfirmAppointment(value as string)}>
               {ES.appointments.confirm}

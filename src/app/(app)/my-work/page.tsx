@@ -77,7 +77,7 @@ export default function MyWorkPage() {
     return ClientRepository.getSalonClients(userData.salonId);
   }, [userData?.salonId]);
 
-  const { data: products } = useAsync(async () => {
+  const { data: products, refetch: refetchProducts } = useAsync(async () => {
     if (!userData?.salonId) return [];
     return ProductRepository.getSalonProducts(userData.salonId);
   }, [userData?.salonId]);
@@ -384,6 +384,7 @@ export default function MyWorkPage() {
       for (const nm of newMats) {
         await ProductRepository.updateStock(nm.productId, nm.quantity);
       }
+      refetchProducts(); // refresh local product stock cache
 
       success(ES.staff.materialAdded);
       setMaterialModal(null);
@@ -641,13 +642,16 @@ export default function MyWorkPage() {
             <p className="text-sm text-gray-500 text-center py-4">{ES.sessions.noMaterials}</p>
           ) : (
             <div className="space-y-3">
-              {materials.map((mat, idx) => (
+              {materials.map((mat, idx) => {
+                const usedIds = materials.filter((_, i) => i !== idx).map((m) => m.productId).filter(Boolean);
+                const filteredOptions = productOptions.filter((o) => !usedIds.includes(o.value));
+                return (
                 <div key={idx} className="border border-gray-200 rounded-xl p-3 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
                       <SearchableSelect
                         label=""
-                        options={productOptions}
+                        options={filteredOptions}
                         value={mat.productId}
                         onChange={(v) => handleMaterialProductSelect(idx, v)}
                         placeholder={ES.material.product}
@@ -703,7 +707,8 @@ export default function MyWorkPage() {
                     </>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

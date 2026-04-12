@@ -13,7 +13,7 @@ import { AnalyticsService, PayrollStaffEntry } from '@/lib/services/analyticsSer
 import { ExpenseRepository } from '@/lib/repositories/expenseRepository';
 import { PayrollPaymentRepository } from '@/lib/repositories/payrollPaymentRepository';
 import ES from '@/config/text.es';
-import { fmtBs, fmtDate, getBoliviaDate } from '@/lib/utils/helpers';
+import { fmtBs, fmtDate, getBoliviaDate, whatsappUrl } from '@/lib/utils/helpers';
 
 function PayrollCard({ entry, onRegisterPayment }: { entry: PayrollStaffEntry; onRegisterPayment: (entry: PayrollStaffEntry) => void }) {
   const isPaid = entry.totalCommission <= 0;
@@ -53,7 +53,7 @@ function PayrollCard({ entry, onRegisterPayment }: { entry: PayrollStaffEntry; o
           </div>
         </div>
 
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => setExpanded(!expanded)}
@@ -61,6 +61,21 @@ function PayrollCard({ entry, onRegisterPayment }: { entry: PayrollStaffEntry; o
           >
             {expanded ? ES.reports.collapseDetail : ES.reports.expandDetail} ({entry.details.length})
           </button>
+          {entry.staffPhone && (
+            <button
+              type="button"
+              onClick={() => {
+                const lines = entry.details
+                  .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+                  .map((d) => `${fmtDate(d.date)} ${d.time} · ${d.serviceName} · ${d.clientName} · ${fmtBs(d.commission)}`);
+                const msg = `📋 *Resumen de pagos — ${entry.staffName}*\n\n${lines.join('\n')}\n\n*Total: ${fmtBs(entry.totalCommission)}*`;
+                window.open(whatsappUrl(entry.staffPhone, msg), '_blank');
+              }}
+              className="py-2 px-3 text-sm text-green-600 font-medium hover:bg-green-50 rounded-lg transition-colors"
+            >
+              📲 WhatsApp
+            </button>
+          )}
           {isPaid ? (
             <span className="flex-1 py-2 text-sm text-center text-green-700 bg-green-50 rounded-lg font-semibold">{ES.reports.paid}</span>
           ) : (
@@ -77,6 +92,7 @@ function PayrollCard({ entry, onRegisterPayment }: { entry: PayrollStaffEntry; o
                 <thead>
                   <tr className="text-left text-xs text-gray-500 uppercase tracking-wide">
                     <th className="pb-2 pr-3">{ES.reports.date}</th>
+                    <th className="pb-2 pr-3">{ES.appointments.time}</th>
                     <th className="pb-2 pr-3">{ES.reports.client}</th>
                     <th className="pb-2 pr-3">{ES.reports.service}</th>
                     <th className="pb-2 pr-3 text-right">{ES.reports.price}</th>
@@ -86,10 +102,11 @@ function PayrollCard({ entry, onRegisterPayment }: { entry: PayrollStaffEntry; o
                 </thead>
                 <tbody>
                   {entry.details
-                    .sort((a, b) => a.date.localeCompare(b.date))
+                    .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
                     .map((d, i) => (
                     <tr key={i} className="border-t border-gray-100">
                       <td className="py-2 pr-3 text-gray-600">{fmtDate(d.date)}</td>
+                      <td className="py-2 pr-3 text-gray-500">{d.time}</td>
                       <td className="py-2 pr-3 text-gray-900">{d.clientName}</td>
                       <td className="py-2 pr-3 text-gray-900">{d.serviceName}</td>
                       <td className="py-2 pr-3 text-right">{fmtBs(d.price)}</td>
@@ -102,7 +119,7 @@ function PayrollCard({ entry, onRegisterPayment }: { entry: PayrollStaffEntry; o
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-300 font-semibold">
-                    <td colSpan={3} className="py-2 text-gray-900">{ES.payments.total}</td>
+                    <td colSpan={4} className="py-2 text-gray-900">{ES.payments.total}</td>
                     <td className="py-2 text-right">{fmtBs(entry.revenue)}</td>
                     <td className="py-2 text-right text-red-600">-{fmtBs(entry.materialCost)}</td>
                     <td className="py-2 text-right text-green-600">{fmtBs(entry.totalCommission)}</td>

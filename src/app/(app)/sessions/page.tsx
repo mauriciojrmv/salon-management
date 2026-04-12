@@ -121,7 +121,7 @@ export default function SessionsPage() {
     return StaffRepository.getSalonStaff(userData.salonId);
   }, [userData?.salonId]);
 
-  const { data: products } = useAsync(async () => {
+  const { data: products, refetch: refetchProducts } = useAsync(async () => {
     if (!userData?.salonId) return [];
     return ProductRepository.getSalonProducts(userData.salonId);
   }, [userData?.salonId]);
@@ -280,7 +280,7 @@ export default function SessionsPage() {
 
       const oldSvc = session.services?.find((s) => s.id === editMaterialModal.serviceId);
       const oldMats = oldSvc?.materialsUsed || [];
-      const newMats = editMaterials.filter((m) => m.productId);
+      const newMats = editMaterials.filter((m) => m.productId && m.quantity > 0);
 
       // Validate stock BEFORE saving — account for restoring old stock first
       for (const nm of newMats) {
@@ -323,6 +323,7 @@ export default function SessionsPage() {
       for (const nm of newMats) {
         await ProductRepository.updateStock(nm.productId, nm.quantity);
       }
+      refetchProducts(); // refresh local product stock cache
 
       success(ES.actions.success);
       setEditMaterialModal(null);
@@ -448,6 +449,7 @@ export default function SessionsPage() {
 
       if (stockUpdates.length > 0) {
         await batchUpdate(stockUpdates);
+        refetchProducts(); // refresh local product stock cache
       }
 
       success(ES.sessions.serviceAdded);

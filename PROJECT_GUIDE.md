@@ -499,6 +499,39 @@ New issues discovered during comprehensive testing of P7 fixes across Admin, Ger
 - [x] **Dashboard "Atenciones de Hoy" cards should show service time** — Fixed 2026-04-12: Added "Hora" column to today's sessions table showing `startTime` formatted with Bolivia timezone.
 - [x] **Reports analytics review needed** — Fixed 2026-04-12: Added total sessions count + average ticket card, reorganized summary to 3-column grid, added Staff Payroll Summary section showing per-staff commission breakdown (data was fetched but never displayed).
 
+### P9 — Manual Testing Round P8 Findings (2026-04-12)
+
+New issues discovered during manual verification of P8 fixes. Includes bugs, sync issues, and feature requests from real-user testing.
+
+#### P9-HIGH — Real-Time Sync & Data Bugs
+
+- [x] **Appointment status changes not syncing across roles** — Fixed 2026-04-12: Converted both `appointments/page.tsx` and `my-appointments/page.tsx` from `useAsync` to `useRealtime` with Firestore `onSnapshot`. Removed all `refetch()` calls — data auto-updates across admin/gerente/worker in real-time. (T1.3, T1.4, T2.5)
+- [x] **Admin/Gerente needs WA notification prompt after worker accepts/rejects** — Fixed 2026-04-12: Added "📲 Avisar Cliente" button on confirmed appointments and "📲 Avisar Cancelación" button on appointments cancelled by worker (cancellationReason = 'Rechazado por personal'). Buttons open wa.me to client with appropriate Spanish message. (T1.3, T1.4)
+- [x] **Material duplicate filtering not working for worker role** — Fixed 2026-04-12: Added `usedIds` + `filteredOptions` pattern to `my-work/page.tsx` material modal, matching the sessions page implementation. Products already selected in other rows are excluded from each dropdown. (T3.2)
+- [x] **Stock increases instead of reducing when editing materials** — Fixed 2026-04-12: Root cause was stale local `products` cache — `useAsync` one-shot fetch didn't refresh after stock operations. Added `refetchProducts()` calls after `batchUpdate` (add-service) and after restore/deduct cycle (edit-materials) in both `sessions/page.tsx` and `my-work/page.tsx`. Also added `quantity > 0` filter to `editMaterials` to prevent zero-quantity rows from causing net stock increase. (T3.4)
+- [x] **Manager cannot view past sessions (Atenciones)** — Verified 2026-04-12: Already fixed in P7 — `useRealtime` deps array `[userData?.salonId, selectedDate]` correctly retriggers subscription on date change. No role restriction on the query. (B1)
+- [x] **Staff "Mis Ganancias" shows no data for past dates** — Verified 2026-04-12: Already fixed in P7 — `my-earnings/page.tsx` uses `useRealtime` with `[userData?.salonId, selectedDate]` deps. (B2)
+- [x] **Inventory "Stock Bajo" badge doesn't clear after stock edit** — Verified 2026-04-12: Already fixed in P7 — `lowStockProducts` is derived from `products.filter()` on the same `productsData` source, recomputes on `refetch()`. (B3)
+
+#### P9-MEDIUM — UX & Format Improvements
+
+- [x] **Date filter inputs use browser-native mm/dd/yy format** — Documented 2026-04-12: Browser `<input type="date">` format is controlled by OS locale, not configurable via HTML. Current solution: `fmtDate()` caption (10px gray) below each date input shows dd/mm/yyyy interpretation. A custom date picker would be a future enhancement. (T4 note)
+
+#### P9-MEDIUM — Feature: Worker Payment Reports
+
+- [x] **Worker payment report with date/time detail** — Fixed 2026-04-12: Added `time` field to `PayrollServiceDetail` interface, populated from service `startTime` (Bolivia timezone). Pagos page detail table now shows Hora column with HH:MM format, sorted by date+time. (T7 note)
+- [x] **Worker payment report shareable via WhatsApp** — Fixed 2026-04-12: Added "📲 WhatsApp" button on each PayrollCard. Formats the report as a plain-text message with date, time, service, client, and commission per line, plus bold total. Opens wa.me with the worker's phone number. Added `staffPhone` field to `PayrollStaffEntry`. (T7 note)
+- [x] **Payroll page: exclude already-paid services from new period totals** — Verified 2026-04-12: Already implemented in P7 — `AnalyticsService.getStaffPayroll()` fetches `PayrollPaymentRepository.getPaidServiceRefs()` and skips `sessionId__serviceItemId__staffId` combos that have been paid. (F4)
+
+#### P9-LOW — Feature Requests (from testing)
+
+- [x] **"Aplicar Recompensa" button directly in payment modal** — Verified 2026-04-12: Already implemented in P7 — Payment modal loads `LoyaltyRepository.getSalonRewards()` and renders affordable rewards with "Aplicar" buttons that deduct points and process credit payment. (F1)
+- [x] **"Anular" button on completed sessions (admin only)** — Verified 2026-04-12: Already implemented in P7 — `canCancel` (admin-only) renders "Anular" in the completed sessions edit actions row at line 858. (F2)
+- [x] **"Agregar Servicio" + "Reabrir Atención" for Manager role** — Verified 2026-04-12: Already implemented in P7 — `canEditCompleted = admin || manager` at line 620 gates all completed-session edit actions including add service and reopen. (F3)
+- [x] **Only Admin can delete products and services** — Verified 2026-04-12: Already implemented — inventory:182 and services:168 both gate delete button with `userData?.role === 'admin'`. (F5)
+- [ ] **Phase 2 WhatsApp: auto-notification to worker on appointment create/edit** — Requires WA Business API integration. (F6, future)
+- [ ] **Phase 2 WhatsApp: 2-hour reminder to client and worker** — Requires Cloud Function + WA Business API. (F7, future)
+
 ### P3 — LOW (future hardening)
 
 - [x] **No confirmation dialogs for delete actions** — Fixed 2026-03-28: All `window.confirm()` calls replaced with custom `Modal` confirmations with Spanish buttons. Zero browser confirm dialogs remain.
@@ -713,8 +746,23 @@ Full system currency conversion from USD ($) to Bolivianos (Bs.). `CURRENCY_SYMB
 ### Phase 6A (DONE) - Mobile UX Hardening
 13 of 15 P1.6 issues resolved. Key fixes: `Table.tsx` mobile card layout, SessionCard 2-col button grid with destructive separation, all `window.confirm()` replaced with custom Spanish modals (9 files), payment modal "Opciones avanzadas" toggle, `Input.tsx` auto-select on focus, `SearchableSelect` `max-h-[60vh]`, `Modal` 44px close button, Toast bottom-center on mobile, sessions empty-state CTA, dashboard Hoy/Ayer shortcuts, Lucide icons in sidebar (14 items), service left-border status colors. 2 items deferred: loading feedback on card buttons, floating "Nuevo Trabajo" button.
 
-### Phase 6B - Growth Features (Remaining)
-> **Scope**: Online booking widget, WhatsApp reminders. See **Section 8** for future items.
+### Phase 6B (DONE) - Production Hardening Round 2
+Login error handling, client search bar, loyalty point redemption UX fix, client history on clients page, salon switcher visibility, FAB for new session on mobile. All P1.7/P2.7 issues resolved.
+
+### Phase 7 (DONE) - Commission/Cost Fixes + UX Improvements
+Commission formula corrected to `(price - materialCost) * rate%`. Material cost now uses buy price (`product.cost`) not sell price. Staff edit/assign after service creation. Product sales UX with category filter and search. Dashboard daily expenses and net balance. Modal footer prop for sticky action buttons. Client defaults to walk-in. Sales with client selection and loyalty points.
+
+### Phase 8A (DONE) - Manual Testing Round 3 (P7)
+Partial payment validation, payroll payment tracking via `payrollPayments` collection, gerente completed session permissions, `useRealtime` deps array fix, appointment end-time auto-calculation, WhatsApp flow redesign (3-channel model), appointment day indicators, date format captions, inventory categories expansion, service categories expansion.
+
+### Phase 8B (DONE) - Manual Testing Round P8
+WhatsApp flow implementation (salon.whatsappNumber field, worker→salon WA messages), material duplicate filtering, date format fixes, dashboard session time column, stock refresh for workers, reports analytics enhancement.
+
+### Phase 9 (DONE) - P9 Bug Fixes & Worker Payment Reports
+Appointments converted to real-time sync (`useRealtime`) across all roles. Admin WA notification prompts after worker accepts/rejects. Material duplicate filtering for worker role. Stock cache refresh after edit operations. Worker payment report with date/time detail and WhatsApp sharing. Verified B1-B3 already fixed in P7.
+
+### Future - Growth Features
+> **Scope**: Online booking widget, WhatsApp Business API integration (automated reminders, 2-hour alerts), Cloud Functions for backend tasks. See **Section 8** for future items.
 
 ---
 
@@ -739,10 +787,13 @@ src/
       reports/page.tsx     # Analytics, profitability, staff performance
       users/page.tsx       # Admin-only user management (admin/manager/staff creation)
       my-work/page.tsx     # Staff dashboard (own services, self-assign, materials)
+      my-earnings/page.tsx # Staff personal commission breakdown
+      my-appointments/page.tsx # Staff appointment view with accept/reject
       salons/page.tsx      # Multi-location salon management (admin only)
       sales/page.tsx       # Retail product sales POS
       expenses/page.tsx    # Expense tracking CRUD with categories
       rewards/page.tsx     # Loyalty rewards management (admin only)
+      pagos/page.tsx       # Payroll payment tracking (in development)
   components/
     index.ts               # Barrel exports
     Button.tsx, Input.tsx, Select.tsx, Card.tsx,
@@ -759,7 +810,7 @@ src/
                   staffRepository.ts, productRepository.ts,
                   sessionRepository.ts, salonRepository.ts,
                   retailSaleRepository.ts, expenseRepository.ts,
-                  loyaltyRepository.ts
+                  loyaltyRepository.ts, payrollPaymentRepository.ts
     services/index.ts, sessionService.ts, appointmentService.ts,
              inventoryService.ts, analyticsService.ts,
              commissionService.ts
@@ -781,4 +832,4 @@ src/
 
 ---
 
-*Last updated: 2026-03-30 | All phases through 6A done. P0/P1.7/P2.7/P3.7 all resolved. Staff flow has dedicated pages: /my-work, /my-earnings, /my-appointments. P4 added from engineering + UX + end-user review (35–70 age target). Manual testing round 2 in progress. See Section 8 for full issue tracker.*
+*Last updated: 2026-04-12 | All phases through 9 done. P0–P9 all resolved (except F6/F7 future WA API items). Appointments now use real-time sync. Worker payment reports with WA sharing. Material stock bugs fixed. See Section 8 for full issue tracker.*

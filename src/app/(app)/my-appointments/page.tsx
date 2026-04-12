@@ -5,12 +5,14 @@ import { Card, CardBody } from '@/components/Card';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
+import { useRealtime } from '@/hooks/useRealtime';
 import { useNotification } from '@/hooks/useNotification';
 import { AppointmentService } from '@/lib/services/appointmentService';
 import { SessionService } from '@/lib/services/sessionService';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { SalonRepository } from '@/lib/repositories/salonRepository';
+import { firebaseConstraints } from '@/lib/firebase/db';
 import type { Appointment } from '@/types/models';
 import { getBoliviaDate, fmtDate, whatsappUrl } from '@/lib/utils/helpers';
 import { useRouter } from 'next/navigation';
@@ -42,10 +44,14 @@ export default function MyAppointmentsPage() {
   const today = useMemo(() => getBoliviaDate(), []);
   const [selectedDate, setSelectedDate] = useState<string>(today);
 
-  const { data: appointments, loading, refetch } = useAsync(async () => {
-    if (!userData?.salonId || !staffId) return [];
-    return AppointmentService.getStaffAppointments(userData.salonId, staffId, selectedDate);
-  }, [userData?.salonId, staffId, selectedDate]);
+  // Real-time appointments — syncs across admin/gerente/worker instantly
+  const appointmentConstraints = useMemo(() => [
+    firebaseConstraints.where('salonId', '==', userData?.salonId || ''),
+    firebaseConstraints.where('staffId', '==', staffId),
+    firebaseConstraints.where('appointmentDate', '==', selectedDate),
+  ], [userData?.salonId, staffId, selectedDate]);
+  const { data: allAppointments, loading } = useRealtime<Appointment>('appointments', appointmentConstraints, !!(userData?.salonId && staffId), [userData?.salonId, staffId, selectedDate]);
+  const appointments = allAppointments;
 
   const { data: salon } = useAsync(async () => {
     if (!userData?.salonId) return null;
@@ -105,7 +111,6 @@ export default function MyAppointmentsPage() {
     try {
       await AppointmentService.updateAppointmentStatus(apt.id, 'confirmed');
       success(ES.appointments.confirmed);
-      refetch();
       // Worker notifies SALON (not client) via WhatsApp
       const clientName = getClientName(apt.clientId);
       const svcNames = getServiceNames(apt.serviceIds || []);
@@ -126,7 +131,6 @@ export default function MyAppointmentsPage() {
         cancellationReason: 'Rechazado por personal',
       });
       success(ES.appointments.declined);
-      refetch();
       // Worker notifies SALON (not client) via WhatsApp — admin will handle client communication
       const clientName = getClientName(apt.clientId);
       const waNumber = salon?.whatsappNumber || salon?.phone;
