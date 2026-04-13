@@ -11,9 +11,10 @@ import { useNotification } from '@/hooks/useNotification';
 import { Button } from '@/components/Button';
 import { AnalyticsService, PayrollStaffEntry } from '@/lib/services/analyticsService';
 import { ExpenseRepository } from '@/lib/repositories/expenseRepository';
-import { PayrollPaymentRepository } from '@/lib/repositories/payrollPaymentRepository';
+import { PayrollPaymentRepository, PayrollPaymentRecord } from '@/lib/repositories/payrollPaymentRepository';
+import { StaffRepository } from '@/lib/repositories/staffRepository';
 import ES from '@/config/text.es';
-import { fmtBs, fmtDate, getBoliviaDate, whatsappUrl } from '@/lib/utils/helpers';
+import { fmtBs, fmtDate, getBoliviaDate, whatsappUrl, toDate } from '@/lib/utils/helpers';
 
 function PayrollCard({ entry, onRegisterPayment }: { entry: PayrollStaffEntry; onRegisterPayment: (entry: PayrollStaffEntry) => void }) {
   const isPaid = entry.totalCommission <= 0;
@@ -157,6 +158,23 @@ export default function PagosPage() {
 
   const totalPayroll = payroll?.reduce((sum, s) => sum + s.totalCommission, 0) || 0;
 
+  // Payment history
+  const { data: paymentHistory, loading: historyLoading } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return PayrollPaymentRepository.getSalonPayments(userData.salonId);
+  }, [userData?.salonId, payrollRefreshKey]);
+
+  // Staff phone lookup for WA sharing on history items
+  const { data: staffList } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return StaffRepository.getSalonStaff(userData.salonId);
+  }, [userData?.salonId]);
+
+  const getStaffPhone = (staffId: string) => {
+    const s = staffList?.find((x) => x.id === staffId);
+    return s?.phone || '';
+  };
+
   const handleRegisterPayment = async () => {
     if (!paymentEntry || !userData?.salonId) return;
     setPaymentLoading(true);
@@ -276,6 +294,67 @@ export default function PagosPage() {
           </div>
         )}
       </Modal>
+
+      {/* Payment History */}
+      <Card>
+        <CardHeader>
+          <h2 className="text-xl font-semibold text-gray-900">{ES.reports.paymentHistory}</h2>
+          <p className="text-sm text-gray-500 mt-1">{ES.reports.paymentHistorySubtitle}</p>
+        </CardHeader>
+      </Card>
+
+      {historyLoading ? (
+        <p className="text-center text-gray-500 py-4">{ES.actions.loading}</p>
+      ) : !paymentHistory || paymentHistory.length === 0 ? (
+        <Card>
+          <CardBody>
+            <p className="text-center text-gray-500 py-4">{ES.reports.noPaymentHistory}</p>
+          </CardBody>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {paymentHistory.map((payment: PayrollPaymentRecord) => {
+            const phone = getStaffPhone(payment.staffId);
+            const paidDate = (() => {
+              try { return toDate(payment.paidAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/La_Paz' }); }
+              catch { return '-'; }
+            })();
+            const serviceCount = (payment.paidSessionServiceIds || []).length;
+            return (
+              <Card key={payment.id}>
+                <CardBody>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-900">{payment.staffName}</p>
+                      <p className="text-sm text-gray-500">
+                        {ES.reports.paidOn} {paidDate} · {serviceCount} {ES.reports.servicesIncluded}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {ES.reports.periodLabel}: {fmtDate(payment.periodStart)} – {fmtDate(payment.periodEnd)}
+                      </p>
+                    </div>
+                    <div className="text-right flex flex-col items-end gap-2">
+                      <p className="text-xl font-bold text-green-600">{fmtBs(payment.amount)}</p>
+                      {phone && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const msg = `✅ *Comprobante de Pago*\n\n*Trabajador:* ${payment.staffName}\n*Monto:* ${fmtBs(payment.amount)}\n*Período:* ${fmtDate(payment.periodStart)} – ${fmtDate(payment.periodEnd)}\n*Servicios:* ${serviceCount}\n*Fecha de pago:* ${paidDate}\n\n_Pago registrado en sistema._`;
+                            window.open(whatsappUrl(phone, msg), '_blank');
+                          }}
+                          className="text-xs px-3 py-1.5 text-green-600 font-medium hover:bg-green-50 rounded-lg transition-colors"
+                        >
+                          📲 {ES.reports.shareReceipt}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

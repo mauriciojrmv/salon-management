@@ -435,6 +435,13 @@ export const ES = {
     paymentRegistered: 'Pago registrado en gastos.',
     paid: 'Pagado',
     payrollPayment: 'Pago de nómina',
+    paymentHistory: 'Historial de Pagos',
+    paymentHistorySubtitle: 'Pagos registrados a trabajadores',
+    noPaymentHistory: 'Sin pagos registrados',
+    paidOn: 'Pagado el',
+    periodLabel: 'Período',
+    servicesIncluded: 'servicios incluidos',
+    shareReceipt: 'Comprobante WhatsApp',
   },
 
   // Clients
