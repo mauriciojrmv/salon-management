@@ -1129,44 +1129,63 @@ export default function SessionsPage() {
                     const usedIds = materials.filter((_, i) => i !== idx).map((m) => m.productId).filter(Boolean);
                     const filteredOptions = productOptions.filter((o) => !usedIds.includes(o.value));
                     return (
-                    <div key={idx} className="border border-gray-200 rounded-lg p-3 space-y-2">
-                      <SearchableSelect
-                        label=""
-                        options={filteredOptions}
-                        value={mat.productId}
-                        onChange={(v) => handleMaterialProductSelect(idx, v)}
-                        placeholder={ES.material.product}
-                      />
-                      {mat.productId && mat.maxStock > 0 && (
-                        <p className="text-xs text-gray-400">Stock: {mat.maxStock} {mat.unit}</p>
-                      )}
-                      <div className="flex gap-3 items-end">
+                    <div key={idx} className="border border-gray-200 rounded-xl p-3 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
-                          <Input
-                            label={ES.sessions.quantity}
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            max={mat.maxStock || undefined}
-                            value={mat.quantity}
-                            onChange={(e) => handleMaterialQuantityChange(idx, parseFloat(e.target.value) || 0)}
+                          <SearchableSelect
+                            label=""
+                            options={filteredOptions}
+                            value={mat.productId}
+                            onChange={(v) => handleMaterialProductSelect(idx, v)}
+                            placeholder={ES.material.product}
                           />
                         </div>
-                        {mat.unit && (
-                          <span className="text-sm text-gray-500 pb-3">{mat.unit}</span>
-                        )}
-                        <div className="text-right pb-3">
-                          <p className="text-xs text-gray-500">{fmtBs(mat.pricePerUnit)}/{mat.unit}</p>
-                          <p className="text-sm font-semibold">{fmtBs(mat.totalPrice)}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveMaterial(idx)}
-                          className="text-red-500 hover:text-red-700 text-xs pb-3"
-                        >
-                          {ES.sessions.removeMaterial}
+                        <button type="button" onClick={() => handleRemoveMaterial(idx)} className="text-red-400 hover:text-red-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-red-50 shrink-0 mt-1">
+                          ✕
                         </button>
                       </div>
+
+                      {mat.productId && (
+                        <>
+                          <div className="flex items-center justify-between text-xs text-gray-400">
+                            <span>Stock: {mat.maxStock} {mat.unit}</span>
+                            <span>{fmtBs(mat.pricePerUnit)}/{mat.unit}</span>
+                          </div>
+
+                          <div className="flex items-center justify-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handleMaterialQuantityChange(idx, mat.quantity - (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.5))}
+                              disabled={mat.quantity <= 0}
+                              className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-xl font-bold text-gray-700 flex items-center justify-center transition-colors"
+                            >
+                              −
+                            </button>
+                            <div className="text-center min-w-[80px]">
+                              <input
+                                type="number"
+                                value={mat.quantity}
+                                onChange={(e) => handleMaterialQuantityChange(idx, parseFloat(e.target.value) || 0)}
+                                step="0.01"
+                                min="0"
+                                max={mat.maxStock}
+                                className="w-20 text-center text-2xl font-bold text-gray-900 border-b-2 border-gray-300 focus:border-blue-500 outline-none bg-transparent"
+                              />
+                              <p className="text-xs text-gray-400 mt-0.5">{mat.unit}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleMaterialQuantityChange(idx, mat.quantity + (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.5))}
+                              disabled={mat.quantity >= mat.maxStock}
+                              className="w-12 h-12 rounded-xl bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-xl font-bold text-blue-700 flex items-center justify-center transition-colors"
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          <p className="text-center text-sm font-semibold text-gray-700">{fmtBs(mat.totalPrice)}</p>
+                        </>
+                      )}
                     </div>
                     );
                   })}
@@ -1625,81 +1644,108 @@ export default function SessionsPage() {
         onClose={() => { setEditMaterialModal(null); setEditMaterials([]); }}
         title={`${ES.sessions.materialsUsed} — ${editMaterialModal?.serviceName || ''}`}
         size="lg"
-        footer={
-          <div className="flex gap-2">
-            <Button variant="secondary" className="flex-1" onClick={() => { setEditMaterialModal(null); setEditMaterials([]); }}>
-              {ES.actions.cancel}
-            </Button>
-            <Button className="flex-1" onClick={handleSaveEditMaterials} loading={loading}>
-              {ES.actions.save}
-            </Button>
-          </div>
-        }
       >
-        <div className="space-y-4">
+        <div className="space-y-4 pb-16 sm:pb-0">
           {editMaterials.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-2">{ES.sessions.noMaterials}</p>
+            <p className="text-sm text-gray-500 text-center py-4">{ES.sessions.noMaterials}</p>
           ) : (
             <div className="space-y-3">
               {editMaterials.map((mat, idx) => {
-                // Filter out products already selected in other rows
                 const usedIds = editMaterials.filter((_, i) => i !== idx).map((m) => m.productId).filter(Boolean);
                 const editProductOptions = (products || [])
                   .filter((p) => !usedIds.includes(p.id))
                   .map((p) => ({ value: p.id, label: p.name, secondary: `${fmtBs(p.cost)} / ${p.unit || 'ud'}` }));
                 return (
-                <div key={idx} className="border border-gray-200 rounded-xl p-3 space-y-2">
-                  <SearchableSelect
-                    label=""
-                    options={editProductOptions}
-                    value={mat.productId}
-                    onChange={(v) => {
-                      const product = products?.find((p) => p.id === v);
-                      if (!product) return;
-                      const updated = [...editMaterials];
-                      const oldMat = editMaterials[idx];
-                      const availStock = product.currentStock + (oldMat.productId === v ? oldMat.quantity : 0);
-                      const qty = Math.min(updated[idx].quantity, availStock);
-                      updated[idx] = { ...updated[idx], productId: v, productName: product.name, unit: product.unit || 'ud', pricePerUnit: product.cost, maxStock: availStock, quantity: qty, totalPrice: product.cost * qty };
-                      setEditMaterials(updated);
-                    }}
-                    placeholder={ES.material.product}
-                  />
-                  {mat.productId && mat.maxStock > 0 && (
-                    <p className="text-xs text-gray-400">Stock: {mat.maxStock} {mat.unit}</p>
-                  )}
-                  <div className="flex gap-3 items-end">
+                <div key={idx} className="border border-gray-200 rounded-xl p-3 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
-                      <Input
-                        label={ES.sessions.quantity}
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={mat.quantity}
-                        onChange={(e) => {
-                          const raw = parseFloat(e.target.value) || 0;
-                          const qty = Math.min(Math.max(0, raw), mat.maxStock || Infinity);
+                      <SearchableSelect
+                        label=""
+                        options={editProductOptions}
+                        value={mat.productId}
+                        onChange={(v) => {
+                          const product = products?.find((p) => p.id === v);
+                          if (!product) return;
                           const updated = [...editMaterials];
-                          updated[idx] = { ...updated[idx], quantity: qty, totalPrice: updated[idx].pricePerUnit * qty };
+                          const oldMat = editMaterials[idx];
+                          const availStock = product.currentStock + (oldMat.productId === v ? oldMat.quantity : 0);
+                          const qty = Math.min(updated[idx].quantity, availStock);
+                          updated[idx] = { ...updated[idx], productId: v, productName: product.name, unit: product.unit || 'ud', pricePerUnit: product.cost, maxStock: availStock, quantity: qty, totalPrice: product.cost * qty };
                           setEditMaterials(updated);
                         }}
-                        max={mat.maxStock || undefined}
+                        placeholder={ES.material.product}
                       />
                     </div>
-                    {mat.unit && <span className="text-sm text-gray-500 pb-3">{mat.unit}</span>}
-                    <div className="text-right pb-3">
-                      <p className="text-xs text-gray-500">{fmtBs(mat.pricePerUnit)}/{mat.unit}</p>
-                      <p className="text-sm font-semibold">{fmtBs(mat.totalPrice)}</p>
-                    </div>
-                    <button type="button" onClick={() => setEditMaterials(editMaterials.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 text-sm pb-3 font-medium">
+                    <button type="button" onClick={() => setEditMaterials(editMaterials.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-red-50 shrink-0 mt-1">
                       ✕
                     </button>
                   </div>
+
+                  {mat.productId && (
+                    <>
+                      <div className="flex items-center justify-between text-xs text-gray-400">
+                        <span>Stock: {mat.maxStock} {mat.unit}</span>
+                        <span>{fmtBs(mat.pricePerUnit)}/{mat.unit}</span>
+                      </div>
+
+                      <div className="flex items-center justify-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const step = mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.5;
+                            const qty = Math.max(0, mat.quantity - step);
+                            const updated = [...editMaterials];
+                            updated[idx] = { ...updated[idx], quantity: qty, totalPrice: mat.pricePerUnit * qty };
+                            setEditMaterials(updated);
+                          }}
+                          disabled={mat.quantity <= 0}
+                          className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-xl font-bold text-gray-700 flex items-center justify-center transition-colors"
+                        >
+                          −
+                        </button>
+                        <div className="text-center min-w-[80px]">
+                          <input
+                            type="number"
+                            value={mat.quantity}
+                            onChange={(e) => {
+                              const raw = parseFloat(e.target.value) || 0;
+                              const qty = Math.min(Math.max(0, raw), mat.maxStock || Infinity);
+                              const updated = [...editMaterials];
+                              updated[idx] = { ...updated[idx], quantity: qty, totalPrice: mat.pricePerUnit * qty };
+                              setEditMaterials(updated);
+                            }}
+                            step="0.01"
+                            min="0"
+                            max={mat.maxStock}
+                            className="w-20 text-center text-2xl font-bold text-gray-900 border-b-2 border-gray-300 focus:border-blue-500 outline-none bg-transparent"
+                          />
+                          <p className="text-xs text-gray-400 mt-0.5">{mat.unit}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const step = mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.5;
+                            const qty = Math.min(mat.quantity + step, mat.maxStock);
+                            const updated = [...editMaterials];
+                            updated[idx] = { ...updated[idx], quantity: qty, totalPrice: mat.pricePerUnit * qty };
+                            setEditMaterials(updated);
+                          }}
+                          disabled={mat.quantity >= mat.maxStock}
+                          className="w-12 h-12 rounded-xl bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-xl font-bold text-blue-700 flex items-center justify-center transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <p className="text-center text-sm font-semibold text-gray-700">{fmtBs(mat.totalPrice)}</p>
+                    </>
+                  )}
                 </div>
                 );
               })}
             </div>
           )}
+
           <button
             type="button"
             onClick={() => setEditMaterials([...editMaterials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0, maxStock: 0 }])}
@@ -1707,6 +1753,15 @@ export default function SessionsPage() {
           >
             {ES.sessions.addMaterial}
           </button>
+
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" className="flex-1 py-3" onClick={() => { setEditMaterialModal(null); setEditMaterials([]); }}>
+              {ES.actions.cancel}
+            </Button>
+            <Button className="flex-1 py-3" onClick={handleSaveEditMaterials} loading={loading}>
+              {ES.actions.save}
+            </Button>
+          </div>
         </div>
       </Modal>
 
