@@ -2,7 +2,9 @@
 
 import React, { useState, useMemo } from 'react';
 import { Card, CardBody } from '@/components/Card';
+import { Modal } from '@/components/Modal';
 import { Toast } from '@/components/Toast';
+import { Button } from '@/components/Button';
 import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
 import { useRealtime } from '@/hooks/useRealtime';
@@ -17,6 +19,14 @@ import type { Appointment } from '@/types/models';
 import { getBoliviaDate, fmtDate, whatsappUrl } from '@/lib/utils/helpers';
 import { useRouter } from 'next/navigation';
 import ES from '@/config/text.es';
+
+const DECLINE_REASONS = [
+  { key: 'cant_at_time', label: ES.appointments.reasonCantAtTime, hint: ES.appointments.reasonCantAtTimeHint, waTag: '🔄 Reagendar' },
+  { key: 'already_booked', label: ES.appointments.reasonAlreadyBooked, hint: ES.appointments.reasonAlreadyBookedHint, waTag: '⚠️ Conflicto horario' },
+  { key: 'not_available_day', label: ES.appointments.reasonNotAvailableDay, hint: ES.appointments.reasonNotAvailableDayHint, waTag: '📅 No estará ese día' },
+  { key: 'personal', label: ES.appointments.reasonPersonal, hint: ES.appointments.reasonPersonalHint, waTag: '🚫 Motivo personal' },
+  { key: 'other', label: ES.appointments.reasonOther, hint: ES.appointments.reasonOtherHint, waTag: '📝 Otro' },
+] as const;
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Pendiente',
@@ -38,6 +48,9 @@ export default function MyAppointmentsPage() {
   const { user, userData } = useAuth();
   const { notifications, removeNotification, success, error: showError } = useNotification();
   const [startingId, setStartingId] = useState<string | null>(null);
+  const [declineAppt, setDeclineAppt] = useState<Appointment | null>(null);
+  const [declineReason, setDeclineReason] = useState<string>('');
+  const [declineOtherText, setDeclineOtherText] = useState('');
   const router = useRouter();
 
   const staffId = user?.uid || '';
@@ -124,18 +137,35 @@ export default function MyAppointmentsPage() {
     }
   };
 
-  const handleDecline = async (apt: Appointment) => {
+  const openDeclineModal = (apt: Appointment) => {
+    setDeclineAppt(apt);
+    setDeclineReason('');
+    setDeclineOtherText('');
+  };
+
+  const handleDeclineConfirm = async () => {
+    if (!declineAppt || !declineReason) return;
+    const apt = declineAppt;
+    const reasonDef = DECLINE_REASONS.find((r) => r.key === declineReason);
+    const reasonLabel = declineReason === 'other' && declineOtherText.trim()
+      ? `${reasonDef?.label}: ${declineOtherText.trim()}`
+      : reasonDef?.label || declineReason;
+
     try {
       await AppointmentService.updateAppointment(apt.id, {
         status: 'cancelled',
-        cancellationReason: 'Rechazado por personal',
+        cancellationReason: `Rechazado por personal: ${reasonLabel}`,
       });
       success(ES.appointments.declined);
+      setDeclineAppt(null);
+
       // Worker notifies SALON (not client) via WhatsApp — admin will handle client communication
       const clientName = getClientName(apt.clientId);
+      const svcNames = getServiceNames(apt.serviceIds || []);
       const waNumber = salon?.whatsappNumber || salon?.phone;
       if (waNumber) {
-        const msg = `❌ No puedo atender la cita de ${clientName} el ${fmtDate(apt.appointmentDate)} a las ${apt.startTime}`;
+        const tag = reasonDef?.waTag || '';
+        const msg = `❌ No puedo atender la cita de ${clientName} el ${fmtDate(apt.appointmentDate)} a las ${apt.startTime}${svcNames ? ` (${svcNames})` : ''}\n\n${tag} Motivo: ${reasonLabel}`;
         window.open(whatsappUrl(waNumber, msg), '_blank');
       }
     } catch {
@@ -268,7 +298,7 @@ export default function MyAppointmentsPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDecline(apt)}
+                          onClick={() => openDeclineModal(apt)}
                           className="text-xs px-3 py-1.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700"
                         >
                           {ES.appointments.decline}
@@ -292,6 +322,51 @@ export default function MyAppointmentsPage() {
           ))}
         </div>
       )}
+
+      {/* Decline reason modal */}
+      <Modal isOpen={!!declineAppt} onClose={() => setDeclineAppt(null)} title={ES.appointments.declineTitle}>
+        {declineAppt && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">{ES.appointments.declineSubtitle}</p>
+            <div className="space-y-2">
+              {DECLINE_REASONS.map((r) => (
+                <button
+                  key={r.key}
+                  type="button"
+                  onClick={() => setDeclineReason(r.key)}
+                  className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                    declineReason === r.key
+                      ? 'border-red-500 bg-red-50'
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <p className="font-medium text-gray-900 text-sm">{r.label}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{r.hint}</p>
+                </button>
+              ))}
+            </div>
+            {declineReason === 'other' && (
+              <textarea
+                value={declineOtherText}
+                onChange={(e) => setDeclineOtherText(e.target.value)}
+                placeholder={ES.appointments.otherReasonPlaceholder}
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                rows={2}
+              />
+            )}
+            <div className="flex gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setDeclineAppt(null)}>{ES.actions.cancel}</Button>
+              <Button
+                variant="danger"
+                onClick={handleDeclineConfirm}
+                disabled={!declineReason || (declineReason === 'other' && !declineOtherText.trim())}
+              >
+                {ES.appointments.confirmDecline}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

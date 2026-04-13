@@ -332,11 +332,21 @@ export default function AppointmentsPage() {
     {
       key: 'status',
       label: ES.users.status,
-      render: (v) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[v as string] || ''}`}>
-          {statusLabels[v as string] || v}
-        </span>
-      ),
+      render: (v, item) => {
+        const reason = (item as Appointment & { cancellationReason?: string }).cancellationReason || '';
+        const isWorkerReject = reason.startsWith('Rechazado por personal');
+        const reasonShort = reason.replace('Rechazado por personal: ', '').replace('Rechazado por personal', '').trim();
+        return (
+          <div>
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[v as string] || ''}`}>
+              {statusLabels[v as string] || v}
+            </span>
+            {isWorkerReject && (
+              <p className="text-[10px] text-red-500 mt-1">{reasonShort || 'Rechazado por personal'}</p>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'id',
@@ -357,11 +367,16 @@ export default function AppointmentsPage() {
             ) : null;
           })()}
           {/* Worker rejected → prompt admin to notify client via WA */}
-          {item.status === 'cancelled' && (item as Appointment & { cancellationReason?: string }).cancellationReason === 'Rechazado por personal' && (() => {
+          {item.status === 'cancelled' && ((item as Appointment & { cancellationReason?: string }).cancellationReason || '').startsWith('Rechazado por personal') && (() => {
             const client = clients?.find((c) => c.id === item.clientId);
+            const reason = (item as Appointment & { cancellationReason?: string }).cancellationReason || '';
+            const reasonDetail = reason.replace('Rechazado por personal: ', '').replace('Rechazado por personal', '').trim();
+            const needsReschedule = reason.includes('horario') || reason.includes('Reagendar') || reason.includes('ese día');
             return client?.phone ? (
               <Button size="sm" variant="danger" onClick={() => {
-                const msg = `Hola ${client.firstName}, lamentablemente su cita del ${fmtDate(item.appointmentDate)} a las ${item.startTime} no puede ser atendida. Contáctenos para reagendar.`;
+                const msg = needsReschedule
+                  ? `Hola ${client.firstName}, lamentablemente su cita del ${fmtDate(item.appointmentDate)} a las ${item.startTime} necesita ser reagendada${reasonDetail ? ` (${reasonDetail})` : ''}. ¿Qué horario le conviene?`
+                  : `Hola ${client.firstName}, lamentablemente su cita del ${fmtDate(item.appointmentDate)} a las ${item.startTime} no puede ser atendida${reasonDetail ? ` (${reasonDetail})` : ''}. Contáctenos para reagendar.`;
                 window.open(whatsappUrl(client.phone!, msg), '_blank');
               }}>
                 📲 Avisar Cancelación

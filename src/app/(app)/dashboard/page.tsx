@@ -7,15 +7,18 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
 import { useRealtime } from '@/hooks/useRealtime';
 import { AnalyticsService } from '@/lib/services/analyticsService';
+import { AppointmentService } from '@/lib/services/appointmentService';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { RetailSaleRepository } from '@/lib/repositories/retailSaleRepository';
 import { ExpenseRepository } from '@/lib/repositories/expenseRepository';
 import { firebaseConstraints } from '@/lib/firebase/db';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
-import { Session, Client, Product } from '@/types/models';
+import { ServiceRepository } from '@/lib/repositories/serviceRepository';
+import { Session, Client, Product, Appointment } from '@/types/models';
 import ES from '@/config/text.es';
 import { fmtBs, unitLabel, getBoliviaDate, fmtDate, toDate } from '@/lib/utils/helpers';
+import Link from 'next/link';
 
 export default function Dashboard() {
   const { user, userData, loading: authLoading } = useAuth();
@@ -54,6 +57,27 @@ export default function Dashboard() {
   const lowStockProducts = useMemo(() => {
     return (allProducts || []).filter((p) => p.currentStock <= p.minStock);
   }, [allProducts]);
+
+  // Staff: fetch today's appointments (pending + confirmed) for the alert + schedule
+  const { data: staffAppointments } = useAsync(async () => {
+    if (!isStaff || !userData?.salonId || !user?.uid) return [];
+    return AppointmentService.getStaffAppointments(userData.salonId, user.uid, getBoliviaDate());
+  }, [isStaff, userData?.salonId, user?.uid]);
+
+  // Staff: salon services for resolving names
+  const { data: salonServices } = useAsync(async () => {
+    if (!isStaff || !userData?.salonId) return [];
+    return ServiceRepository.getSalonServices(userData.salonId);
+  }, [isStaff, userData?.salonId]);
+
+  const pendingAppointments = useMemo(() =>
+    (staffAppointments || []).filter((a: Appointment) => a.status === 'pending'),
+  [staffAppointments]);
+
+  const confirmedTodayAppointments = useMemo(() =>
+    (staffAppointments || []).filter((a: Appointment) => a.status === 'confirmed')
+      .sort((a: Appointment, b: Appointment) => a.startTime.localeCompare(b.startTime)),
+  [staffAppointments]);
 
   // Retail sales for selected date
   const { data: retailSales } = useAsync(async () => {
@@ -267,6 +291,48 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Staff: Pending Appointments Alert */}
+      {isStaff && pendingAppointments.length > 0 && (
+        <div className="bg-orange-50 border border-orange-300 rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🔔</span>
+              <div>
+                <h3 className="font-semibold text-orange-800">{ES.dashboard.pendingAppointments}</h3>
+                <p className="text-sm text-orange-600">
+                  {pendingAppointments.length} {pendingAppointments.length === 1 ? 'cita pendiente' : 'citas pendientes'} — {ES.dashboard.pendingAppointmentsDesc}
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/my-appointments"
+              className="px-4 py-2.5 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors whitespace-nowrap"
+            >
+              {ES.dashboard.reviewAppointments}
+            </Link>
+          </div>
+          <div className="mt-3 space-y-1">
+            {pendingAppointments.slice(0, 3).map((apt: Appointment) => {
+              const client = clients?.find((c) => c.id === apt.clientId);
+              const clientName = client ? `${client.firstName} ${client.lastName}` : '-';
+              const svcNames = (apt.serviceIds || []).map((id: string) => salonServices?.find((s) => s.id === id)?.name).filter(Boolean).join(', ');
+              return (
+                <div key={apt.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-orange-100">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{clientName}</p>
+                    <p className="text-xs text-gray-500">{apt.startTime} – {apt.endTime}{svcNames ? ` · ${svcNames}` : ''}</p>
+                  </div>
+                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700">{ES.appointments.pending}</span>
+                </div>
+              );
+            })}
+            {pendingAppointments.length > 3 && (
+              <p className="text-xs text-orange-500 text-center mt-1">+{pendingAppointments.length - 3} más</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Key Metrics */}
       {isStaff ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -352,6 +418,41 @@ export default function Dashboard() {
             </CardBody>
           </Card>
         </div>
+      )}
+
+      {/* Staff: Today's Confirmed Schedule */}
+      {isStaff && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-xl font-semibold text-gray-900">{ES.dashboard.todaySchedule}</h2>
+          </CardHeader>
+          <CardBody>
+            {confirmedTodayAppointments.length === 0 ? (
+              <p className="text-center text-gray-500 py-3 text-sm">{ES.dashboard.noSchedule}</p>
+            ) : (
+              <div className="space-y-2">
+                {confirmedTodayAppointments.map((apt: Appointment) => {
+                  const client = clients?.find((c) => c.id === apt.clientId);
+                  const clientName = client ? `${client.firstName} ${client.lastName}` : '-';
+                  const svcNames = (apt.serviceIds || []).map((id: string) => salonServices?.find((s) => s.id === id)?.name).filter(Boolean).join(', ');
+                  return (
+                    <div key={apt.id} className="flex items-center gap-3 bg-blue-50 rounded-lg p-3 border border-blue-100">
+                      <div className="text-center min-w-[50px]">
+                        <p className="text-lg font-bold text-blue-700">{apt.startTime}</p>
+                        <p className="text-[10px] text-blue-500">{apt.endTime}</p>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 text-sm">{clientName}</p>
+                        {svcNames && <p className="text-xs text-gray-500 truncate">{svcNames}</p>}
+                      </div>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">{ES.appointments.confirmed}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardBody>
+        </Card>
       )}
 
       {/* Low-Stock Alert */}

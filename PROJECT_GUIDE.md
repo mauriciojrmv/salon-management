@@ -532,6 +532,18 @@ New issues discovered during manual verification of P8 fixes. Includes bugs, syn
 - [ ] **Phase 2 WhatsApp: auto-notification to worker on appointment create/edit** — Requires WA Business API integration. (F6, future)
 - [ ] **Phase 2 WhatsApp: 2-hour reminder to client and worker** — Requires Cloud Function + WA Business API. (F7, future)
 
+### P10 — Worker Dashboard & Appointment UX (2026-04-13)
+
+#### P10-HIGH — Worker Appointment Awareness
+
+- [x] **Worker dashboard: pending appointments alert** — Fixed 2026-04-13: Added orange alert card at top of worker dashboard showing pending appointment count + preview (up to 3). Includes "Revisar Reservas" CTA linking to /my-appointments. Fetches via `AppointmentService.getStaffAppointments()`.
+- [x] **Worker dashboard: today's confirmed schedule** — Fixed 2026-04-13: Added "Mi Agenda de Hoy" card showing confirmed appointments as a timeline with time, client name, and services. Helps workers prepare for upcoming clients.
+
+#### P10-HIGH — Rejection Reason Modal
+
+- [x] **Structured rejection reasons when worker declines appointment** — Fixed 2026-04-13: Replaced one-tap "Rechazar" with modal offering 5 reasons: can't at that time (reschedule), already booked (conflict), not available that day (reassign), personal, other (free text). Reason stored in `cancellationReason` field and included in WA message to salon with contextual tags.
+- [x] **Admin sees rejection reason on cancelled appointments** — Fixed 2026-04-13: Status column shows rejection reason detail below the "Cancelada" badge. WA message to client is contextual: reschedule-type reasons ask "¿Qué horario le conviene?" vs generic cancellation message.
+
 ### P3 — LOW (future hardening)
 
 - [x] **No confirmation dialogs for delete actions** — Fixed 2026-03-28: All `window.confirm()` calls replaced with custom `Modal` confirmations with Spanish buttons. Zero browser confirm dialogs remain.
