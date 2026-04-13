@@ -48,9 +48,9 @@ const allNavItems: NavItem[] = [
   { name: ES.nav.clients, href: '/clients', icon: Users, group: 'daily' },
   { name: ES.retail.title, href: '/sales', icon: ShoppingCart, group: 'daily' },
   // Staff area
-  { name: ES.nav.myWork, href: '/my-work', icon: ClipboardList, group: 'my' },
-  { name: ES.nav.myEarnings, href: '/my-earnings', icon: BarChart2, group: 'my' },
+  { name: ES.nav.myWork, href: '/my-work', icon: ClipboardList, group: 'my' },  
   { name: ES.nav.myAppointments, href: '/my-appointments', icon: Calendar, group: 'my' },
+  { name: ES.nav.myEarnings, href: '/my-earnings', icon: BarChart2, group: 'my' },
   // Management
   { name: ES.nav.inventory, href: '/inventory', icon: Package, group: 'manage' },
   { name: ES.nav.services, href: '/services', icon: ListChecks, group: 'manage' },
