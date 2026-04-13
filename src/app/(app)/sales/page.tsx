@@ -103,10 +103,11 @@ export default function SalesPage() {
 
   const handleItemQuantityChange = (index: number, qty: number) => {
     const updated = [...items];
+    const clamped = Math.min(Math.max(0, qty), updated[index].maxStock);
     updated[index] = {
       ...updated[index],
-      quantity: qty,
-      total: updated[index].unitPrice * qty,
+      quantity: clamped,
+      total: updated[index].unitPrice * clamped,
     };
     setItems(updated);
   };
@@ -254,7 +255,7 @@ export default function SalesPage() {
         <Card>
           <CardBody>
             <p className="text-gray-600 text-sm font-medium mb-1">{ES.retail.totalSales}</p>
-            <p className="text-2xl font-bold text-gray-900">Bs. {dailyTotal.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-gray-900">{fmtBs(dailyTotal)}</p>
           </CardBody>
         </Card>
       </div>
@@ -281,13 +282,13 @@ export default function SalesPage() {
                       {' · '}{methodLabels[sale.payment?.method] || sale.payment?.method}
                     </p>
                   </div>
-                  <span className="text-lg font-bold text-gray-900">Bs. {sale.totalAmount.toFixed(2)}</span>
+                  <span className="text-lg font-bold text-gray-900">{fmtBs(sale.totalAmount)}</span>
                 </div>
                 <div className="space-y-1">
                   {(sale.items || []).map((item, i) => (
                     <div key={i} className="flex justify-between text-sm text-gray-600">
                       <span>{item.productName} x{item.quantity}</span>
-                      <span>Bs. {item.total.toFixed(2)}</span>
+                      <span>{fmtBs(item.total)}</span>
                     </div>
                   ))}
                 </div>
@@ -411,51 +412,74 @@ export default function SalesPage() {
                 const cartIdx = items.findIndex((i) => i.productId === p.id);
                 const inCart = cartIdx >= 0;
                 const cartItem = inCart ? items[cartIdx] : null;
+                const outOfStock = p.currentStock <= 0;
+                const atMaxStock = inCart && cartItem ? cartItem.quantity >= cartItem.maxStock : false;
                 return (
                   <div
                     key={p.id}
-                    className={`border rounded-lg p-2.5 transition-colors ${
+                    className={`border rounded-xl p-3 transition-colors ${
+                      outOfStock ? 'border-gray-200 bg-gray-50 opacity-60' :
                       inCart ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white'
                     }`}
                   >
                     <button
                       type="button"
+                      disabled={outOfStock}
                       onClick={() => {
-                        if (!inCart) {
+                        if (!inCart && !outOfStock) {
                           setItems([...items, { productId: p.id, productName: p.name, quantity: 1, unitPrice: p.price, total: p.price, maxStock: p.currentStock }]);
                         }
                       }}
                       className="w-full text-left"
                     >
                       <p className="text-sm font-medium text-gray-900 leading-tight truncate">{p.name}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{fmtBs(p.price)} · {p.currentStock} {p.unit || 'un'}</p>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-xs font-semibold text-gray-700">{fmtBs(p.price)}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                          outOfStock ? 'bg-red-100 text-red-600' :
+                          p.currentStock <= p.minStock ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-500'
+                        }`}>
+                          {outOfStock ? ES.stockAlert.outOfStock : `${p.currentStock} ${p.unit || 'un'}`}
+                        </span>
+                      </div>
                     </button>
                     {inCart && cartItem && (
-                      <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-blue-200">
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (cartItem.quantity <= 1) {
-                                handleRemoveItem(cartIdx);
-                              } else {
-                                handleItemQuantityChange(cartIdx, cartItem.quantity - 1);
-                              }
-                            }}
-                            className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-300 text-gray-600 text-sm font-bold"
-                          >
-                            {cartItem.quantity <= 1 ? '✕' : '−'}
-                          </button>
-                          <span className="w-8 text-center text-sm font-bold text-blue-700">{cartItem.quantity}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleItemQuantityChange(cartIdx, cartItem.quantity + 1)}
-                            className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-600 text-white text-sm font-bold"
-                          >
-                            +
-                          </button>
+                      <div className="mt-2 pt-2 border-t border-blue-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (cartItem.quantity <= 1) {
+                                  handleRemoveItem(cartIdx);
+                                } else {
+                                  handleItemQuantityChange(cartIdx, cartItem.quantity - 1);
+                                }
+                              }}
+                              className={`w-11 h-11 flex items-center justify-center rounded-xl text-sm font-bold transition-colors ${
+                                cartItem.quantity <= 1
+                                  ? 'bg-red-50 border border-red-200 text-red-500 hover:bg-red-100'
+                                  : 'bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              {cartItem.quantity <= 1 ? '✕' : '−'}
+                            </button>
+                            <span className="w-8 text-center text-lg font-bold text-blue-700">{cartItem.quantity}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleItemQuantityChange(cartIdx, Math.min(cartItem.quantity + 1, cartItem.maxStock))}
+                              disabled={atMaxStock}
+                              className="w-11 h-11 flex items-center justify-center rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-30 transition-colors"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <span className="text-sm font-bold text-blue-700">{fmtBs(cartItem.total)}</span>
                         </div>
-                        <span className="text-sm font-bold text-blue-700">{fmtBs(cartItem.total)}</span>
+                        {atMaxStock && (
+                          <p className="text-[10px] text-orange-600 mt-1 text-center">Stock máximo alcanzado</p>
+                        )}
                       </div>
                     )}
                   </div>
