@@ -175,6 +175,39 @@ export default function PagosPage() {
     return s?.phone || '';
   };
 
+  // History filters
+  const [historyStaffFilter, setHistoryStaffFilter] = useState('');
+  const [historyDateFilter, setHistoryDateFilter] = useState(false);
+  const [historyStartDate, setHistoryStartDate] = useState('');
+  const [historyEndDate, setHistoryEndDate] = useState('');
+  const [historyLimit, setHistoryLimit] = useState(10);
+
+  const filteredHistory = React.useMemo(() => {
+    let list = paymentHistory || [];
+    if (historyStaffFilter) {
+      list = list.filter((p) => p.staffId === historyStaffFilter);
+    }
+    if (historyDateFilter && historyStartDate) {
+      list = list.filter((p) => {
+        try {
+          const paidIso = toDate(p.paidAt).toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+          return paidIso >= historyStartDate && (!historyEndDate || paidIso <= historyEndDate);
+        } catch { return true; }
+      });
+    }
+    return list;
+  }, [paymentHistory, historyStaffFilter, historyDateFilter, historyStartDate, historyEndDate]);
+
+  const historyStaffOptions = React.useMemo(() => {
+    const names = new Map<string, string>();
+    (paymentHistory || []).forEach((p) => names.set(p.staffId, p.staffName));
+    return Array.from(names.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [paymentHistory]);
+
+  const filteredHistoryTotal = filteredHistory.reduce((sum, p) => sum + p.amount, 0);
+  const visibleHistory = filteredHistory.slice(0, historyLimit);
+  const hasMoreHistory = filteredHistory.length > historyLimit;
+
   const handleRegisterPayment = async () => {
     if (!paymentEntry || !userData?.salonId) return;
     setPaymentLoading(true);
@@ -301,11 +334,59 @@ export default function PagosPage() {
           <h2 className="text-xl font-semibold text-gray-900">{ES.reports.paymentHistory}</h2>
           <p className="text-sm text-gray-500 mt-1">{ES.reports.paymentHistorySubtitle}</p>
         </CardHeader>
+        <CardBody>
+          <div className="space-y-3">
+            {/* Staff filter */}
+            <div className="flex gap-2 flex-wrap items-center">
+              <select
+                value={historyStaffFilter}
+                onChange={(e) => { setHistoryStaffFilter(e.target.value); setHistoryLimit(10); }}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+              >
+                <option value="">{ES.reports.allStaff}</option>
+                {historyStaffOptions.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => { setHistoryDateFilter(!historyDateFilter); setHistoryLimit(10); }}
+                className={`px-3 py-2 text-sm border rounded-lg font-medium transition-colors ${
+                  historyDateFilter ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {ES.reports.filterByDate}
+              </button>
+            </div>
+            {/* Date filter (collapsible) */}
+            {historyDateFilter && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Input label={ES.reports.startDate} type="date" value={historyStartDate} onChange={(e) => { setHistoryStartDate(e.target.value); setHistoryLimit(10); }} />
+                  {historyStartDate && <span className="text-[10px] text-gray-500 mt-0.5 block">{fmtDate(historyStartDate)}</span>}
+                </div>
+                <div>
+                  <Input label={ES.reports.endDate} type="date" value={historyEndDate} onChange={(e) => { setHistoryEndDate(e.target.value); setHistoryLimit(10); }} />
+                  {historyEndDate && <span className="text-[10px] text-gray-500 mt-0.5 block">{fmtDate(historyEndDate)}</span>}
+                </div>
+              </div>
+            )}
+            {/* Filtered total summary */}
+            {filteredHistory.length > 0 && (
+              <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                <p className="text-sm text-gray-600">
+                  {ES.reports.showingCount} {Math.min(historyLimit, filteredHistory.length)} {ES.reports.ofTotal} {filteredHistory.length}
+                </p>
+                <p className="text-sm font-semibold text-green-700">{ES.reports.totalPaid}: {fmtBs(filteredHistoryTotal)}</p>
+              </div>
+            )}
+          </div>
+        </CardBody>
       </Card>
 
       {historyLoading ? (
         <p className="text-center text-gray-500 py-4">{ES.actions.loading}</p>
-      ) : !paymentHistory || paymentHistory.length === 0 ? (
+      ) : filteredHistory.length === 0 ? (
         <Card>
           <CardBody>
             <p className="text-center text-gray-500 py-4">{ES.reports.noPaymentHistory}</p>
@@ -313,7 +394,7 @@ export default function PagosPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {paymentHistory.map((payment: PayrollPaymentRecord) => {
+          {visibleHistory.map((payment: PayrollPaymentRecord) => {
             const phone = getStaffPhone(payment.staffId);
             const paidDate = (() => {
               try { return toDate(payment.paidAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/La_Paz' }); }
@@ -353,6 +434,15 @@ export default function PagosPage() {
               </Card>
             );
           })}
+          {hasMoreHistory && (
+            <button
+              type="button"
+              onClick={() => setHistoryLimit((l) => l + 10)}
+              className="w-full py-3 text-sm text-blue-600 font-medium hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
+            >
+              {ES.reports.showMore} ({filteredHistory.length - historyLimit} más)
+            </button>
+          )}
         </div>
       )}
     </div>

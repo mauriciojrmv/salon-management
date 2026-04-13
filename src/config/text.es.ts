@@ -442,6 +442,13 @@ export const ES = {
     periodLabel: 'Período',
     servicesIncluded: 'servicios incluidos',
     shareReceipt: 'Comprobante WhatsApp',
+    allStaff: 'Todos',
+    filterByStaff: 'Filtrar por trabajador',
+    filterByDate: 'Filtrar por fecha',
+    showMore: 'Ver más',
+    showingCount: 'Mostrando',
+    ofTotal: 'de',
+    totalPaid: 'Total Pagado',
   },
 
   // Clients
