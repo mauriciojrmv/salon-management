@@ -25,7 +25,7 @@ import { LoyaltyRepository } from '@/lib/repositories/loyaltyRepository';
 import type { LoyaltyReward } from '@/types/models';
 import { batchUpdate, firebaseConstraints } from '@/lib/firebase/db';
 import { fmtBs, unitLabel, toDate, getBoliviaDate } from '@/lib/utils/helpers';
-import type { Session } from '@/types/models';
+import type { Session, SessionRetailItem } from '@/types/models';
 import ES from '@/config/text.es';
 
 interface MaterialEntry {
@@ -64,6 +64,12 @@ export default function SessionsPage() {
   const [noteText, setNoteText] = useState('');
   const [receiptSession, setReceiptSession] = useState<Session | null>(null);
   const [suggestedServices, setSuggestedServices] = useState<{ serviceId: string; serviceName: string; count: number }[]>([]);
+
+  // Retail product modal
+  const [isRetailModalOpen, setIsRetailModalOpen] = useState(false);
+  const [retailSessionId, setRetailSessionId] = useState<string | null>(null);
+  const [retailCart, setRetailCart] = useState<{ productId: string; productName: string; quantity: number; unitPrice: number; maxStock: number }[]>([]);
+  const [retailSearch, setRetailSearch] = useState('');
 
   // Edit materials on existing service
   const [editMaterialModal, setEditMaterialModal] = useState<{ sessionId: string; serviceId: string; serviceName: string } | null>(null);
@@ -343,8 +349,9 @@ export default function SessionsPage() {
       const updatedServices = (session.services || []).map((svc) =>
         svc.id === serviceItemId ? { ...svc, price: newPrice } : svc
       );
-      const totalAmount = updatedServices.reduce((sum, s) => sum + s.price, 0);
-      await SessionRepository.updateSession(sessionId, { services: updatedServices, totalAmount });
+      const servicePrices = updatedServices.reduce((sum, s) => sum + s.price, 0);
+      const retailTotal = (session.retailItems || []).reduce((sum, r) => sum + r.total, 0);
+      await SessionRepository.updateSession(sessionId, { services: updatedServices, totalAmount: servicePrices + retailTotal });
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
     }
@@ -617,6 +624,120 @@ export default function SessionsPage() {
     }
   };
 
+  // Retail product handlers
+  const handleAddRetailToCart = (productId: string) => {
+    const product = products?.find((p) => p.id === productId);
+    if (!product || product.currentStock <= 0) return;
+    const existing = retailCart.find((r) => r.productId === productId);
+    if (existing) {
+      if (existing.quantity >= product.currentStock) return;
+      setRetailCart(retailCart.map((r) =>
+        r.productId === productId ? { ...r, quantity: r.quantity + 1 } : r
+      ));
+    } else {
+      setRetailCart([...retailCart, {
+        productId,
+        productName: product.name,
+        quantity: 1,
+        unitPrice: product.price,
+        maxStock: product.currentStock,
+      }]);
+    }
+  };
+
+  const handleRetailQuantityChange = (productId: string, qty: number) => {
+    if (qty <= 0) {
+      setRetailCart(retailCart.filter((r) => r.productId !== productId));
+      return;
+    }
+    setRetailCart(retailCart.map((r) =>
+      r.productId === productId ? { ...r, quantity: Math.min(qty, r.maxStock) } : r
+    ));
+  };
+
+  const handleSaveRetailItems = async () => {
+    if (!retailSessionId || retailCart.length === 0) return;
+    setLoading(true);
+    try {
+      const session = await SessionRepository.getSession(retailSessionId);
+      if (!session) throw new Error('Session not found');
+
+      // Build new retail items
+      const newItems: SessionRetailItem[] = retailCart.map((item) => ({
+        id: `retail_${Date.now()}_${item.productId}`,
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        total: item.unitPrice * item.quantity,
+      }));
+
+      const existingRetail = session.retailItems || [];
+      const updatedRetail = [...existingRetail, ...newItems];
+
+      // Recalculate total: services + retail
+      const servicePrices = (session.services || []).reduce((sum, s) => sum + s.price, 0);
+      const retailTotal = updatedRetail.reduce((sum, r) => sum + r.total, 0);
+
+      await SessionRepository.updateSession(retailSessionId, {
+        retailItems: updatedRetail,
+        totalAmount: servicePrices + retailTotal,
+      });
+
+      // Deduct stock for each product
+      for (const item of retailCart) {
+        await ProductRepository.updateStock(item.productId, item.quantity);
+      }
+      refetchProducts();
+
+      success(ES.sessions.retailItemAdded);
+      setIsRetailModalOpen(false);
+      setRetailCart([]);
+      setRetailSearch('');
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveRetailItem = async (sessionId: string, itemId: string) => {
+    setLoadingSessionId(sessionId);
+    try {
+      const session = await SessionRepository.getSession(sessionId);
+      if (!session) throw new Error('Session not found');
+
+      const itemToRemove = (session.retailItems || []).find((r) => r.id === itemId);
+      if (!itemToRemove) throw new Error('Item not found');
+
+      const updatedRetail = (session.retailItems || []).filter((r) => r.id !== itemId);
+      const servicePrices = (session.services || []).reduce((sum, s) => sum + s.price, 0);
+      const retailTotal = updatedRetail.reduce((sum, r) => sum + r.total, 0);
+
+      await SessionRepository.updateSession(sessionId, {
+        retailItems: updatedRetail,
+        totalAmount: servicePrices + retailTotal,
+      });
+
+      // Restore stock
+      await ProductRepository.restockProduct(itemToRemove.productId, itemToRemove.quantity);
+      refetchProducts();
+
+      success(ES.sessions.removeRetailItem);
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setLoadingSessionId(null);
+    }
+  };
+
+  // Retail products for sale — only unit/service_cost type with selling price, exclude measurable (those are materials)
+  const retailProducts = (products || []).filter((p) => p.isActive && p.price > 0);
+  const filteredRetailProducts = retailProducts.filter((p) => {
+    if (!retailSearch) return true;
+    return p.name.toLowerCase().includes(retailSearch.toLowerCase());
+  });
+
   const userRole = userData?.role || 'staff';
   const canCancel = userRole === 'admin'; // only admin can void/cancel (Anular) sessions
   const canEditCompleted = userRole === 'admin' || userRole === 'manager'; // admin + manager can add service/reopen/notes on completed
@@ -734,7 +855,8 @@ export default function SessionsPage() {
                 setSelectedPaymentServiceIds(allSvcIds);
                 const paid = (session.payments || []).filter((p) => p.status === 'completed').reduce((sum, p) => sum + p.amount, 0);
                 const totalFromServices = (session.services || []).reduce((sum, s) => sum + s.price, 0);
-                const remaining = Math.max(0, totalFromServices - paid);
+                const retailItemsTotal = (session.retailItems || []).reduce((sum, r) => sum + r.total, 0);
+                const remaining = Math.max(0, totalFromServices + retailItemsTotal - paid);
                 setSessionRemainingForPayment(remaining);
                 setPaymentEntries([{ amount: remaining, method: 'cash', payerNote: '', amountGiven: 0 }]);
                 setShowAdvancedPayment(false);
@@ -751,6 +873,13 @@ export default function SessionsPage() {
               onEditMaterials={(serviceItemId, serviceName) => openEditMaterials(session.id, serviceItemId, serviceName)}
               onEditStaff={(serviceItemId, serviceName, currentStaff) => openEditStaff(session.id, serviceItemId, serviceName, currentStaff)}
               onEditPrice={(serviceItemId, newPrice) => handleEditPrice(session.id, serviceItemId, newPrice)}
+              onAddRetailProduct={() => {
+                setRetailSessionId(session.id);
+                setRetailCart([]);
+                setRetailSearch('');
+                setIsRetailModalOpen(true);
+              }}
+              onRemoveRetailItem={(itemId) => handleRemoveRetailItem(session.id, itemId)}
               canCancel={canCancel}
               loading={(loading && activeSessionId === session.id) || loadingSessionId === session.id}
             />
@@ -797,6 +926,19 @@ export default function SessionsPage() {
                               )}
                             </div>
                             <span>{fmtBs(svc.price)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Retail items summary */}
+                    {(session.retailItems || []).length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        <p className="text-xs font-semibold text-purple-600">{ES.sessions.retailItems}</p>
+                        {(session.retailItems || []).map((item) => (
+                          <div key={item.id} className="flex justify-between text-sm text-gray-600">
+                            <span>{item.productName} ×{item.quantity}</span>
+                            <span>{fmtBs(item.total)}</span>
                           </div>
                         ))}
                       </div>
@@ -1637,6 +1779,112 @@ export default function SessionsPage() {
       >
         +
       </button>
+
+      {/* Retail Product Modal — sell products within session */}
+      <Modal
+        isOpen={isRetailModalOpen}
+        onClose={() => { setIsRetailModalOpen(false); setRetailCart([]); setRetailSearch(''); }}
+        title={ES.sessions.addRetailProduct}
+        size="lg"
+        footer={
+          <div className="flex gap-2">
+            <Button variant="secondary" className="flex-1" onClick={() => { setIsRetailModalOpen(false); setRetailCart([]); setRetailSearch(''); }}>
+              {ES.actions.cancel}
+            </Button>
+            <Button className="flex-1" onClick={handleSaveRetailItems} loading={loading} disabled={retailCart.length === 0}>
+              {ES.actions.confirm} ({retailCart.length})
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4 pb-16 sm:pb-0">
+          {/* Search */}
+          <Input
+            label=""
+            type="text"
+            value={retailSearch}
+            onChange={(e) => setRetailSearch(e.target.value)}
+            placeholder={ES.app.searchPlaceholder}
+          />
+
+          {/* Cart summary — if items added */}
+          {retailCart.length > 0 && (
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 space-y-2">
+              <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">{ES.sessions.retailItems}</p>
+              {retailCart.map((item) => (
+                <div key={item.productId} className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{item.productName}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleRetailQuantityChange(item.productId, item.quantity - 1)}
+                      className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 text-lg font-bold text-gray-700 flex items-center justify-center"
+                    >
+                      −
+                    </button>
+                    <span className="w-8 text-center text-sm font-bold">{item.quantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRetailQuantityChange(item.productId, item.quantity + 1)}
+                      disabled={item.quantity >= item.maxStock}
+                      className="w-9 h-9 rounded-lg bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-lg font-bold text-blue-700 flex items-center justify-center"
+                    >
+                      +
+                    </button>
+                    <span className="text-sm font-bold text-gray-900 w-20 text-right">{fmtBs(item.unitPrice * item.quantity)}</span>
+                  </div>
+                </div>
+              ))}
+              <div className="flex justify-between pt-2 border-t border-purple-200">
+                <span className="text-sm font-bold text-gray-900">{ES.payments.total}</span>
+                <span className="text-sm font-black text-gray-900">{fmtBs(retailCart.reduce((sum, r) => sum + r.unitPrice * r.quantity, 0))}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Product grid — tap to add */}
+          <div className="grid grid-cols-2 gap-2">
+            {filteredRetailProducts.map((product) => {
+              const inCart = retailCart.find((r) => r.productId === product.id);
+              const outOfStock = product.currentStock <= 0;
+              return (
+                <button
+                  key={product.id}
+                  type="button"
+                  onClick={() => !outOfStock && handleAddRetailToCart(product.id)}
+                  disabled={outOfStock}
+                  className={`p-3 rounded-xl border-2 text-left transition-all ${
+                    inCart
+                      ? 'border-purple-400 bg-purple-50'
+                      : outOfStock
+                      ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
+                      : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
+                  }`}
+                >
+                  <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                  <p className="text-sm font-bold text-purple-700 mt-1">{fmtBs(product.price)}</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className={`text-xs ${outOfStock ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                      {outOfStock ? 'Agotado' : `Stock: ${product.currentStock}`}
+                    </span>
+                    {inCart && (
+                      <span className="bg-purple-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                        {inCart.quantity}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {filteredRetailProducts.length === 0 && (
+            <p className="text-center text-sm text-gray-500 py-4">{ES.app.noResults}</p>
+          )}
+        </div>
+      </Modal>
 
       {/* Edit Materials Modal */}
       <Modal

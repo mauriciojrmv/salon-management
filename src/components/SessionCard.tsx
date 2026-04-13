@@ -21,6 +21,8 @@ interface SessionCardProps {
   onEditMaterials?: (serviceItemId: string, serviceName: string) => void;
   onEditStaff?: (serviceItemId: string, serviceName: string, currentStaff: string[]) => void;
   onEditPrice?: (serviceItemId: string, newPrice: number) => void;
+  onAddRetailProduct?: () => void;
+  onRemoveRetailItem?: (itemId: string) => void;
   canCancel?: boolean; // admin/manager only
   loading?: boolean;
 }
@@ -46,6 +48,8 @@ export function SessionCard({
   onEditMaterials,
   onEditStaff,
   onEditPrice,
+  onAddRetailProduct,
+  onRemoveRetailItem,
   canCancel = false,
   loading = false,
 }: SessionCardProps) {
@@ -59,9 +63,12 @@ export function SessionCard({
   const sessionServices = session.services || [];
   const sessionPayments = session.payments || [];
   const sessionMaterials = session.materialsUsed || [];
+  const retailItems = session.retailItems || [];
 
-  // Client-facing total: service prices only — materials are internal cost tracking
-  const total = sessionServices.reduce((sum, s) => sum + s.price, 0);
+  // Client-facing total: service prices + retail items — materials are internal cost tracking
+  const serviceTotal = sessionServices.reduce((sum, s) => sum + s.price, 0);
+  const retailTotal = retailItems.reduce((sum, r) => sum + r.total, 0);
+  const total = serviceTotal + retailTotal;
   const paidAmount = sessionPayments.filter((p) => p.status === 'completed').reduce((sum, p) => sum + p.amount, 0);
   const remaining = total - paidAmount;
 
@@ -116,7 +123,7 @@ export function SessionCard({
                                   <button
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); onEditStaff(service.id, service.serviceName, service.assignedStaff || []); }}
-                                    className="ml-1 text-blue-500 hover:text-blue-700 text-xs font-medium"
+                                    className="ml-1 text-blue-500 hover:text-blue-700 text-xs font-medium inline-flex items-center justify-center min-w-[28px] min-h-[28px] rounded hover:bg-blue-50"
                                   >✎</button>
                                 )}
                               </span>
@@ -153,7 +160,7 @@ export function SessionCard({
                               onClick={(e) => { e.stopPropagation(); setEditingPriceId(service.id); setEditPriceValue(String(service.price)); }}
                               className="text-sm font-bold text-gray-900 hover:text-blue-600 transition-colors"
                             >
-                              {fmtBs(service.price)} <span className="text-xs text-gray-400">✎</span>
+                              {fmtBs(service.price)} <span className="text-xs text-gray-400 ml-1">✎</span>
                             </button>
                           ) : (
                             <p className="text-sm font-bold text-gray-900">{fmtBs(service.price)}</p>
@@ -195,7 +202,7 @@ export function SessionCard({
                               onClick={(e) => { e.stopPropagation(); onEditMaterials(service.id, service.serviceName); }}
                               className="px-3 py-1.5 min-h-[36px] rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
                             >
-                              + Mat.
+                              {ES.sessions.materialsUsed}
                             </button>
                           )}
                           {onRemoveService && canCancel && (
@@ -223,7 +230,36 @@ export function SessionCard({
               <p className="text-sm text-gray-500 mb-4">{ES.sessions.noServices}</p>
             )}
 
-            {/* Summary — client-facing: Servicios = Total only */}
+            {/* Retail Items */}
+            {retailItems.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{ES.sessions.retailItems}</p>
+                <div className="space-y-1">
+                  {retailItems.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between py-1.5 px-2 bg-purple-50 rounded-lg">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-900">{item.productName}</p>
+                        <p className="text-xs text-gray-500">{item.quantity} × {fmtBs(item.unitPrice)}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-sm font-bold text-gray-900">{fmtBs(item.total)}</span>
+                        {session.status === 'active' && onRemoveRetailItem && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onRemoveRetailItem(item.id); }}
+                            className="text-red-400 hover:text-red-600 p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-red-50"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Summary — client-facing: Servicios + Productos = Total */}
             <div className="bg-gray-50 rounded-lg p-3 mb-4 space-y-1 text-sm">
               <div className="flex justify-between border-gray-200">
                 <span className="text-gray-900 font-semibold">{ES.payments.total}</span>
@@ -254,6 +290,13 @@ export function SessionCard({
                 </Button>
               </div>
 
+              {/* Sell product button */}
+              {session.status === 'active' && onAddRetailProduct && (
+                <Button variant="secondary" onClick={onAddRetailProduct} className="w-full" loading={loading}>
+                  {ES.sessions.addRetailProduct}
+                </Button>
+              )}
+
               {/* Secondary actions */}
               <div className="flex flex-wrap gap-2">
                 {onViewClientHistory && (
@@ -263,10 +306,10 @@ export function SessionCard({
                 )}
               </div>
 
-              {/* Destructive actions — separated with border */}
+              {/* Close + Cancel actions — separated with border */}
               {canCancel && (
                 <div className="flex gap-2 pt-2 border-t border-gray-100">
-                  <Button variant="danger" onClick={() => setConfirmClose(true)} className="flex-1" loading={loading}>
+                  <Button variant="primary" onClick={() => setConfirmClose(true)} className="flex-1 bg-green-600 hover:bg-green-700" loading={loading}>
                     {ES.sessions.closeSession}
                   </Button>
                   {onCancelSession && (
@@ -279,7 +322,7 @@ export function SessionCard({
 
               {/* Non-admin close button (no cancel shown) */}
               {!canCancel && (
-                <Button variant="danger" onClick={() => setConfirmClose(true)} className="w-full" loading={loading}>
+                <Button variant="primary" onClick={() => setConfirmClose(true)} className="w-full bg-green-600 hover:bg-green-700" loading={loading}>
                   {ES.sessions.closeSession}
                 </Button>
               )}

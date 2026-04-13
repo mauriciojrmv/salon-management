@@ -50,8 +50,9 @@ export class SessionService {
     const updatedServices = [...(session.services || []), newService];
     const updatedSessionMaterials = [...(session.materialsUsed || []), ...materials];
 
-    // totalAmount = service prices only — materials are internal cost tracking, NOT charged to client
+    // totalAmount = service prices + retail items — materials are internal cost tracking, NOT charged to client
     const servicePrices = updatedServices.reduce((sum, s) => sum + s.price, 0);
+    const retailTotal = (session.retailItems || []).reduce((sum, r) => sum + r.total, 0);
 
     // Adding a service to a completed session auto-reopens it so the new work can be processed
     const reopen = session.status === 'completed';
@@ -59,7 +60,7 @@ export class SessionService {
     await SessionRepository.updateSession(data.sessionId, {
       services: updatedServices,
       materialsUsed: updatedSessionMaterials,
-      totalAmount: servicePrices,
+      totalAmount: servicePrices + retailTotal,
       ...(reopen ? { status: 'active' } : {}),
     });
     auditLog('SERVICE_ADDED', { sessionId: data.sessionId, serviceId: data.serviceId, serviceName: data.serviceName, price: data.price, materials: materials.length, reopened: reopen });
@@ -101,9 +102,10 @@ export class SessionService {
     const session = await SessionRepository.getSession(sessionId);
     if (!session) throw new Error('Session not found');
 
-    // totalAmount = service prices only — materials are internal cost tracking, NOT charged to client
+    // totalAmount = service prices + retail items — materials are internal cost tracking, NOT charged to client
     const servicePrices = (session.services || []).reduce((sum, s) => sum + s.price, 0);
-    const totalAmount = servicePrices;
+    const retailTotal = (session.retailItems || []).reduce((sum, r) => sum + r.total, 0);
+    const totalAmount = servicePrices + retailTotal;
 
     // Block close when there's an outstanding balance — session must be fully paid
     const totalPaid = (session.payments || [])
@@ -231,6 +233,26 @@ export class SessionService {
       }
     }
 
+    // Restore stock for retail items sold in this session
+    const retailItems = session.retailItems || [];
+    if (retailItems.length > 0) {
+      const retailRestores = await Promise.all(
+        retailItems.map(async (item) => {
+          const product = await ProductRepository.getProduct(item.productId);
+          if (!product) return null;
+          return {
+            collection: 'products',
+            docId: item.productId,
+            data: { currentStock: product.currentStock + item.quantity } as Record<string, unknown>,
+          };
+        })
+      );
+      const validRetailRestores = retailRestores.filter((r): r is NonNullable<typeof r> => r !== null);
+      if (validRetailRestores.length > 0) {
+        await batchUpdate(validRetailRestores);
+      }
+    }
+
     // Void all payments (mark as refunded, don't delete)
     const updatedPayments = (session.payments || []).map((p) => ({
       ...p,
@@ -245,7 +267,7 @@ export class SessionService {
       payments: updatedPayments,
       notes: `ANULADO: ${reason}${session.notes ? ` | ${session.notes}` : ''}`,
     });
-    auditLog('SESSION_CANCELLED', { sessionId, reason, materialsRestored: (session.materialsUsed || []).length, paymentsVoided: (session.payments || []).length });
+    auditLog('SESSION_CANCELLED', { sessionId, reason, materialsRestored: (session.materialsUsed || []).length, retailRestored: retailItems.length, paymentsVoided: (session.payments || []).length });
   }
 
   static async removeServiceFromSession(sessionId: string, serviceItemId: string): Promise<void> {
@@ -287,13 +309,14 @@ export class SessionService {
       if (idx !== -1) remainingMaterials.splice(idx, 1);
     }
 
-    // Recalculate total — service prices only
+    // Recalculate total — service prices + retail items
     const servicePrices = updatedServices.reduce((sum, s) => sum + s.price, 0);
+    const retailTotal = (session.retailItems || []).reduce((sum, r) => sum + r.total, 0);
 
     await SessionRepository.updateSession(sessionId, {
       services: updatedServices,
       materialsUsed: remainingMaterials,
-      totalAmount: servicePrices,
+      totalAmount: servicePrices + retailTotal,
     });
     auditLog('SERVICE_REMOVED', { sessionId, serviceItemId, serviceName: serviceToRemove.serviceName, materialsRestored: materialsToRestore.length });
   }

@@ -21,10 +21,13 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
   if (!session) return null;
 
   const services = session.services || [];
+  const retailItems = session.retailItems || [];
   const payments = (session.payments || []).filter((p) => p.status === 'completed');
 
-  // Client receipt: services only — materials are internal cost tracking, NOT shown to client
-  const total = services.reduce((sum, s) => sum + s.price, 0);
+  // Client receipt: services + retail items — materials are internal cost tracking, NOT shown to client
+  const serviceTotal = services.reduce((sum, s) => sum + s.price, 0);
+  const retailTotal = retailItems.reduce((sum, r) => sum + r.total, 0);
+  const total = serviceTotal + retailTotal;
   const paidAmount = payments.reduce((sum, p) => sum + p.amount, 0);
 
   const methodLabels: Record<string, string> = {
@@ -94,6 +97,11 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
       '',
       `--- ${ES.sessions.services} ---`,
       ...services.map((s) => `${s.serviceName}: ${fmtBs(s.price)}`),
+      ...(retailItems.length > 0 ? [
+        '',
+        `--- ${ES.sessions.retailItems} ---`,
+        ...retailItems.map((r) => `${r.productName} x${r.quantity}: ${fmtBs(r.total)}`),
+      ] : []),
       '',
       `${ES.payments.total}: ${fmtBs(total)}`,
       ...(payments.length > 0 ? [
@@ -155,6 +163,22 @@ export function ReceiptModal({ isOpen, onClose, session, clientName, getStaffNam
             </div>
           ))}
         </div>
+
+        {/* Retail Items */}
+        {retailItems.length > 0 && (
+          <>
+            <div className="border-t border-dashed border-gray-300 my-2" />
+            <p className="text-xs text-gray-500 mb-1">{ES.sessions.retailItems}</p>
+            <div className="space-y-1 mb-2">
+              {retailItems.map((item) => (
+                <div key={item.id} className="flex justify-between text-sm">
+                  <span className="text-gray-700">{item.productName} ×{item.quantity}</span>
+                  <span className="font-medium">{fmtBs(item.total)}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         <div className="border-t border-dashed border-gray-300 my-2" />
 

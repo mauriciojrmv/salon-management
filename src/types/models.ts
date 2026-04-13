@@ -148,6 +148,15 @@ export type ServiceCategory =
   | 'spa'
   | 'other';
 
+export interface SessionRetailItem {
+  id: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number; // sell price
+  total: number;
+}
+
 export interface Session {
   id: string;
   salonId: string;
@@ -157,6 +166,7 @@ export interface Session {
   endTime?: Date;
   status: 'active' | 'completed' | 'cancelled';
   services: SessionServiceItem[];
+  retailItems?: SessionRetailItem[];
   notes?: string;
   totalAmount: number;
   tax: number;
