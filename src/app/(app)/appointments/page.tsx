@@ -424,12 +424,15 @@ export default function AppointmentsPage() {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             {ES.appointments.filterByDate}
           </label>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg"
-          />
+          <div className="flex flex-col">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg"
+            />
+            <span className="text-[10px] text-gray-500 mt-0.5">{fmtDate(selectedDate)}</span>
+          </div>
           {/* 7-day strip with appointment count badges */}
           <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
             {dateStrip.map((d) => {
@@ -439,7 +442,7 @@ export default function AppointmentsPage() {
                   key={d.iso}
                   type="button"
                   onClick={() => setSelectedDate(d.iso)}
-                  className={`flex flex-col items-center justify-center min-w-[52px] py-2 px-2 rounded-lg border text-xs font-medium relative ${
+                  className={`flex flex-col items-center justify-center min-w-[52px] min-h-[56px] py-3 px-2 rounded-lg border text-xs font-medium relative ${
                     isSelected
                       ? 'bg-blue-600 text-white border-blue-600'
                       : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'

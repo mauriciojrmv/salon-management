@@ -308,12 +308,12 @@ export function SessionCard({
 
               {/* Close + Cancel actions — separated with border */}
               {canCancel && (
-                <div className="flex gap-2 pt-2 border-t border-gray-100">
-                  <Button variant="primary" onClick={() => setConfirmClose(true)} className="flex-1 bg-green-600 hover:bg-green-700" loading={loading}>
+                <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-gray-100">
+                  <Button variant="primary" onClick={() => setConfirmClose(true)} className="w-full sm:flex-1 bg-green-600 hover:bg-green-700" loading={loading}>
                     {ES.sessions.closeSession}
                   </Button>
                   {onCancelSession && (
-                    <Button variant="ghost" onClick={() => setConfirmCancel(true)} className="flex-1 text-red-600 hover:bg-red-50" loading={loading}>
+                    <Button variant="ghost" onClick={() => setConfirmCancel(true)} className="w-full sm:flex-1 text-red-600 hover:bg-red-50" loading={loading}>
                       {ES.sessions.cancelSession}
                     </Button>
                   )}

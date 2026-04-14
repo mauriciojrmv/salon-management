@@ -114,7 +114,7 @@ export function SearchableSelect({
     >
       <span>{option.label}</span>
       {option.secondary && (
-        <span className="text-xs text-gray-500 ml-2">{option.secondary}</span>
+        <span className="text-xs text-gray-500 ml-2 truncate flex-shrink-0 max-w-[40%]">{option.secondary}</span>
       )}
     </button>
   );
@@ -145,7 +145,7 @@ export function SearchableSelect({
 
       {/* Dropdown — fixed positioned to escape modal overflow */}
       {isOpen && (
-        <div style={dropdownStyle} className="bg-white border border-gray-200 rounded-lg shadow-xl max-h-[50vh] overflow-hidden" onMouseDown={(e) => e.stopPropagation()}>
+        <div style={dropdownStyle} className="bg-white border border-gray-200 rounded-lg shadow-xl max-h-[40vh] sm:max-h-[50vh] overflow-hidden flex flex-col" onMouseDown={(e) => e.stopPropagation()}>
             {/* Search input */}
             <div className="p-2 border-b border-gray-100">
               <input

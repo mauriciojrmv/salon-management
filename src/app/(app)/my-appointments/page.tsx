@@ -227,7 +227,7 @@ export default function MyAppointmentsPage() {
               key={d.iso}
               type="button"
               onClick={() => setSelectedDate(d.iso)}
-              className={`flex flex-col items-center justify-center min-w-[52px] py-2 px-2 rounded-lg border text-xs font-medium relative ${
+              className={`flex flex-col items-center justify-center min-w-[52px] min-h-[56px] py-3 px-2 rounded-lg border text-xs font-medium relative ${
                 isSelected
                   ? 'bg-blue-600 text-white border-blue-600'
                   : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'

@@ -135,7 +135,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {!isMobile && (
             <button
               onClick={() => setIsDesktopCollapsed(!isDesktopCollapsed)}
-              className="text-gray-500 hover:text-white p-1"
+              className="text-gray-500 hover:text-white min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-gray-800"
             >
               ☰
             </button>

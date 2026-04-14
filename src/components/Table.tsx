@@ -52,9 +52,9 @@ export function Table<T>({
             onClick={() => onRowClick?.(item)}
           >
             {columns.map((column) => (
-              <div key={String(column.key)} className="flex justify-between items-start gap-2">
-                <span className="text-xs text-gray-500 shrink-0">{column.label}</span>
-                <span className="text-sm text-gray-900 text-right font-medium">
+              <div key={String(column.key)} className="flex flex-col gap-0.5">
+                <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{column.label}</span>
+                <span className="text-sm text-gray-900 font-medium break-words">
                   {column.render
                     ? column.render((item as Record<string, unknown>)[column.key as string], item)
                     : String((item as Record<string, unknown>)[column.key as string] ?? '')}
