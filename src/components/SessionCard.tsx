@@ -23,6 +23,7 @@ interface SessionCardProps {
   onEditPrice?: (serviceItemId: string, newPrice: number) => void;
   onAddRetailProduct?: () => void;
   onRemoveRetailItem?: (itemId: string) => void;
+  onAssignClient?: () => void;
   canCancel?: boolean; // admin/manager only
   loading?: boolean;
 }
@@ -50,6 +51,7 @@ export function SessionCard({
   onEditPrice,
   onAddRetailProduct,
   onRemoveRetailItem,
+  onAssignClient,
   canCancel = false,
   loading = false,
 }: SessionCardProps) {
@@ -81,7 +83,19 @@ export function SessionCard({
             onClick={() => setIsExpanded(!isExpanded)}
           >
             <div>
-              <h3 className="font-semibold text-gray-900 text-lg">{clientName}</h3>
+              <div className="flex items-center gap-1.5">
+                <h3 className="font-semibold text-gray-900 text-lg">{clientName}</h3>
+                {canCancel && onAssignClient && !session.clientId && session.status !== 'cancelled' && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onAssignClient(); }}
+                    className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg min-w-[32px] min-h-[32px] flex items-center justify-center text-sm"
+                    title={ES.sessions.assignClient}
+                  >
+                    ✎
+                  </button>
+                )}
+              </div>
               <p className="text-sm text-gray-500">
                 {sessionServices.length} {ES.sessions.services.toLowerCase()} · {fmtBs(total)}
               </p>

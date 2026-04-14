@@ -351,6 +351,51 @@ export class SessionService {
     auditLog('SESSION_REOPENED', { sessionId });
   }
 
+  static async assignClient(sessionId: string, newClientId: string): Promise<void> {
+    const session = await SessionRepository.getSession(sessionId);
+    if (!session) throw new Error('Session not found');
+    if (session.status === 'cancelled') throw new Error('Cannot assign client on cancelled session');
+    // Only allow attach-from-walkin; swapping A→B requires manual stats reversal
+    if (session.clientId) throw new Error('SESSION_ALREADY_HAS_CLIENT');
+    if (!newClientId) throw new Error('Client id required');
+
+    await SessionRepository.updateSession(sessionId, { clientId: newClientId });
+
+    // If session was already completed when walk-in: reconcile client stats + loyalty now
+    if (session.status === 'completed') {
+      const totalAmount = session.totalAmount || 0;
+      const alreadyAwarded = (session as unknown as Record<string, unknown>).loyaltyPointsAwarded === true;
+      const pointsEarned = alreadyAwarded ? 0 : Math.floor(totalAmount / LOYALTY_POINTS_RATE);
+
+      try {
+        const client = await ClientRepository.getClient(newClientId);
+        if (client) {
+          await ClientRepository.updateClient(newClientId, {
+            totalSpent: (client.totalSpent || 0) + totalAmount,
+            totalSessions: (client.totalSessions || 0) + 1,
+            lastVisit: new Date(),
+            ...(pointsEarned > 0 ? { loyaltyPoints: (client.loyaltyPoints || 0) + pointsEarned } : {}),
+          });
+          if (pointsEarned > 0) {
+            await SessionRepository.updateSession(sessionId, { loyaltyPointsAwarded: true } as Record<string, unknown>);
+            await LoyaltyRepository.addTransaction({
+              salonId: session.salonId,
+              clientId: newClientId,
+              type: 'earned',
+              points: pointsEarned,
+              description: `Trabajo #${sessionId.slice(-6)} — Bs. ${totalAmount.toFixed(2)}`,
+              sessionId,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to reconcile client stats on assign:', err);
+      }
+    }
+
+    auditLog('CLIENT_ASSIGNED', { sessionId, newClientId, status: session.status });
+  }
+
   static async addSessionNote(sessionId: string, note: string): Promise<void> {
     const session = await SessionRepository.getSession(sessionId);
     if (!session) throw new Error('Session not found');

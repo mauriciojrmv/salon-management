@@ -62,6 +62,8 @@ export default function SessionsPage() {
   const [reopenSessionId, setReopenSessionId] = useState<string | null>(null);
   const [noteSessionId, setNoteSessionId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
+  const [assignClientSessionId, setAssignClientSessionId] = useState<string | null>(null);
+  const [assignClientSelection, setAssignClientSelection] = useState<string>('');
   const [receiptSession, setReceiptSession] = useState<Session | null>(null);
   const [suggestedServices, setSuggestedServices] = useState<{ serviceId: string; serviceName: string; count: number }[]>([]);
 
@@ -582,6 +584,27 @@ export default function SessionsPage() {
     }
   };
 
+  const handleAssignClient = async () => {
+    if (!assignClientSessionId || !assignClientSelection) {
+      error(ES.messages.fillRequiredFields);
+      return;
+    }
+    setLoading(true);
+    try {
+      await SessionService.assignClient(assignClientSessionId, assignClientSelection);
+      success(ES.sessions.clientAssigned);
+      setAssignClientSessionId(null);
+      setAssignClientSelection('');
+    } catch (err) {
+      const msg = err instanceof Error && err.message === 'SESSION_ALREADY_HAS_CLIENT'
+        ? ES.sessions.cannotSwapClient
+        : err instanceof Error ? err.message : ES.messages.operationFailed;
+      error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSaveNote = async () => {
     if (!noteSessionId || !noteText.trim()) return;
     setLoading(true);
@@ -868,6 +891,10 @@ export default function SessionsPage() {
                 setCancelSessionId(session.id);
                 setCancelReason('');
               }}
+              onAssignClient={() => {
+                setAssignClientSessionId(session.id);
+                setAssignClientSelection('');
+              }}
               onRemoveService={(serviceItemId) => handleRemoveService(session.id, serviceItemId)}
               onUpdateServiceStatus={(serviceItemId, newStatus) => handleUpdateServiceStatus(session.id, serviceItemId, newStatus)}
               onEditMaterials={(serviceItemId, serviceName) => openEditMaterials(session.id, serviceItemId, serviceName)}
@@ -903,7 +930,23 @@ export default function SessionsPage() {
                   <CardBody>
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-medium text-gray-900">{getClientName(session.clientId)}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium text-gray-900">{getClientName(session.clientId)}</p>
+                          {canEditCompleted && !session.clientId && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAssignClientSessionId(session.id);
+                                setAssignClientSelection('');
+                              }}
+                              className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg min-w-[32px] min-h-[32px] flex items-center justify-center text-sm"
+                              title={ES.sessions.assignClient}
+                            >
+                              ✎
+                            </button>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-500">
                           {sessionServices.length} {ES.sessions.services.toLowerCase()} · {fmtBs(session.totalAmount)}
                           {remaining > 0 && <span className="text-red-500 ml-1">({ES.payments.remaining}: {fmtBs(remaining)})</span>}
@@ -1107,6 +1150,39 @@ export default function SessionsPage() {
               {ES.actions.cancel}
             </Button>
             <Button onClick={handleSaveNote} loading={loading}>
+              {ES.actions.save}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Assign Client Modal — walk-in → registered client */}
+      <Modal
+        isOpen={!!assignClientSessionId}
+        onClose={() => { setAssignClientSessionId(null); setAssignClientSelection(''); }}
+        title={ES.sessions.assignClientTitle}
+      >
+        <div className="space-y-4">
+          <SearchableSelect
+            label={ES.sessions.selectClient}
+            options={(clients || []).map((c) => ({
+              value: c.id,
+              label: `${c.firstName} ${c.lastName}`,
+              secondary: c.phone,
+            }))}
+            value={assignClientSelection}
+            onChange={setAssignClientSelection}
+            placeholder={ES.actions.search}
+            required
+          />
+          <p className="text-xs text-gray-500">
+            {ES.sessions.assignClient} — {ES.clients.addQuick.toLowerCase()} desde la página de Clientes.
+          </p>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" className="flex-1 py-3 min-h-[44px]" onClick={() => { setAssignClientSessionId(null); setAssignClientSelection(''); }}>
+              {ES.actions.cancel}
+            </Button>
+            <Button className="flex-1 py-3 min-h-[44px]" onClick={handleAssignClient} loading={loading}>
               {ES.actions.save}
             </Button>
           </div>
