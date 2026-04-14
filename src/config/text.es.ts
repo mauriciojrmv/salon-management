@@ -336,6 +336,14 @@ export const ES = {
     serviceStatusUpdated: 'Estado actualizado',
     selectService: 'Seleccionar Servicio',
     createAndAssign: 'Crear y Asignarme',
+    activeSessionsInSalon: 'Atenciones en Curso',
+    noActiveSessionsInSalon: 'Sin atenciones activas en el salón',
+    addMyService: '+ Agregar mi servicio',
+    clientHasActiveSession: 'Este cliente ya tiene una atención activa',
+    addToExistingSession: 'Agregar a atención existente',
+    createNewSession: 'Crear nueva atención',
+    selectServiceRequired: 'Selecciona un servicio',
+    serviceAddedToSession: 'Servicio agregado a la atención',
   },
 
   // Inventory

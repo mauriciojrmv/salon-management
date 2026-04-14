@@ -63,6 +63,13 @@ export default function MyWorkPage() {
   // Client history modal
   const [historyClientId, setHistoryClientId] = useState<string | null>(null);
 
+  // Add-service-to-existing-session flow
+  const [addServiceTarget, setAddServiceTarget] = useState<Session | null>(null);
+  const [addServiceId, setAddServiceId] = useState('');
+
+  // Duplicate-session confirmation (client already has active session when creating new)
+  const [duplicateConfirm, setDuplicateConfirm] = useState<{ existingSession: Session; serviceId: string } | null>(null);
+
   const staffId = user?.uid || '';
 
   const today = useMemo(() => getBoliviaDate(), []);
@@ -138,38 +145,95 @@ export default function MyWorkPage() {
     })),
   ];
 
+  const addServiceToExistingSession = async (sessionId: string, serviceId: string) => {
+    const svc = salonServices?.find((s) => s.id === serviceId);
+    if (!svc) throw new Error('Service not found');
+    await SessionService.addServiceToSession({
+      sessionId,
+      serviceId: svc.id,
+      serviceName: svc.name,
+      price: svc.price,
+      staffIds: [staffId],
+      materials: [],
+    });
+  };
+
   const handleCreateTrabajo = async () => {
     if (!clientId || !userData?.salonId) {
       error(ES.messages.fillRequiredFields);
       return;
     }
+    if (!selectedServiceId) {
+      error(ES.staff.selectServiceRequired);
+      return;
+    }
+    const resolvedClientId = clientId === '__walkin__' ? '' : clientId;
+
+    // Duplicate check: if client already has an active session today, prompt user
+    if (resolvedClientId) {
+      const existingActive = (sessions || []).find(
+        (s) => s.status === 'active' && s.clientId === resolvedClientId
+      );
+      if (existingActive) {
+        setDuplicateConfirm({ existingSession: existingActive, serviceId: selectedServiceId });
+        return;
+      }
+    }
+
+    await performCreateSession(resolvedClientId, selectedServiceId);
+  };
+
+  const performCreateSession = async (resolvedClientId: string, serviceId: string) => {
+    if (!userData?.salonId) return;
     setLoading(true);
     try {
-      const resolvedClientId = clientId === '__walkin__' ? '' : clientId;
       const sessionId = await SessionService.createSession({
         clientId: resolvedClientId,
         date: today,
         startTime: new Date(),
         salonId: userData.salonId,
       });
-      // If a service was selected, add it and auto-assign to the creator
-      if (selectedServiceId) {
-        const svc = salonServices?.find((s) => s.id === selectedServiceId);
-        if (svc) {
-          await SessionService.addServiceToSession({
-            sessionId,
-            serviceId: svc.id,
-            serviceName: svc.name,
-            price: svc.price,
-            staffIds: [staffId],
-            materials: [],
-          });
-        }
-      }
+      await addServiceToExistingSession(sessionId, serviceId);
       success(ES.sessions.sessionCreated);
       setIsCreateModalOpen(false);
       setClientId('__walkin__');
       setSelectedServiceId('');
+      setDuplicateConfirm(null);
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmAddToExisting = async () => {
+    if (!duplicateConfirm) return;
+    setLoading(true);
+    try {
+      await addServiceToExistingSession(duplicateConfirm.existingSession.id, duplicateConfirm.serviceId);
+      success(ES.staff.serviceAddedToSession);
+      setIsCreateModalOpen(false);
+      setClientId('__walkin__');
+      setSelectedServiceId('');
+      setDuplicateConfirm(null);
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddServiceFromBrowser = async () => {
+    if (!addServiceTarget || !addServiceId) {
+      error(ES.staff.selectServiceRequired);
+      return;
+    }
+    setLoading(true);
+    try {
+      await addServiceToExistingSession(addServiceTarget.id, addServiceId);
+      success(ES.staff.serviceAddedToSession);
+      setAddServiceTarget(null);
+      setAddServiceId('');
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
     } finally {
@@ -671,6 +735,62 @@ export default function MyWorkPage() {
         </section>
       )}
 
+      {/* === ATENCIONES EN CURSO (browse all active salon sessions) === */}
+      {isToday && activeSessions.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">{ES.staff.activeSessionsInSalon}</h2>
+          <div className="space-y-3">
+            {activeSessions.map((session) => {
+              const svcCount = (session.services || []).length;
+              const assignedNames = Array.from(
+                new Set(
+                  (session.services || [])
+                    .flatMap((s) => s.assignedStaff || [])
+                    .map(getStaffName)
+                )
+              );
+              return (
+                <Card key={`curso-${session.id}`}>
+                  <CardBody>
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-gray-900">{getClientName(session.clientId)}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {svcCount} {svcCount === 1 ? 'servicio' : 'servicios'}
+                            {assignedNames.length > 0 && ` · ${assignedNames.join(', ')}`}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          className="shrink-0 min-h-[44px]"
+                          onClick={() => { setAddServiceTarget(session); setAddServiceId(''); }}
+                        >
+                          {ES.staff.addMyService}
+                        </Button>
+                      </div>
+                      {svcCount > 0 && (
+                        <div className="bg-gray-50 rounded-lg p-2 space-y-1">
+                          {(session.services || []).map((svc) => (
+                            <p key={svc.id} className="text-xs text-gray-600 truncate">
+                              · {svc.serviceName}
+                              {svc.assignedStaff && svc.assignedStaff.length > 0 && (
+                                <span className="text-gray-400"> — {svc.assignedStaff.map(getStaffName).join(', ')}</span>
+                              )}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </CardBody>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* === COMPLETED (selected date) === */}
       {myCompletedServices.length > 0 && (
         <section>
@@ -814,7 +934,7 @@ export default function MyWorkPage() {
             {ES.clients.addQuick}
           </button>
           <SearchableSelect
-            label={`${ES.staff.selectService} (opcional)`}
+            label={ES.staff.selectService}
             options={(() => {
               const myStaff = staffList?.find((s) => s.id === staffId);
               const myServiceIds = (myStaff as typeof myStaff & { serviceIds?: string[] })?.serviceIds;
@@ -832,6 +952,7 @@ export default function MyWorkPage() {
             value={selectedServiceId}
             onChange={setSelectedServiceId}
             placeholder={ES.actions.search}
+            required
           />
           <div className="flex gap-2 pt-2">
             <Button variant="secondary" className="flex-1 py-3" onClick={() => { setIsCreateModalOpen(false); setClientId('__walkin__'); setSelectedServiceId(''); }}>
@@ -856,6 +977,95 @@ export default function MyWorkPage() {
             </Button>
             <Button className="flex-1 py-3" onClick={handleQuickCreateClient} loading={loading}>
               {ES.actions.save}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Duplicate session confirmation */}
+      <Modal
+        isOpen={!!duplicateConfirm}
+        onClose={() => setDuplicateConfirm(null)}
+        title={ES.staff.clientHasActiveSession}
+        size="sm"
+      >
+        {duplicateConfirm && (
+          <div className="space-y-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-sm font-semibold text-amber-900">
+                {getClientName(duplicateConfirm.existingSession.clientId)}
+              </p>
+              <p className="text-xs text-amber-700 mt-1">
+                {(duplicateConfirm.existingSession.services || []).length} {(duplicateConfirm.existingSession.services || []).length === 1 ? 'servicio' : 'servicios'} en curso
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="primary"
+                className="w-full py-3 min-h-[44px]"
+                onClick={handleConfirmAddToExisting}
+                loading={loading}
+              >
+                {ES.staff.addToExistingSession}
+              </Button>
+              <Button
+                variant="secondary"
+                className="w-full py-3 min-h-[44px]"
+                onClick={() => {
+                  const d = duplicateConfirm;
+                  setDuplicateConfirm(null);
+                  performCreateSession(d.existingSession.clientId, d.serviceId);
+                }}
+                loading={loading}
+              >
+                {ES.staff.createNewSession}
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full py-3 min-h-[44px]"
+                onClick={() => setDuplicateConfirm(null)}
+              >
+                {ES.actions.cancel}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Add service to existing session (from "Atenciones en Curso") */}
+      <Modal
+        isOpen={!!addServiceTarget}
+        onClose={() => { setAddServiceTarget(null); setAddServiceId(''); }}
+        title={`${ES.staff.addMyService} — ${addServiceTarget ? getClientName(addServiceTarget.clientId) : ''}`}
+      >
+        <div className="space-y-4">
+          <SearchableSelect
+            label={ES.staff.selectService}
+            options={(() => {
+              const myStaff = staffList?.find((s) => s.id === staffId);
+              const myServiceIds = (myStaff as typeof myStaff & { serviceIds?: string[] })?.serviceIds;
+              const filtered = (salonServices || []).filter((s) => {
+                if (!s.isActive) return false;
+                if (myServiceIds && myServiceIds.length > 0) return myServiceIds.includes(s.id);
+                return true;
+              });
+              return filtered.map((s) => ({
+                value: s.id,
+                label: s.name,
+                secondary: `Bs. ${s.price}`,
+              }));
+            })()}
+            value={addServiceId}
+            onChange={setAddServiceId}
+            placeholder={ES.actions.search}
+            required
+          />
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" className="flex-1 py-3 min-h-[44px]" onClick={() => { setAddServiceTarget(null); setAddServiceId(''); }}>
+              {ES.actions.cancel}
+            </Button>
+            <Button className="flex-1 py-3 min-h-[44px]" onClick={handleAddServiceFromBrowser} loading={loading}>
+              {ES.staff.addMyService}
             </Button>
           </div>
         </div>
