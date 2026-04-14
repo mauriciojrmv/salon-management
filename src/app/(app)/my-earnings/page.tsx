@@ -9,8 +9,9 @@ import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { firebaseConstraints } from '@/lib/firebase/db';
 import { ProductRepository } from '@/lib/repositories/productRepository';
+import { PayrollPaymentRepository, PayrollPaymentRecord } from '@/lib/repositories/payrollPaymentRepository';
 import type { Session } from '@/types/models';
-import { fmtBs, getBoliviaDate } from '@/lib/utils/helpers';
+import { fmtBs, fmtDate, getBoliviaDate, toDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 export default function MyEarningsPage() {
@@ -24,6 +25,7 @@ export default function MyEarningsPage() {
     return d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
   }, []);
   const [selectedDate, setSelectedDate] = useState<string>(today);
+  const [historyLimit, setHistoryLimit] = useState(5);
 
   const sessionConstraints = useMemo(() => [
     firebaseConstraints.where('salonId', '==', userData?.salonId || ''),
@@ -34,6 +36,19 @@ export default function MyEarningsPage() {
     () => userData?.salonId ? ProductRepository.getSalonProducts(userData.salonId) : Promise.resolve([]),
     [userData?.salonId]
   );
+  const { data: allPayments, loading: paymentsLoading } = useAsync(
+    () => userData?.salonId ? PayrollPaymentRepository.getSalonPayments(userData.salonId) : Promise.resolve([]),
+    [userData?.salonId]
+  );
+
+  const myPayments = useMemo(() => {
+    return (allPayments || []).filter((p) => p.staffId === staffId);
+  }, [allPayments, staffId]);
+
+  const totalReceived = useMemo(() => myPayments.reduce((sum, p) => sum + p.amount, 0), [myPayments]);
+  const visiblePayments = myPayments.slice(0, historyLimit);
+  const hasMorePayments = myPayments.length > historyLimit;
+
   const productCostMap = useMemo(() => {
     const map: Record<string, number> = {};
     (allProducts || []).forEach((p) => { map[p.id] = p.cost; });
@@ -69,35 +84,40 @@ export default function MyEarningsPage() {
       </div>
 
       {/* Date selector */}
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setSelectedDate(today)}
-          className={`px-4 py-2.5 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
-            selectedDate === today
-              ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-          }`}
-        >
-          Hoy
-        </button>
-        <button
-          type="button"
-          onClick={() => setSelectedDate(yesterday)}
-          className={`px-4 py-2.5 text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
-            selectedDate === yesterday
-              ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-          }`}
-        >
-          Ayer
-        </button>
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex-1"
-        />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedDate(today)}
+            className={`flex-1 sm:flex-none px-4 py-2.5 min-h-[44px] text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+              selectedDate === today
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+            }`}
+          >
+            Hoy
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedDate(yesterday)}
+            className={`flex-1 sm:flex-none px-4 py-2.5 min-h-[44px] text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+              selectedDate === yesterday
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+            }`}
+          >
+            Ayer
+          </button>
+        </div>
+        <div className="flex flex-col flex-1">
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm w-full"
+          />
+          <span className="text-[10px] text-gray-500 mt-0.5">{fmtDate(selectedDate)}</span>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -128,14 +148,14 @@ export default function MyEarningsPage() {
           {myCompletedServices.map((s, i) => (
             <Card key={i}>
               <CardBody>
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium text-gray-900 text-sm">{s.serviceName}</p>
                     <p className="text-xs text-gray-500">
                       ({fmtBs(s.price)} - {fmtBs(s.materialCost)} mat.) &times; {s.rate}% = {fmtBs(s.commission)}
                     </p>
                   </div>
-                  <p className="text-sm font-bold text-green-600">{fmtBs(s.commission)}</p>
+                  <p className="text-sm font-bold text-green-600 shrink-0">{fmtBs(s.commission)}</p>
                 </div>
               </CardBody>
             </Card>
@@ -148,6 +168,75 @@ export default function MyEarningsPage() {
           </div>
         </div>
       )}
+
+      {/* Payment history received from admin/gerente */}
+      <div className="pt-2">
+        <div className="flex items-end justify-between mb-3 gap-2">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">{ES.reports.paymentHistory}</h2>
+            {myPayments.length > 0 && (
+              <p className="text-xs text-gray-500">{myPayments.length} {myPayments.length === 1 ? 'pago' : 'pagos'}</p>
+            )}
+          </div>
+          {totalReceived > 0 && (
+            <div className="text-right">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wide">{ES.reports.totalPaid}</p>
+              <p className="text-lg font-bold text-green-700">{fmtBs(totalReceived)}</p>
+            </div>
+          )}
+        </div>
+
+        {paymentsLoading ? (
+          <Card>
+            <CardBody>
+              <p className="text-center text-gray-500 py-4 text-sm">{ES.actions.loading}</p>
+            </CardBody>
+          </Card>
+        ) : myPayments.length === 0 ? (
+          <Card>
+            <CardBody>
+              <p className="text-center text-gray-500 py-6 text-sm">{ES.reports.noPaymentHistory}</p>
+            </CardBody>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {visiblePayments.map((payment: PayrollPaymentRecord) => {
+              const paidDate = (() => {
+                try { return toDate(payment.paidAt).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'America/La_Paz' }); }
+                catch { return '-'; }
+              })();
+              const serviceCount = (payment.paidSessionServiceIds || []).length;
+              return (
+                <Card key={payment.id}>
+                  <CardBody>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-gray-900">{ES.reports.paidOn} {paidDate}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {ES.reports.periodLabel}: {fmtDate(payment.periodStart)} – {fmtDate(payment.periodEnd)}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {serviceCount} {ES.reports.servicesIncluded}
+                        </p>
+                      </div>
+                      <p className="text-lg font-bold text-green-600 shrink-0">{fmtBs(payment.amount)}</p>
+                    </div>
+                  </CardBody>
+                </Card>
+              );
+            })}
+            {hasMorePayments && (
+              <button
+                type="button"
+                onClick={() => setHistoryLimit((l) => l + 5)}
+                className="w-full py-3 min-h-[44px] text-sm text-blue-600 font-medium hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
+              >
+                {ES.reports.showMore} ({myPayments.length - historyLimit} más)
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
