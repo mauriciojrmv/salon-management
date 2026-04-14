@@ -27,6 +27,7 @@ import {
   Receipt,
   BarChart2,
   Wallet,
+  Users2,
   Gift,
   Building2,
   UserCog,
@@ -47,6 +48,7 @@ const allNavItems: NavItem[] = [
   { name: ES.nav.appointments, href: '/appointments', icon: Calendar, group: 'daily' },
   { name: ES.nav.clients, href: '/clients', icon: Users, group: 'daily' },
   { name: ES.retail.title, href: '/sales', icon: ShoppingCart, group: 'daily' },
+  { name: ES.cola.title, href: '/cola', icon: Users2, group: 'daily' },
   // Staff area
   { name: ES.nav.myWork, href: '/my-work', icon: ClipboardList, group: 'my' },  
   { name: ES.nav.myAppointments, href: '/my-appointments', icon: Calendar, group: 'my' },

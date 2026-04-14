@@ -211,6 +211,29 @@ export interface Appointment {
   updatedAt: Date;
 }
 
+// Waiting list entry — walk-in queue for busy days
+export interface WaitingListEntry {
+  id: string;
+  salonId: string;
+  clientId: string; // empty for walk-in
+  walkInName: string; // fallback when no client record
+  phone: string; // optional contact
+  serviceIds: string[];
+  serviceNames: string[]; // snapshot for display
+  preferredStaffId: string; // empty = any worker
+  preferredStaffName: string;
+  arrivalTime: Date;
+  date: string; // YYYY-MM-DD
+  status: 'waiting' | 'taken' | 'cancelled';
+  notes: string;
+  order: number; // for manual reorder, defaults to arrivalTime epoch ms
+  createdBy: string;
+  takenAt?: Date;
+  takenSessionId?: string;
+  cancelledAt?: Date;
+  cancellationReason?: string;
+}
+
 // Inventory entities
 export interface Product {
   id: string;

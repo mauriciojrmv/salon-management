@@ -13,7 +13,8 @@
       "Bash(wc -l d:/projects/salon/src/app/\\\\\\(app\\\\\\)/sessions/page.tsx)",
       "Bash(npx tsc:*)",
       "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
-      "Bash(npx playwright:*)"
+      "Bash(npx playwright:*)",
+      "Bash(echo \"EXIT=$?\")"
     ]
   }
 }

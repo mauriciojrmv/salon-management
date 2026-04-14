@@ -18,6 +18,8 @@ import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
+import { WaitingListService } from '@/lib/services/waitingListService';
+import type { WaitingListEntry } from '@/types/models';
 import { AppointmentService } from '@/lib/services/appointmentService';
 import { useRouter } from 'next/navigation';
 import type { Appointment } from '@/types/models';
@@ -84,6 +86,17 @@ export default function MyWorkPage() {
     firebaseConstraints.where('date', '==', selectedDate),
   ], [userData?.salonId, selectedDate]);
   const { data: sessions } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId, [userData?.salonId, selectedDate]);
+
+  const waitingListConstraints = useMemo(() => [
+    firebaseConstraints.where('salonId', '==', userData?.salonId || ''),
+    firebaseConstraints.where('date', '==', today),
+  ], [userData?.salonId, today]);
+  const { data: waitingEntries } = useRealtime<WaitingListEntry>(
+    'waitingList',
+    waitingListConstraints,
+    !!userData?.salonId && isToday,
+    [userData?.salonId, today, isToday],
+  );
 
   const { data: clients, refetch: refetchClients } = useAsync(async () => {
     if (!userData?.salonId) return [];
@@ -270,6 +283,32 @@ export default function MyWorkPage() {
 
   const allSessions = sessions || [];
   const activeSessions = allSessions.filter((s) => s.status === 'active');
+
+  const myWaitingList = (waitingEntries || [])
+    .filter((e) => e.status === 'waiting')
+    .filter((e) => !e.preferredStaffId || e.preferredStaffId === staffId)
+    .map((e) => ({ ...e, arrivalTime: toDate(e.arrivalTime) }))
+    .sort((a, b) => {
+      // my-preferred entries first, then by arrival time
+      const aMine = a.preferredStaffId === staffId ? 0 : 1;
+      const bMine = b.preferredStaffId === staffId ? 0 : 1;
+      if (aMine !== bMine) return aMine - bMine;
+      return (a.order || 0) - (b.order || 0);
+    });
+
+  const handleTakeFromQueue = async (entryId: string) => {
+    if (!staffId) return;
+    setLoading(true);
+    try {
+      await WaitingListService.take({ entryId, takenByStaffId: staffId });
+      success(ES.cola.taken);
+    } catch (e) {
+      console.error(e);
+      error(ES.messages.operationFailed);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const myActiveServices: { session: Session; service: SessionServiceItem }[] = [];
   activeSessions.forEach((session) => {
@@ -731,6 +770,75 @@ export default function MyWorkPage() {
                 </CardBody>
               </Card>
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* === LISTA DE ESPERA (queue entries relevant to me) === */}
+      {isToday && myWaitingList.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">{ES.cola.title}</h2>
+          <div className="space-y-2">
+            {myWaitingList.map((entry) => {
+              const mins = Math.max(
+                0,
+                Math.floor((Date.now() - entry.arrivalTime.getTime()) / 60000),
+              );
+              const forMe = entry.preferredStaffId === staffId;
+              return (
+                <Card key={`queue-${entry.id}`}>
+                  <CardBody>
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-gray-900 truncate">
+                            {entry.walkInName || '—'}
+                          </p>
+                          {forMe ? (
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800">
+                              {ES.cola.forYou}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+                              {ES.cola.forAnyone}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(entry.serviceNames || []).map((n, i) => (
+                            <span
+                              key={i}
+                              className="px-2 py-0.5 text-xs rounded bg-purple-50 text-purple-700 border border-purple-100"
+                            >
+                              {n}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {entry.arrivalTime.toLocaleTimeString('es-BO', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}{' '}
+                          · {ES.cola.waitingTime}: {mins} min
+                        </p>
+                        {entry.notes && (
+                          <p className="text-xs text-gray-600 mt-1 italic">{entry.notes}</p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        className="min-h-[44px] sm:w-32"
+                        onClick={() => handleTakeFromQueue(entry.id)}
+                        loading={loading}
+                      >
+                        {ES.cola.take}
+                      </Button>
+                    </div>
+                  </CardBody>
+                </Card>
+              );
+            })}
           </div>
         </section>
       )}

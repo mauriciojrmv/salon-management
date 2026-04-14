@@ -84,6 +84,7 @@ export function canAccessRoute(role: UserRole, route: string): boolean {
     '/inventory': (r) => hasPermission(r, 'canManageProducts'),
     '/reports': (r) => hasPermission(r, 'canViewReports'),
     '/pagos': (r) => hasPermission(r, 'canViewReports'),
+    '/cola': (r) => hasPermission(r, 'canViewAllSessions'),
     '/settings': (r) => hasPermission(r, 'canEditSettings'),
     '/my-earnings': (r) => r === 'staff',
     '/my-appointments': (r) => r === 'staff',
