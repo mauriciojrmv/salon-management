@@ -22,6 +22,12 @@ export class WaitingListService {
       startTime: new Date(),
     });
 
+    // Tag session as coming from the queue so workers cannot add services ad-hoc
+    await SessionRepository.updateSession(sessionId, {
+      origin: 'cola',
+      waitingListEntryId: params.entryId,
+    });
+
     // Pre-add selected services to the session, assigned to the taking staff
     for (const serviceId of queue.serviceIds || []) {
       const service = await ServiceRepository.getService(serviceId);

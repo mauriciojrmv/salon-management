@@ -311,9 +311,13 @@ export default function MyWorkPage() {
   };
 
   const myActiveServices: { session: Session; service: SessionServiceItem }[] = [];
+  const myPausedServices: { session: Session; service: SessionServiceItem }[] = [];
   activeSessions.forEach((session) => {
     (session.services || []).forEach((svc) => {
-      if (svc.assignedStaff?.includes(staffId) && svc.status !== 'completed') {
+      if (!svc.assignedStaff?.includes(staffId) || svc.status === 'completed') return;
+      if (svc.status === 'paused') {
+        myPausedServices.push({ session, service: svc });
+      } else {
         myActiveServices.push({ session, service: svc });
       }
     });
@@ -355,8 +359,34 @@ export default function MyWorkPage() {
     }
   };
 
+  const handlePauseResume = async (session: Session, service: SessionServiceItem) => {
+    if (service.status !== 'in_progress' && service.status !== 'paused') return;
+    const nextStatus: SessionServiceItem['status'] =
+      service.status === 'in_progress' ? 'paused' : 'in_progress';
+    setLoading(true);
+    try {
+      const updatedServices = (session.services || []).map((svc) => {
+        if (svc.id !== service.id) return svc;
+        const patch: Partial<SessionServiceItem> = { status: nextStatus };
+        if (nextStatus === 'paused') patch.pausedAt = new Date();
+        return { ...svc, ...patch };
+      });
+      await SessionRepository.updateSession(session.id, { services: updatedServices });
+      success(ES.servicePause.statusUpdated);
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAdvanceStatus = async (session: Session, service: SessionServiceItem) => {
     if (service.status === 'completed') return;
+    // Paused must resume first — call pause/resume instead
+    if (service.status === 'paused') {
+      await handlePauseResume(session, service);
+      return;
+    }
     const nextStatus = service.status === 'pending' ? 'in_progress' : 'completed';
     setLoading(true);
     try {
@@ -703,8 +733,23 @@ export default function MyWorkPage() {
                             onClick={() => handleAdvanceStatus(session, service)}
                             loading={loading}
                           >
-                            {service.status === 'pending' ? ES.staff.advancePending : ES.staff.advanceInProgress}
+                            {service.status === 'pending'
+                              ? ES.staff.advancePending
+                              : service.status === 'paused'
+                              ? ES.servicePause.resume
+                              : ES.staff.advanceInProgress}
                           </Button>
+                          {service.status === 'in_progress' && (
+                            <Button
+                              size="lg"
+                              variant="ghost"
+                              className="py-3 px-3 text-sm min-h-[44px] text-amber-700"
+                              onClick={() => handlePauseResume(session, service)}
+                              loading={loading}
+                            >
+                              {ES.servicePause.pause}
+                            </Button>
+                          )}
                           <Button
                             size="lg"
                             variant="secondary"
@@ -742,6 +787,51 @@ export default function MyWorkPage() {
         )}
       </section>
 
+      {/* === MY PAUSED SERVICES === */}
+      {isToday && myPausedServices.length > 0 && (
+        <section>
+          <h2 className="text-lg font-semibold text-amber-800 mb-1">{ES.servicePause.pausedServices}</h2>
+          <p className="text-xs text-amber-700 mb-3">{ES.servicePause.pausedHint}</p>
+          <div className="space-y-2">
+            {myPausedServices.map(({ session, service }) => {
+              const pausedSince = service.pausedAt
+                ? Math.max(0, Math.floor((Date.now() - toDate(service.pausedAt).getTime()) / 60000))
+                : 0;
+              return (
+                <Card key={`paused-${session.id}-${service.id}`} className="border-l-4 border-amber-400 bg-amber-50">
+                  <CardBody>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 text-xs rounded-full bg-amber-200 text-amber-900 font-medium">
+                            {ES.servicePause.paused}
+                          </span>
+                          <p className="font-semibold text-gray-900 truncate">{service.serviceName}</p>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-1">
+                          {getClientName(session.clientId)} · {ES.servicePause.pausedSince}: {pausedSince} min
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          className="min-h-[44px]"
+                          onClick={() => handlePauseResume(session, service)}
+                          loading={loading}
+                        >
+                          {ES.servicePause.resume}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardBody>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* === AVAILABLE (UNASSIGNED) SERVICES === */}
       {isToday && availableServices.length > 0 && (
         <section>
@@ -777,23 +867,35 @@ export default function MyWorkPage() {
       {/* === LISTA DE ESPERA (queue entries relevant to me) === */}
       {isToday && myWaitingList.length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">{ES.cola.title}</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-800">{ES.cola.title}</h2>
+            <span className="text-xs text-gray-500">{myWaitingList.length} {ES.cola.waitingCount}</span>
+          </div>
           <div className="space-y-2">
             {myWaitingList.map((entry) => {
               const mins = Math.max(
                 0,
                 Math.floor((Date.now() - entry.arrivalTime.getTime()) / 60000),
               );
+              const longWait = mins >= 20;
               const forMe = entry.preferredStaffId === staffId;
               return (
-                <Card key={`queue-${entry.id}`}>
+                <Card
+                  key={`queue-${entry.id}`}
+                  className={longWait ? 'border-l-4 border-red-500 bg-red-50' : forMe ? 'border-l-4 border-amber-400' : ''}
+                >
                   <CardBody>
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div className="flex items-center gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold text-gray-900 truncate">
                             {entry.walkInName || '—'}
                           </p>
+                          {longWait && (
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 font-medium">
+                              🔔 {ES.cola.longWait}
+                            </span>
+                          )}
                           {forMe ? (
                             <span className="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800">
                               {ES.cola.forYou}
@@ -804,31 +906,23 @@ export default function MyWorkPage() {
                             </span>
                           )}
                         </div>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {(entry.serviceNames || []).map((n, i) => (
-                            <span
-                              key={i}
-                              className="px-2 py-0.5 text-xs rounded bg-purple-50 text-purple-700 border border-purple-100"
-                            >
-                              {n}
-                            </span>
-                          ))}
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {entry.arrivalTime.toLocaleTimeString('es-BO', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}{' '}
-                          · {ES.cola.waitingTime}: {mins} min
+                        <p className="text-xs text-gray-600 mt-0.5 truncate">
+                          {(entry.serviceNames || []).join(' · ')}
                         </p>
-                        {entry.notes && (
-                          <p className="text-xs text-gray-600 mt-1 italic">{entry.notes}</p>
-                        )}
+                        <p className="text-xs mt-0.5">
+                          <span className={longWait ? 'text-red-700 font-semibold' : 'text-amber-700 font-medium'}>
+                            {mins} min
+                          </span>
+                          <span className="text-gray-400 mx-1">·</span>
+                          <span className="text-gray-600">
+                            {entry.arrivalTime.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </p>
                       </div>
                       <Button
                         size="sm"
                         variant="primary"
-                        className="min-h-[44px] sm:w-32"
+                        className="min-h-[44px] shrink-0"
                         onClick={() => handleTakeFromQueue(entry.id)}
                         loading={loading}
                       >
@@ -863,20 +957,33 @@ export default function MyWorkPage() {
                     <div className="space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-gray-900">{getClientName(session.clientId)}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-gray-900">{getClientName(session.clientId)}</p>
+                            {session.origin === 'cola' && (
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
+                                {ES.cola.fromQueue}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-500 mt-0.5">
                             {svcCount} {svcCount === 1 ? 'servicio' : 'servicios'}
                             {assignedNames.length > 0 && ` · ${assignedNames.join(', ')}`}
                           </p>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          className="shrink-0 min-h-[44px]"
-                          onClick={() => { setAddServiceTarget(session); setAddServiceId(''); }}
-                        >
-                          {ES.staff.addMyService}
-                        </Button>
+                        {session.origin === 'cola' ? (
+                          <span className="shrink-0 text-xs text-gray-500 italic max-w-[140px] text-right">
+                            {ES.cola.servicesLocked}
+                          </span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            className="shrink-0 min-h-[44px]"
+                            onClick={() => { setAddServiceTarget(session); setAddServiceId(''); }}
+                          >
+                            {ES.staff.addMyService}
+                          </Button>
+                        )}
                       </div>
                       {svcCount > 0 && (
                         <div className="bg-gray-50 rounded-lg p-2 space-y-1">

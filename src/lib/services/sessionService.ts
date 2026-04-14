@@ -324,15 +324,18 @@ export class SessionService {
   static async updateServiceStatus(
     sessionId: string,
     serviceItemId: string,
-    newStatus: 'pending' | 'in_progress' | 'completed'
+    newStatus: 'pending' | 'in_progress' | 'paused' | 'completed'
   ): Promise<void> {
     const session = await SessionRepository.getSession(sessionId);
     if (!session) throw new Error('Session not found');
     if (session.status !== 'active') throw new Error('Can only update services on active sessions');
 
-    const updatedServices = (session.services || []).map((s) =>
-      s.id === serviceItemId ? { ...s, status: newStatus } : s
-    );
+    const updatedServices = (session.services || []).map((s) => {
+      if (s.id !== serviceItemId) return s;
+      const patch: Partial<SessionServiceItem> = { status: newStatus };
+      if (newStatus === 'paused') patch.pausedAt = new Date();
+      return { ...s, ...patch };
+    });
 
     await SessionRepository.updateSession(sessionId, {
       services: updatedServices,

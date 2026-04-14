@@ -22,7 +22,9 @@ import { firebaseConstraints } from '@/lib/firebase/db';
 import { toDate, fmtBs, getBoliviaDate } from '@/lib/utils/helpers';
 import type { WaitingListEntry } from '@/types/models';
 import ES from '@/config/text.es';
-import { Clock, UserPlus, Check, X } from 'lucide-react';
+import { Clock, UserPlus, Check, X, Bell, Megaphone, ChevronDown, ChevronUp } from 'lucide-react';
+
+const LONG_WAIT_MIN = 20;
 
 export default function ColaPage() {
   const { userData } = useAuth();
@@ -38,6 +40,8 @@ export default function ColaPage() {
   const [isTakeOpen, setIsTakeOpen] = useState(false);
   const [takeStaffId, setTakeStaffId] = useState('');
   const [loading, setLoading] = useState(false);
+  const [expandedEntryId, setExpandedEntryId] = useState<string>('');
+  const [callEntry, setCallEntry] = useState<WaitingListEntry | null>(null);
 
   // Form state
   const [clientType, setClientType] = useState<'registered' | 'walkin'>('walkin');
@@ -229,22 +233,62 @@ export default function ColaPage() {
     secondary: fmtBs(s.price),
   }));
 
+  // Entry duration = sum of durations of its services
+  const entryDuration = (entry: WaitingListEntry): number => {
+    return (entry.serviceIds || []).reduce((sum, sid) => {
+      const s = services?.find((x) => x.id === sid);
+      return sum + (s?.duration || 0);
+    }, 0);
+  };
+
+  const activeWorkerCount = Math.max(1, (staff || []).length);
+
+  // Build estimated wait minutes map: cumulative duration of entries before / workers
+  const estimateMap = useMemo(() => {
+    const map = new Map<string, number>();
+    let cumulative = 0;
+    for (const entry of waiting) {
+      map.set(entry.id, Math.round(cumulative / activeWorkerCount));
+      cumulative += entryDuration(entry);
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waiting, services, activeWorkerCount]);
+
   const renderEntry = (entry: WaitingListEntry & { arrivalTime: Date }, idx: number) => {
     const mins = waitingMinutes(entry.arrivalTime);
     const displayName = entry.walkInName || '—';
     const isWaiting = entry.status === 'waiting';
+    const isExpanded = expandedEntryId === entry.id;
+    const longWait = isWaiting && mins >= LONG_WAIT_MIN;
+    const estimate = estimateMap.get(entry.id) ?? 0;
+    const borderClass = longWait
+      ? 'border-l-4 border-red-500 bg-red-50 animate-pulse-slow'
+      : '';
+
     return (
-      <Card key={entry.id}>
+      <Card key={entry.id} className={borderClass}>
         <CardBody>
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          {/* Compact top row — always visible */}
+          <div className="flex items-center gap-3">
+            {isWaiting && (
+              <span
+                className={`inline-flex items-center justify-center w-9 h-9 rounded-full text-sm font-bold shrink-0 ${
+                  longWait ? 'bg-red-500 text-white' : 'bg-blue-100 text-blue-700'
+                }`}
+              >
+                {idx + 1}
+              </span>
+            )}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                {isWaiting && (
-                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 text-blue-700 text-sm font-bold">
-                    {idx + 1}
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-semibold text-gray-900 truncate">{displayName}</h3>
+                {longWait && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 font-medium">
+                    <Bell className="w-3 h-3" />
+                    {ES.cola.longWait}
                   </span>
                 )}
-                <h3 className="text-base font-semibold text-gray-900 truncate">{displayName}</h3>
                 {entry.status === 'taken' && (
                   <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700">
                     {ES.cola.statusTaken}
@@ -256,10 +300,38 @@ export default function ColaPage() {
                   </span>
                 )}
               </div>
-              {entry.phone && (
-                <p className="text-xs text-gray-500 mb-1">{entry.phone}</p>
+              <p className="text-xs text-gray-600 mt-0.5 truncate">
+                {(entry.serviceNames || []).join(' · ')}
+              </p>
+              {isWaiting && (
+                <p className="text-xs mt-0.5">
+                  <span className={longWait ? 'text-red-700 font-semibold' : 'text-amber-700 font-medium'}>
+                    {mins} min
+                  </span>
+                  <span className="text-gray-400 mx-1">·</span>
+                  <span className="text-gray-600">
+                    {ES.cola.estimatedWait}: ~{estimate} min
+                  </span>
+                </p>
               )}
-              <div className="flex flex-wrap gap-1 mb-2">
+            </div>
+            <button
+              type="button"
+              onClick={() => setExpandedEntryId(isExpanded ? '' : entry.id)}
+              className="text-gray-400 hover:text-gray-700 p-1 min-w-[32px] min-h-[32px] flex items-center justify-center"
+              title={isExpanded ? ES.cola.showLess : ES.cola.showMore}
+            >
+              {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+          </div>
+
+          {/* Expanded details */}
+          {isExpanded && (
+            <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+              {entry.phone && (
+                <p className="text-xs text-gray-500">{entry.phone}</p>
+              )}
+              <div className="flex flex-wrap gap-1">
                 {(entry.serviceNames || []).map((n, i) => (
                   <span
                     key={i}
@@ -277,11 +349,6 @@ export default function ColaPage() {
                     minute: '2-digit',
                   })}
                 </span>
-                {isWaiting && (
-                  <span className="font-medium text-amber-700">
-                    {ES.cola.waitingTime}: {mins} min
-                  </span>
-                )}
                 <span>
                   {entry.preferredStaffId
                     ? `${ES.cola.preferredStaff}: ${entry.preferredStaffName}`
@@ -289,32 +356,42 @@ export default function ColaPage() {
                 </span>
               </div>
               {entry.notes && (
-                <p className="text-xs text-gray-600 mt-2 italic">{entry.notes}</p>
+                <p className="text-xs text-gray-600 italic">{entry.notes}</p>
               )}
             </div>
-            {isWaiting && (
-              <div className="flex flex-row sm:flex-col gap-2 sm:w-32">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => openTake(entry.id)}
-                  className="flex-1 min-h-[44px]"
-                >
-                  <Check className="w-4 h-4 mr-1" />
-                  {ES.cola.take}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => openCancel(entry.id)}
-                  className="flex-1 min-h-[44px] text-red-600"
-                >
-                  <X className="w-4 h-4 mr-1" />
-                  {ES.cola.cancel}
-                </Button>
-              </div>
-            )}
-          </div>
+          )}
+
+          {/* Actions */}
+          {isWaiting && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => openTake(entry.id)}
+                className="flex-1 min-h-[44px]"
+              >
+                <Check className="w-4 h-4 mr-1" />
+                {ES.cola.take}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setCallEntry(entry)}
+                className="flex-1 min-h-[44px]"
+              >
+                <Megaphone className="w-4 h-4 mr-1" />
+                {ES.cola.callClient}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => openCancel(entry.id)}
+                className="min-h-[44px] text-red-600"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
         </CardBody>
       </Card>
     );
@@ -592,6 +669,60 @@ export default function ColaPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Call client overlay */}
+      {callEntry && (
+        <div
+          className="fixed inset-0 z-[10000] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setCallEntry(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-2xl w-full p-8 sm:p-12 text-center shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm uppercase tracking-wide text-gray-500 mb-3">
+              {ES.cola.callClientTitle}
+            </p>
+            <h2 className="text-5xl sm:text-7xl font-bold text-gray-900 mb-6 break-words">
+              {callEntry.walkInName || '—'}
+            </h2>
+            <p className="text-xl sm:text-2xl text-purple-700 font-medium mb-2">
+              {(callEntry.serviceNames || []).join(' · ')}
+            </p>
+            {callEntry.preferredStaffName && (
+              <p className="text-base text-gray-600 mb-4">
+                {ES.cola.preferredStaff}: <span className="font-semibold">{callEntry.preferredStaffName}</span>
+              </p>
+            )}
+            <p className="text-sm text-gray-500 mb-6">{ES.cola.callClientHint}</p>
+            <div className="flex flex-col sm:flex-row gap-2 justify-center">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                    const text = `${callEntry.walkInName || ''}, ${(callEntry.serviceNames || []).join(', ')}`;
+                    const u = new SpeechSynthesisUtterance(text);
+                    u.lang = 'es-ES';
+                    u.rate = 0.9;
+                    window.speechSynthesis.speak(u);
+                  }
+                }}
+                className="min-h-[56px] text-base"
+              >
+                <Megaphone className="w-5 h-5 mr-2" />
+                {ES.cola.speakAloud}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => setCallEntry(null)}
+                className="min-h-[56px] text-base"
+              >
+                {ES.actions.close}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cancel modal */}
       <Modal

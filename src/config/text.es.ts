@@ -800,6 +800,27 @@ export const ES = {
     showCancelled: 'Ver cancelados',
     hideCancelled: 'Ocultar cancelados',
     takenBy: 'Atendido por',
+    estimatedWait: 'Espera aprox.',
+    callClient: 'Llamar',
+    callClientTitle: 'Llamando al Cliente',
+    callClientHint: 'Muéstrele al cliente o anuncie su nombre',
+    speakAloud: 'Anunciar en Voz Alta',
+    longWait: 'Espera prolongada',
+    showMore: 'Ver más',
+    showLess: 'Ver menos',
+    fromQueue: 'Desde lista de espera',
+    servicesLocked: 'Servicios fijados desde la cola',
+  },
+
+  // Service pause/resume (in-session actions)
+  servicePause: {
+    pause: 'Pausar',
+    resume: 'Reanudar',
+    paused: 'En Pausa',
+    pausedSince: 'En pausa desde',
+    pausedServices: 'Servicios en Pausa',
+    pausedHint: 'Puedes atender a otro cliente y volver a este después',
+    statusUpdated: 'Estado del servicio actualizado',
   },
 
   // Loyalty Program

@@ -165,6 +165,8 @@ export interface Session {
   startTime: Date;
   endTime?: Date;
   status: 'active' | 'completed' | 'cancelled';
+  origin?: 'cola' | 'appointment' | 'walkin';
+  waitingListEntryId?: string;
   services: SessionServiceItem[];
   retailItems?: SessionRetailItem[];
   notes?: string;
@@ -187,7 +189,8 @@ export interface SessionServiceItem {
   assignedStaff: string[]; // Staff IDs
   startTime: Date;
   endTime?: Date;
-  status: 'pending' | 'in_progress' | 'completed';
+  status: 'pending' | 'in_progress' | 'paused' | 'completed';
+  pausedAt?: Date;
   materialsUsed: MaterialUsage[];
   notes?: string;
 }
