@@ -23,7 +23,7 @@ import { useRouter } from 'next/navigation';
 import type { Appointment } from '@/types/models';
 import { firebaseConstraints } from '@/lib/firebase/db';
 import type { Session, SessionServiceItem } from '@/types/models';
-import { toDate, fmtBs, getBoliviaDate } from '@/lib/utils/helpers';
+import { toDate, fmtBs, fmtDate, getBoliviaDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 interface MaterialEntry {
@@ -66,11 +66,17 @@ export default function MyWorkPage() {
   const staffId = user?.uid || '';
 
   const today = useMemo(() => getBoliviaDate(), []);
+  const yesterday = useMemo(() => {
+    const d = new Date(); d.setDate(d.getDate() - 1);
+    return d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+  }, []);
+  const [selectedDate, setSelectedDate] = useState<string>(today);
+  const isToday = selectedDate === today;
   const sessionConstraints = useMemo(() => [
     firebaseConstraints.where('salonId', '==', userData?.salonId || ''),
-    firebaseConstraints.where('date', '==', today),
-  ], [userData?.salonId, today]);
-  const { data: sessions } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId, [userData?.salonId, today]);
+    firebaseConstraints.where('date', '==', selectedDate),
+  ], [userData?.salonId, selectedDate]);
+  const { data: sessions } = useRealtime<Session>('sessions', sessionConstraints, !!userData?.salonId, [userData?.salonId, selectedDate]);
 
   const { data: clients, refetch: refetchClients } = useAsync(async () => {
     if (!userData?.salonId) return [];
@@ -433,22 +439,70 @@ export default function MyWorkPage() {
   return (
     <div className="space-y-6 p-4 max-w-lg mx-auto">
       <Toast notifications={notifications} onDismiss={removeNotification} />
-      <div className="pt-2">
-        <div className="flex items-center justify-between">
-          <div>
+      <div className="pt-2 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold text-gray-900">{ES.staff.myWork}</h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 mt-1 truncate">
               {userData?.firstName} · {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
           </div>
-          <Button size="lg" className="py-3 px-4 text-sm" onClick={() => setIsCreateModalOpen(true)}>
-            {ES.staff.newWork}
-          </Button>
+          {isToday && (
+            <Button size="lg" className="py-3 px-4 text-sm shrink-0" onClick={() => setIsCreateModalOpen(true)}>
+              {ES.staff.newWork}
+            </Button>
+          )}
         </div>
+
+        {/* Date selector — same pattern as sessions page */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedDate(today)}
+              className={`flex-1 sm:flex-none px-4 py-2.5 min-h-[44px] text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+                isToday
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+              }`}
+            >
+              Hoy
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedDate(yesterday)}
+              className={`flex-1 sm:flex-none px-4 py-2.5 min-h-[44px] text-sm border rounded-lg font-medium whitespace-nowrap transition-colors ${
+                selectedDate === yesterday
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+              }`}
+            >
+              Ayer
+            </button>
+          </div>
+          <div className="flex flex-col flex-1">
+            <input
+              type="date"
+              value={selectedDate}
+              max={today}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm w-full"
+            />
+            <span className="text-[10px] text-gray-500 mt-0.5">{fmtDate(selectedDate)}</span>
+          </div>
+        </div>
+
+        {!isToday && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <p className="text-xs text-amber-800">
+              Viendo {fmtDate(selectedDate)} — solo lectura
+            </p>
+          </div>
+        )}
       </div>
 
       {/* === READY-TO-START APPOINTMENT BANNER === */}
-      {readyAppointments.length > 0 && (
+      {isToday && readyAppointments.length > 0 && (
         <div className="space-y-2">
           {readyAppointments.map((apt) => {
             const client = clients?.find((c) => c.id === apt.clientId);
@@ -537,33 +591,45 @@ export default function MyWorkPage() {
                         </div>
                       )}
 
-                      <div className="flex gap-2">
-                        <Button
-                          size="lg"
-                          variant="primary"
-                          className="flex-1 py-3 text-sm"
-                          onClick={() => handleAdvanceStatus(session, service)}
-                          loading={loading}
-                        >
-                          {service.status === 'pending' ? ES.staff.advancePending : ES.staff.advanceInProgress}
-                        </Button>
-                        <Button
-                          size="lg"
-                          variant="secondary"
-                          className="py-3 px-3 text-sm"
-                          onClick={() => openMaterialModal(session, service)}
-                        >
-                          {ES.staff.addMyMaterial}
-                        </Button>
+                      {isToday && (
+                        <div className="flex gap-2 flex-wrap">
+                          <Button
+                            size="lg"
+                            variant="primary"
+                            className="flex-1 py-3 text-sm min-h-[44px]"
+                            onClick={() => handleAdvanceStatus(session, service)}
+                            loading={loading}
+                          >
+                            {service.status === 'pending' ? ES.staff.advancePending : ES.staff.advanceInProgress}
+                          </Button>
+                          <Button
+                            size="lg"
+                            variant="secondary"
+                            className="py-3 px-3 text-sm min-h-[44px]"
+                            onClick={() => openMaterialModal(session, service)}
+                          >
+                            {ES.staff.addMyMaterial}
+                          </Button>
+                          <Button
+                            size="lg"
+                            variant="ghost"
+                            className="py-3 px-3 min-h-[44px]"
+                            onClick={() => setHistoryClientId(session.clientId)}
+                          >
+                            {ES.sessions.viewClientHistory}
+                          </Button>
+                        </div>
+                      )}
+                      {!isToday && (
                         <Button
                           size="lg"
                           variant="ghost"
-                          className="py-3 px-3"
+                          className="w-full py-3 min-h-[44px]"
                           onClick={() => setHistoryClientId(session.clientId)}
                         >
                           {ES.sessions.viewClientHistory}
                         </Button>
-                      </div>
+                      )}
                     </div>
                   </CardBody>
                 </Card>
@@ -574,7 +640,7 @@ export default function MyWorkPage() {
       </section>
 
       {/* === AVAILABLE (UNASSIGNED) SERVICES === */}
-      {availableServices.length > 0 && (
+      {isToday && availableServices.length > 0 && (
         <section>
           <h2 className="text-lg font-semibold text-gray-800 mb-3">{ES.staff.availableWorks}</h2>
           <div className="space-y-3">
@@ -605,10 +671,12 @@ export default function MyWorkPage() {
         </section>
       )}
 
-      {/* === COMPLETED TODAY === */}
+      {/* === COMPLETED (selected date) === */}
       {myCompletedServices.length > 0 && (
         <section>
-          <h2 className="text-lg font-semibold text-gray-700 mb-3">{ES.staff.myCompletedToday}</h2>
+          <h2 className="text-lg font-semibold text-gray-700 mb-3">
+            {isToday ? ES.staff.myCompletedToday : `Completados ${fmtDate(selectedDate)}`}
+          </h2>
           <div className="space-y-2">
             {myCompletedServices.map(({ session, service }) => (
               <Card key={`done-${session.id}-${service.id}`} className="opacity-60">
