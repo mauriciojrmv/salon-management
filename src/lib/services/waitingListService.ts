@@ -28,12 +28,28 @@ export class WaitingListService {
       waitingListEntryId: params.entryId,
     });
 
-    // Pre-add selected services to the session, assigned to the taking staff
+    // Pre-add selected services. Each service is assigned to its preferred worker
+    // (from servicePreferences). If the preferred worker is the taking staff, assign
+    // them. If another worker is preferred, leave that service assigned to THAT
+    // worker (so they see it in /my-work). If no preference and it's the taking
+    // staff's implicit load, fall back to the taking staff.
+    const prefs = queue.servicePreferences || [];
+    const legacyPref = queue.preferredStaffId || '';
     for (const serviceId of queue.serviceIds || []) {
       const service = await ServiceRepository.getService(serviceId);
       if (!service) continue;
       const session = await SessionRepository.getSession(sessionId);
       if (!session) break;
+
+      const pref = prefs.find((p) => p.serviceId === serviceId);
+      const preferredId = pref ? pref.preferredStaffId : legacyPref;
+      // Assigned worker rules:
+      //  - If a preference exists, use that worker.
+      //  - If no preference, assign to the taking worker as default.
+      const assignedStaff = preferredId
+        ? [preferredId]
+        : [params.takenByStaffId];
+
       const existing = session.services || [];
       const newItem = {
         id: `service_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -41,7 +57,7 @@ export class WaitingListService {
         serviceName: service.name,
         price: service.price,
         commissionRate: 50,
-        assignedStaff: [params.takenByStaffId],
+        assignedStaff,
         startTime: new Date(),
         status: 'pending' as const,
         materialsUsed: [],

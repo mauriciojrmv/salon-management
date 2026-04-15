@@ -284,14 +284,25 @@ export default function MyWorkPage() {
   const allSessions = sessions || [];
   const activeSessions = allSessions.filter((s) => s.status === 'active');
 
+  // Entry shows in my queue if ANY service preference matches me, OR if it has
+  // no preferences at all (open to anyone). Per-service preferences override
+  // the legacy global preferredStaffId.
+  const entryMatchesMe = (e: WaitingListEntry): boolean => {
+    if (e.preferredStaffId && e.preferredStaffId === staffId) return true;
+    return (e.servicePreferences || []).some((p) => p.preferredStaffId === staffId);
+  };
+  const entryHasAnyPref = (e: WaitingListEntry): boolean => {
+    if (e.preferredStaffId) return true;
+    return (e.servicePreferences || []).some((p) => !!p.preferredStaffId);
+  };
+
   const myWaitingList = (waitingEntries || [])
     .filter((e) => e.status === 'waiting')
-    .filter((e) => !e.preferredStaffId || e.preferredStaffId === staffId)
+    .filter((e) => entryMatchesMe(e) || !entryHasAnyPref(e))
     .map((e) => ({ ...e, arrivalTime: toDate(e.arrivalTime) }))
     .sort((a, b) => {
-      // my-preferred entries first, then by arrival time
-      const aMine = a.preferredStaffId === staffId ? 0 : 1;
-      const bMine = b.preferredStaffId === staffId ? 0 : 1;
+      const aMine = entryMatchesMe(a) ? 0 : 1;
+      const bMine = entryMatchesMe(b) ? 0 : 1;
       if (aMine !== bMine) return aMine - bMine;
       return (a.order || 0) - (b.order || 0);
     });
@@ -878,7 +889,7 @@ export default function MyWorkPage() {
                 Math.floor((Date.now() - entry.arrivalTime.getTime()) / 60000),
               );
               const longWait = mins >= 20;
-              const forMe = entry.preferredStaffId === staffId;
+              const forMe = entryMatchesMe(entry);
               return (
                 <Card
                   key={`queue-${entry.id}`}

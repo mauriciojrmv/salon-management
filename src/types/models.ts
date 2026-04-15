@@ -214,6 +214,12 @@ export interface Appointment {
   updatedAt: Date;
 }
 
+export interface ServicePreference {
+  serviceId: string;
+  preferredStaffId: string; // empty = any worker
+  preferredStaffName: string;
+}
+
 // Waiting list entry — walk-in queue for busy days
 export interface WaitingListEntry {
   id: string;
@@ -223,14 +229,17 @@ export interface WaitingListEntry {
   phone: string; // optional contact
   serviceIds: string[];
   serviceNames: string[]; // snapshot for display
-  preferredStaffId: string; // empty = any worker
+  servicePreferences: ServicePreference[]; // per-service worker preference
+  preferredStaffId: string; // legacy/global — empty = any worker
   preferredStaffName: string;
   arrivalTime: Date;
   date: string; // YYYY-MM-DD
-  status: 'waiting' | 'taken' | 'cancelled';
+  status: 'waiting' | 'taken' | 'cancelled' | 'skipped';
   notes: string;
   order: number; // for manual reorder, defaults to arrivalTime epoch ms
   createdBy: string;
+  callAttempts?: number; // how many times we've tried to call this client
+  lastCallAt?: Date;
   takenAt?: Date;
   takenSessionId?: string;
   cancelledAt?: Date;

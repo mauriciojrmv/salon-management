@@ -14,7 +14,14 @@
       "Bash(npx tsc:*)",
       "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
       "Bash(npx playwright:*)",
-      "Bash(echo \"EXIT=$?\")"
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(where node:*)",
+      "Bash(where npx:*)",
+      "Bash(where npm:*)",
+      "Read(//c/nvm4w/nodejs//**)",
+      "Read(//c/Users/MAURICIO/AppData/Local/nvm//**)",
+      "Bash(export PATH=\"/c/nvm4w/nodejs:$PATH\")",
+      "Bash(node node_modules/typescript/bin/tsc --noEmit)"
     ]
   }
 }

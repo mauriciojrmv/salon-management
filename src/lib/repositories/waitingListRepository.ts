@@ -4,13 +4,14 @@ import {
   updateDocument,
   firebaseConstraints,
 } from '@/lib/firebase/db';
-import type { WaitingListEntry } from '@/types/models';
+import type { WaitingListEntry, ServicePreference } from '@/types/models';
 import { toDate } from '@/lib/utils/helpers';
 
-type RawEntry = Omit<WaitingListEntry, 'arrivalTime' | 'takenAt' | 'cancelledAt'> & {
+type RawEntry = Omit<WaitingListEntry, 'arrivalTime' | 'takenAt' | 'cancelledAt' | 'lastCallAt'> & {
   arrivalTime: unknown;
   takenAt?: unknown;
   cancelledAt?: unknown;
+  lastCallAt?: unknown;
 };
 
 function normalize(raw: RawEntry): WaitingListEntry {
@@ -19,6 +20,7 @@ function normalize(raw: RawEntry): WaitingListEntry {
     arrivalTime: toDate(raw.arrivalTime),
     takenAt: raw.takenAt ? toDate(raw.takenAt) : undefined,
     cancelledAt: raw.cancelledAt ? toDate(raw.cancelledAt) : undefined,
+    lastCallAt: raw.lastCallAt ? toDate(raw.lastCallAt) : undefined,
   };
 }
 
@@ -29,6 +31,7 @@ export interface CreateWaitingListRequest {
   phone: string;
   serviceIds: string[];
   serviceNames: string[];
+  servicePreferences: ServicePreference[];
   preferredStaffId: string;
   preferredStaffName: string;
   date: string;
@@ -46,6 +49,7 @@ export class WaitingListRepository {
       phone: data.phone || '',
       serviceIds: data.serviceIds,
       serviceNames: data.serviceNames,
+      servicePreferences: data.servicePreferences || [],
       preferredStaffId: data.preferredStaffId || '',
       preferredStaffName: data.preferredStaffName || '',
       arrivalTime: now,
@@ -85,5 +89,23 @@ export class WaitingListRepository {
 
   static async reorder(entryId: string, newOrder: number): Promise<void> {
     await updateDocument('waitingList', entryId, { order: newOrder });
+  }
+
+  static async recordCallAttempt(entryId: string, current: number): Promise<void> {
+    await updateDocument('waitingList', entryId, {
+      callAttempts: current + 1,
+      lastCallAt: new Date(),
+    });
+  }
+
+  static async markSkipped(entryId: string): Promise<void> {
+    await updateDocument('waitingList', entryId, { status: 'skipped' });
+  }
+
+  static async restoreToWaiting(entryId: string): Promise<void> {
+    await updateDocument('waitingList', entryId, {
+      status: 'waiting',
+      order: Date.now(),
+    });
   }
 }
