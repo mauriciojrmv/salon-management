@@ -51,18 +51,18 @@ export default function ColaPage() {
   // no-show flow (skipped → maybe no_show after 2 attempts).
   const [callResponsePending, setCallResponsePending] = useState<WaitingListEntry | null>(null);
 
-  // Form state
-  const [clientType, setClientType] = useState<'registered' | 'walkin'>('walkin');
+  // Form state — unified client flow (matching appointments page)
   const [formClientId, setFormClientId] = useState('');
-  const [formWalkInName, setFormWalkInName] = useState('');
-  const [formPhone, setFormPhone] = useState('');
   const [formServiceIds, setFormServiceIds] = useState<string[]>([]);
   // Per-service worker preference. Key = serviceId, value = staffId ('' = any worker).
   const [formServicePrefs, setFormServicePrefs] = useState<Record<string, string>>({});
   const [formNotes, setFormNotes] = useState('');
   const [serviceSearch, setServiceSearch] = useState('');
+  // Quick-create client modal (same pattern as appointments page)
+  const [isQuickClientOpen, setIsQuickClientOpen] = useState(false);
+  const [quickClient, setQuickClient] = useState({ firstName: '', lastName: '', phone: '' });
 
-  const { data: clients } = useAsync(async () => {
+  const { data: clients, refetch: refetchClients } = useAsync(async () => {
     if (!userData?.salonId) return [];
     return ClientRepository.getSalonClients(userData.salonId);
   }, [userData?.salonId]);
@@ -108,35 +108,40 @@ export default function ColaPage() {
   const skipped = sortedQueue.filter((e) => e.status === 'skipped');
 
   const resetForm = () => {
-    setClientType('walkin');
     setFormClientId('');
-    setFormWalkInName('');
-    setFormPhone('');
     setFormServiceIds([]);
     setFormServicePrefs({});
     setFormNotes('');
     setServiceSearch('');
   };
 
-  // Detect if the walk-in phone belongs to an existing client
-  const phoneMatch = useMemo(() => {
-    if (clientType !== 'walkin') return null;
-    const digits = formPhone.replace(/\D/g, '');
-    if (digits.length < 7) return null;
-    return (clients || []).find((c) => (c.phone || '').replace(/\D/g, '') === digits) || null;
-  }, [clients, formPhone, clientType]);
+  const canSubmit = formServiceIds.length > 0 && !!formClientId;
 
-  const canSubmit =
-    formServiceIds.length > 0 &&
-    (clientType === 'walkin' ? formWalkInName.trim().length > 0 : !!formClientId) &&
-    !phoneMatch;
-
-  const useMatchedClient = () => {
-    if (!phoneMatch) return;
-    setClientType('registered');
-    setFormClientId(phoneMatch.id);
-    setFormWalkInName('');
-    setFormPhone('');
+  const handleQuickCreateClient = async () => {
+    if (!quickClient.firstName || !quickClient.phone || !userData?.salonId) {
+      error(ES.messages.fillRequiredFields);
+      return;
+    }
+    setLoading(true);
+    try {
+      const newClientId = await ClientRepository.createClient(userData.salonId, {
+        firstName: quickClient.firstName,
+        lastName: quickClient.lastName,
+        phone: quickClient.phone,
+      });
+      success(ES.clients.clientCreated);
+      setQuickClient({ firstName: '', lastName: '', phone: '' });
+      setIsQuickClientOpen(false);
+      setFormClientId(newClientId);
+      refetchClients();
+    } catch (err) {
+      const msg = err instanceof Error && err.message === 'PHONE_EXISTS'
+        ? ES.clients.phoneExists
+        : err instanceof Error ? err.message : ES.messages.operationFailed;
+      error(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAdd = async () => {
@@ -145,16 +150,8 @@ export default function ColaPage() {
       error(ES.cola.selectServicesRequired);
       return;
     }
-    if (clientType === 'walkin' && !formWalkInName.trim()) {
+    if (!formClientId) {
       error(ES.cola.nameRequired);
-      return;
-    }
-    if (clientType === 'registered' && !formClientId) {
-      error(ES.cola.nameRequired);
-      return;
-    }
-    if (phoneMatch) {
-      error(ES.clients.phoneExists);
       return;
     }
     setLoading(true);
@@ -175,14 +172,9 @@ export default function ColaPage() {
 
       await WaitingListRepository.createEntry({
         salonId: userData.salonId,
-        clientId: clientType === 'registered' ? formClientId : '',
-        walkInName:
-          clientType === 'walkin'
-            ? formWalkInName.trim()
-            : client
-            ? `${client.firstName} ${client.lastName}`
-            : '',
-        phone: clientType === 'walkin' ? formPhone.trim() : client?.phone || '',
+        clientId: formClientId,
+        walkInName: client ? `${client.firstName} ${client.lastName}` : '',
+        phone: client?.phone || '',
         serviceIds: formServiceIds,
         serviceNames,
         servicePreferences,
@@ -880,11 +872,10 @@ export default function ColaPage() {
               <p className="text-xs text-gray-600 truncate">
                 {ES.cola.summary}:{' '}
                 <span className="font-medium text-gray-900">
-                  {clientType === 'walkin'
-                    ? formWalkInName.trim()
-                    : clients?.find((c) => c.id === formClientId)
-                    ? `${clients.find((c) => c.id === formClientId)!.firstName} ${clients.find((c) => c.id === formClientId)!.lastName}`
-                    : ''}
+                  {(() => {
+                    const c = clients?.find((cl) => cl.id === formClientId);
+                    return c ? `${c.firstName} ${c.lastName}` : '';
+                  })()}
                 </span>
                 {' · '}
                 {formServiceIds
@@ -915,83 +906,22 @@ export default function ColaPage() {
         }
       >
         <div className="space-y-3">
-          {/* Client type toggle — pills are intentional: binary choice, easier for older staff than a text link */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {ES.cola.clientType}
-            </label>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setClientType('walkin')}
-                className={`flex-1 min-h-[44px] px-3 py-2 rounded-lg border text-sm font-medium ${
-                  clientType === 'walkin'
-                    ? 'bg-blue-50 border-blue-500 text-blue-700'
-                    : 'bg-white border-gray-300 text-gray-700'
-                }`}
-              >
-                {ES.cola.walkIn}
-              </button>
-              <button
-                type="button"
-                onClick={() => setClientType('registered')}
-                className={`flex-1 min-h-[44px] px-3 py-2 rounded-lg border text-sm font-medium ${
-                  clientType === 'registered'
-                    ? 'bg-blue-50 border-blue-500 text-blue-700'
-                    : 'bg-white border-gray-300 text-gray-700'
-                }`}
-              >
-                {ES.cola.registeredClient}
-              </button>
-            </div>
-          </div>
-
-          {clientType === 'walkin' ? (
-            <>
-              <Input
-                label={ES.cola.walkInName}
-                value={formWalkInName}
-                onChange={(e) => setFormWalkInName(e.target.value)}
-                placeholder={ES.cola.walkInNamePlaceholder}
-              />
-              <Input
-                label={ES.cola.phoneOptional}
-                type="tel"
-                value={formPhone}
-                onChange={(e) => setFormPhone(e.target.value)}
-                placeholder="70012345"
-                maxLength={10}
-              />
-              {phoneMatch && (
-                <div className="flex items-center justify-between gap-2 -mt-1 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200">
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-amber-800">
-                      {ES.cola.phoneMatchFound}
-                    </p>
-                    <p className="text-sm text-amber-900 truncate">
-                      {phoneMatch.firstName} {phoneMatch.lastName} · {phoneMatch.phone}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    className="shrink-0 min-h-[36px]"
-                    onClick={useMatchedClient}
-                  >
-                    {ES.cola.useThisClient}
-                  </Button>
-                </div>
-              )}
-            </>
-          ) : (
-            <SearchableSelect
-              label={ES.clients.title}
-              value={formClientId}
-              onChange={setFormClientId}
-              options={clientOptions}
-              placeholder={ES.clients.search}
-            />
-          )}
+          {/* Client selector — same pattern as appointments page:
+              SearchableSelect + quick-create button. Every client gets saved. */}
+          <SearchableSelect
+            label={ES.appointments.selectClient}
+            value={formClientId}
+            onChange={setFormClientId}
+            options={clientOptions}
+            placeholder={ES.actions.search}
+          />
+          <button
+            type="button"
+            onClick={() => setIsQuickClientOpen(true)}
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium -mt-1"
+          >
+            {ES.clients.addQuick}
+          </button>
 
           {/* Service multi-select — pills instead of dropdown: older staff can see all options, no tap-to-reveal */}
           <div>
@@ -1295,6 +1225,55 @@ export default function ColaPage() {
             label={ES.cola.cancelReason}
             value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}
+          />
+        </div>
+      </Modal>
+      {/* Quick Client Creation Modal — same as appointments page */}
+      <Modal
+        isOpen={isQuickClientOpen}
+        onClose={() => setIsQuickClientOpen(false)}
+        title={ES.clients.quickAddTitle}
+        size="sm"
+        footer={
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setIsQuickClientOpen(false)}
+              className="flex-1 min-h-[44px]"
+              disabled={loading}
+            >
+              {ES.actions.cancel}
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleQuickCreateClient}
+              className="flex-1 min-h-[44px]"
+              loading={loading}
+            >
+              {ES.actions.save}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <Input
+            label={ES.clients.name}
+            value={quickClient.firstName}
+            onChange={(e) => setQuickClient({ ...quickClient, firstName: e.target.value })}
+            maxLength={30}
+          />
+          <Input
+            label={ES.clients.lastName}
+            value={quickClient.lastName}
+            onChange={(e) => setQuickClient({ ...quickClient, lastName: e.target.value })}
+            maxLength={30}
+          />
+          <Input
+            label={ES.clients.phone}
+            type="tel"
+            value={quickClient.phone}
+            onChange={(e) => setQuickClient({ ...quickClient, phone: e.target.value })}
+            maxLength={10}
           />
         </div>
       </Modal>
