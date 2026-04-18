@@ -21,7 +21,8 @@ import { WaitingListService } from '@/lib/services/waitingListService';
 import { AppointmentService } from '@/lib/services/appointmentService';
 import { firebaseConstraints } from '@/lib/firebase/db';
 import { toDate, fmtBs, getBoliviaDate } from '@/lib/utils/helpers';
-import type { WaitingListEntry, ServicePreference, Appointment } from '@/types/models';
+import { canDoAny } from '@/lib/utils/staffSkills';
+import type { WaitingListEntry, ServicePreference, Appointment, Session } from '@/types/models';
 import ES from '@/config/text.es';
 import { Clock, UserPlus, Check, X, Bell, Megaphone, ChevronDown, ChevronUp, Calendar, PhoneOff, RotateCw } from 'lucide-react';
 
@@ -87,6 +88,21 @@ export default function ColaPage() {
 
   const { data: queue } = useRealtime<WaitingListEntry>(
     'waitingList',
+    userData?.salonId
+      ? [
+          firebaseConstraints.where('salonId', '==', userData.salonId),
+          firebaseConstraints.where('date', '==', today),
+        ]
+      : [],
+    !!userData?.salonId,
+    [userData?.salonId, today],
+  );
+
+  // Today's active sessions — used to seed per-worker busy load for estimates.
+  // Without this, freeAt starts at `now` for every worker even if they're
+  // mid-service, which massively under-estimates wait time.
+  const { data: activeSessionsToday } = useRealtime<Session>(
+    'sessions',
     userData?.salonId
       ? [
           firebaseConstraints.where('salonId', '==', userData.salonId),
@@ -330,20 +346,21 @@ export default function ColaPage() {
     }, 0);
   };
 
-  // Smart estimate v2 — per-worker timeline with appointment blocks.
-  // Each worker has a list of "busy intervals" (their appointments today).
-  // For each cola entry (FIFO), we assign it to its preferred worker (or the
-  // worker with earliest free slot if no preference) and push its duration
-  // onto that worker's timeline, skipping past any appointment that would
-  // overlap. The entry's estimate = minutes from now to its earliest start.
+  // Smart estimate v3 — per-worker timeline with:
+  //   (a) appointment blocks (unchanged)
+  //   (b) current active-session load seeded into freeAt
+  //   (c) skill-aware worker selection (round-robin only among skilled workers)
+  //
+  // For each cola entry (FIFO), assign to preferred worker if skilled, else the
+  // skilled worker with earliest free slot. Push entry duration onto that
+  // worker's timeline, skipping past appointment blocks. Estimate = minutes
+  // from now until earliest valid start.
   const estimateMap = useMemo(() => {
     const map = new Map<string, number>();
     const workers = staff || [];
     if (workers.length === 0) return map;
 
     const now = new Date();
-    const todayDate = now.toISOString().slice(0, 10);
-    // Helper: build Date from HH:mm on today's Bolivia date
     const hhmmToDate = (hhmm: string): Date => {
       const [h, m] = hhmm.split(':').map((x) => parseInt(x, 10));
       const d = new Date(now);
@@ -351,52 +368,91 @@ export default function ColaPage() {
       return d;
     };
 
-    // Per-worker: list of blocked intervals (from appointments, sorted by start)
+    // (a) Appointment blocks per worker
     const blocksByWorker = new Map<string, Array<{ start: Date; end: Date }>>();
     for (const w of workers) blocksByWorker.set(w.id, []);
     for (const apt of appointments || []) {
       if (apt.status === 'cancelled' || apt.status === 'completed' || apt.status === 'no_show') continue;
-      if (apt.appointmentDate !== todayDate && apt.appointmentDate !== today) {
-        // fall-through: both today refs should match, but be permissive
-      }
       const list = blocksByWorker.get(apt.staffId);
       if (!list) continue;
       list.push({ start: hhmmToDate(apt.startTime), end: hhmmToDate(apt.endTime) });
     }
     for (const list of blocksByWorker.values()) list.sort((a, b) => a.start.getTime() - b.start.getTime());
 
-    // Per-worker "next free" time; starts at now
+    // (b) Seed freeAt based on current active-session load. For each worker,
+    // sum remaining duration of uncompleted services they're assigned to:
+    //   in_progress → remaining = max(3, duration - elapsed)
+    //   paused      → remaining = full duration (they still have to finish)
+    //   pending     → remaining = full duration
     const freeAt = new Map<string, Date>();
     for (const w of workers) freeAt.set(w.id, new Date(now));
 
-    // Given a worker's current free time and a duration, find the earliest
-    // slot that doesn't collide with any blocked interval.
+    const serviceDurationById = (id: string) => services?.find((s) => s.id === id)?.duration || 20;
+    for (const session of activeSessionsToday || []) {
+      if (session.status !== 'active') continue;
+      for (const svc of session.services || []) {
+        if (svc.status === 'completed') continue;
+        for (const sid of svc.assignedStaff || []) {
+          const current = freeAt.get(sid);
+          if (!current) continue;
+          const full = serviceDurationById(svc.serviceId);
+          let remaining: number;
+          if (svc.status === 'in_progress') {
+            const elapsed = svc.startTime ? Math.max(0, (now.getTime() - toDate(svc.startTime).getTime()) / 60000) : 0;
+            remaining = Math.max(3, full - elapsed);
+          } else {
+            remaining = full;
+          }
+          const next = new Date(current.getTime() + remaining * 60000);
+          freeAt.set(sid, next);
+        }
+      }
+    }
+
+    // Helper: earliest non-colliding start for a worker given a duration
     const findSlot = (workerId: string, durationMin: number): Date => {
       let start = freeAt.get(workerId)!;
       const blocks = blocksByWorker.get(workerId) || [];
-      // Walk the blocks and push start past any that overlap
       for (const b of blocks) {
         const end = new Date(start.getTime() + durationMin * 60000);
-        if (end <= b.start) break; // fits before this block
-        if (start < b.end) start = new Date(b.end); // overlap → jump to block end
+        if (end <= b.start) break;
+        if (start < b.end) start = new Date(b.end);
       }
       return start;
     };
 
     for (const entry of waiting) {
-      const duration = entryDuration(entry) || 15; // default min duration if service has no duration
-      // Pick a worker: preferred first, else the one with earliest free time.
-      let workerId = entry.preferredStaffId
+      const duration = entryDuration(entry) || 15;
+
+      // (c) Skill-aware worker pick. Preferred first if they can actually do
+      // the service. Else round-robin among workers capable of at least one
+      // service in this entry.
+      let workerId = '';
+      const preferred = entry.preferredStaffId
         || (entry.servicePreferences || []).find((p) => p.preferredStaffId)?.preferredStaffId
         || '';
-      if (!workerId || !freeAt.has(workerId)) {
-        // round-robin: pick earliest freeAt
+      if (preferred && freeAt.has(preferred)) {
+        const w = workers.find((x) => x.id === preferred) as { serviceIds?: string[] } | undefined;
+        if (canDoAny(w, entry.serviceIds || [])) workerId = preferred;
+      }
+      if (!workerId) {
         let earliest: { id: string; t: Date } | null = null;
         for (const [id, t] of freeAt.entries()) {
+          const w = workers.find((x) => x.id === id) as { serviceIds?: string[] } | undefined;
+          if (!canDoAny(w, entry.serviceIds || [])) continue;
           if (!earliest || t < earliest.t) earliest = { id, t };
+        }
+        // Fallback: if no skilled worker found (e.g. no one has matching
+        // serviceIds configured), pick absolute earliest free worker so the
+        // estimate is still produced instead of returning 0.
+        if (!earliest) {
+          for (const [id, t] of freeAt.entries()) {
+            if (!earliest || t < earliest.t) earliest = { id, t };
+          }
         }
         workerId = earliest!.id;
       }
+
       const start = findSlot(workerId, duration);
       const waitMin = Math.max(0, Math.round((start.getTime() - now.getTime()) / 60000));
       map.set(entry.id, waitMin);
@@ -404,7 +460,25 @@ export default function ColaPage() {
     }
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [waiting, services, staff, appointments, today]);
+  }, [waiting, services, staff, appointments, activeSessionsToday, today]);
+
+  // Format a point-estimate as a range ±~30% rounded to 5-min buckets.
+  // Communicates uncertainty honestly: a 15-min wait shown as "15-20 min" is
+  // harder to get wrong than "15 min" exactly.
+  const fmtEstimateRange = (pointMin: number): string => {
+    if (pointMin <= 0) return ES.cola.behindCountNone;
+    const roundTo5 = (n: number) => Math.max(5, Math.round(n / 5) * 5);
+    const low = roundTo5(pointMin * 0.85);
+    const high = roundTo5(Math.max(pointMin * 1.3, pointMin + 5));
+    if (high <= low) return `~${low} ${ES.cola.estMinutes}`;
+    return `${low}–${high} ${ES.cola.estMinutes}`;
+  };
+
+  const fmtBehindCount = (index: number): string => {
+    if (index <= 0) return ES.cola.behindCountNone;
+    if (index === 1) return ES.cola.behindCountOne;
+    return ES.cola.behindCountMany.replace('{n}', String(index));
+  };
 
   const renderEntry = (entry: WaitingListEntry & { arrivalTime: Date }, idx: number) => {
     const mins = waitingMinutes(entry.arrivalTime);
@@ -696,8 +770,8 @@ export default function ColaPage() {
                   <p className="text-xs text-gray-500 uppercase tracking-wide">
                     {ES.cola.avgWaitLabel}
                   </p>
-                  <p className="text-3xl font-bold text-amber-700">
-                    ~{estimateMap.get(waiting[waiting.length - 1]?.id) ?? 0} min
+                  <p className="text-2xl font-bold text-amber-700">
+                    {fmtEstimateRange(estimateMap.get(waiting[waiting.length - 1]?.id) ?? 0)}
                   </p>
                 </div>
               )}
@@ -741,16 +815,19 @@ export default function ColaPage() {
                     return (
                       <div
                         key={entry.id}
-                        className="flex items-center gap-3 py-1.5 border-b border-gray-50 last:border-0"
+                        className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0"
                       >
                         <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-700 text-xs font-bold shrink-0">
                           {i + 1}
                         </span>
-                        <span className="text-sm text-gray-900 font-medium flex-1 truncate">
-                          {entry.walkInName || '—'}
-                        </span>
-                        <span className="text-sm font-semibold text-amber-700 shrink-0">
-                          ~{est} min
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-900 font-medium truncate">
+                            {entry.walkInName || '—'}
+                          </p>
+                          <p className="text-[11px] text-gray-500 truncate">{fmtBehindCount(i)}</p>
+                        </div>
+                        <span className="text-sm font-semibold text-amber-700 shrink-0 tabular-nums">
+                          {fmtEstimateRange(est)}
                         </span>
                       </div>
                     );

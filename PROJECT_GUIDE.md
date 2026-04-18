@@ -544,6 +544,44 @@ New issues discovered during manual verification of P8 fixes. Includes bugs, syn
 - [x] **Structured rejection reasons when worker declines appointment** — Fixed 2026-04-13: Replaced one-tap "Rechazar" with modal offering 5 reasons: can't at that time (reschedule), already booked (conflict), not available that day (reassign), personal, other (free text). Reason stored in `cancellationReason` field and included in WA message to salon with contextual tags.
 - [x] **Admin sees rejection reason on cancelled appointments** — Fixed 2026-04-13: Status column shows rejection reason detail below the "Cancelada" badge. WA message to client is contextual: reschedule-type reasons ask "¿Qué horario le conviene?" vs generic cancellation message.
 
+### P11 — Cola + My-Work UX Overhaul (2026-04-18)
+
+#### P11-HIGH — Worker Skill Awareness in Queue & Available Work
+
+- [x] **Queue entries hidden from workers who can't do any of the services** — Fixed 2026-04-18: `/my-work` queue filter now uses `canDoAny(myStaffRecord, entry.serviceIds)`. Workers only see entries where at least one service matches their configured `serviceIds`. Staff with no skills configured see everything (backward compatible).
+- [x] **Unassigned services filtered by skill** — Fixed 2026-04-18: "Disponibles" list now excludes services the worker can't do. Prevents self-assigning work they're not trained for.
+- [x] **Skills-not-configured banner** — Fixed 2026-04-18: Staff whose admin hasn't configured their skills see an amber banner explaining why they might be seeing everything. Links them back to asking admin to set it up.
+- [x] **`staffSkills.ts` helpers** — Added 2026-04-18: `canDoService(staff, id)`, `canDoAny(staff, ids[])`, `hasConfiguredSkills(staff)` in `src/lib/utils/staffSkills.ts`. Empty `serviceIds` means "can do all" (legacy staff).
+
+#### P11-HIGH — Smarter Multi-Service Handoff
+
+- [x] **Per-service skill-aware assignment when taking from queue** — Fixed 2026-04-18: `WaitingListService.take()` now assigns each service individually: (1) client's preferred worker wins, (2) else taker gets it if skilled, (3) else leave unassigned for a skilled teammate to self-assign. One worker can "take" a peinado+maquillaje client while leaving maquillaje open for the makeup specialist.
+- [x] **Partial-skill hint on queue cards** — Fixed 2026-04-18: Queue cards show a blue line "✓ peinado · manicure" listing only the services the current worker can do, so they know exactly what they'd be taking.
+- [x] **Release service button** — Fixed 2026-04-18: Active and paused service cards on `/my-work` show "Liberar" button. Clears `assignedStaff`, surfacing the service in "Disponibles" for a skilled teammate. Confirmation dialog explains the handoff.
+
+#### P11-HIGH — Siguiente Hero Card (Older-Worker Mode)
+
+- [x] **Single "next action" card at top of /my-work** — Fixed 2026-04-18: Computes one priority-ordered next action (active > queue-preferred > paused > queue-open > unassigned > idle) and renders it as a large hero card with 52px min-height primary button. Older workers focus on one decision at a time instead of scanning multiple panels.
+- [x] **Removed "Atenciones en Curso" admin-style section** — Fixed 2026-04-18: Replaced by the Siguiente card + the always-visible active/paused service panels. Dead `handleAddServiceFromBrowser` + add-service modal removed.
+- [x] **Collapsed "Completados hoy" section** — Fixed 2026-04-18: Completed section now hidden behind a toggle. Keeps the screen focused on pending work.
+- [x] **Idle state card** — Fixed 2026-04-18: When nothing is pending, shows a calm "Todo al día" card instead of an empty page.
+
+#### P11-HIGH — Queue Estimate Accuracy
+
+- [x] **Estimates now include active sessions** — Fixed 2026-04-18: `/cola` per-worker `freeAt` is seeded from in-progress session load (`max(3, duration - elapsed)` for in_progress, full duration for paused/pending). Previously assumed every worker was free at `now`, producing wildly optimistic ETAs.
+- [x] **Skill filter in round-robin assignment** — Fixed 2026-04-18: Estimation loop now filters candidates to workers with `canDoAny` for the entry's services. Falls back to earliest free worker if no skilled match (mirrors real-world improvisation).
+- [x] **Range-based time display** — Fixed 2026-04-18: Summary card and per-entry estimates show `low–high min` (5-min rounded) instead of a single number that implied false precision. Helper `fmtEstimateRange()` uses 85% / 130% bounds.
+- [x] **"Detrás de N clientes" subtitle** — Fixed 2026-04-18: Replaces abstract minute count with a human framing ("detrás de 2 clientes" / "es el/la siguiente" / "en atención ahora"). Uses `fmtBehindCount()` helper.
+
+#### P11-MED — Reduce Queue Card Color Noise
+
+- [x] **Flat queue rows** — Fixed 2026-04-18: Dropped `border-l-4 border-red-500 bg-red-50` and amber borders; removed `longWait` badges. Hero card now owns all priority signaling, so queue rows can be visually quiet.
+- [x] **"Para ti" pill preserved** — Fixed 2026-04-18: Preferred-for-me hint kept as a small pill — the only color cue in queue rows.
+
+#### P11-MED — Haptic Feedback
+
+- [x] **Subtle vibration on key actions** — Fixed 2026-04-18: `navigator.vibrate` wrapper in `src/lib/utils/haptics.ts` fires on take-from-queue (medium+success), self-assign, release (warning), pause/resume (light), complete service (success). Android only — iOS Safari silently no-ops. Never fires on passive events.
+
 ### P3 — LOW (future hardening)
 
 - [x] **No confirmation dialogs for delete actions** — Fixed 2026-03-28: All `window.confirm()` calls replaced with custom `Modal` confirmations with Spanish buttons. Zero browser confirm dialogs remain.
@@ -844,4 +882,4 @@ src/
 
 ---
 
-*Last updated: 2026-04-12 | All phases through 9 done. P0–P9 all resolved (except F6/F7 future WA API items). Appointments now use real-time sync. Worker payment reports with WA sharing. Material stock bugs fixed. See Section 8 for full issue tracker.*
+*Last updated: 2026-04-18 | All phases through 9 done. P0–P11 resolved (except F6/F7 future WA API items). P11 overhauled cola + my-work UX: skill-aware queue & handoff, Siguiente hero card for older workers, accurate range-based ETAs, haptics. See Section 8 for full issue tracker.*

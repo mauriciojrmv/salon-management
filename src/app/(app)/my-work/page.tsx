@@ -67,10 +67,6 @@ export default function MyWorkPage() {
   // Client history modal
   const [historyClientId, setHistoryClientId] = useState<string | null>(null);
 
-  // Add-service-to-existing-session flow
-  const [addServiceTarget, setAddServiceTarget] = useState<Session | null>(null);
-  const [addServiceId, setAddServiceId] = useState('');
-
   // Duplicate-session confirmation (client already has active session when creating new)
   const [duplicateConfirm, setDuplicateConfirm] = useState<{ existingSession: Session; serviceId: string } | null>(null);
 
@@ -238,24 +234,6 @@ export default function MyWorkPage() {
     }
   };
 
-  const handleAddServiceFromBrowser = async () => {
-    if (!addServiceTarget || !addServiceId) {
-      error(ES.staff.selectServiceRequired);
-      return;
-    }
-    setLoading(true);
-    try {
-      await addServiceToExistingSession(addServiceTarget.id, addServiceId);
-      success(ES.staff.serviceAddedToSession);
-      setAddServiceTarget(null);
-      setAddServiceId('');
-    } catch (err) {
-      error(err instanceof Error ? err.message : ES.messages.operationFailed);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleQuickCreateClient = async () => {
     if (!quickClient.firstName || !userData?.salonId) {
       error(ES.messages.fillRequiredFields);
@@ -361,6 +339,50 @@ export default function MyWorkPage() {
       }
     });
   });
+
+  // "Siguiente" — the single next action, chosen by priority:
+  //   1. A service I'm actively doing (finish what's started)
+  //   2. A queue entry preferred for me (client asked for me specifically)
+  //   3. A service I paused (I owe this client)
+  //   4. A queue entry I can do but wasn't asked for me (open queue)
+  //   5. An unassigned active service I can do (help the team)
+  //   6. Nothing — idle state
+  type NextAction =
+    | { kind: 'active'; session: Session; service: SessionServiceItem }
+    | { kind: 'queue-preferred'; entry: WaitingListEntry & { arrivalTime: Date } }
+    | { kind: 'paused'; session: Session; service: SessionServiceItem }
+    | { kind: 'queue-open'; entry: WaitingListEntry & { arrivalTime: Date } }
+    | { kind: 'unassigned'; session: Session; service: SessionServiceItem }
+    | { kind: 'idle' };
+
+  const nextAction: NextAction = useMemo(() => {
+    if (!isToday) return { kind: 'idle' };
+    if (myActiveServices.length > 0) {
+      const oldest = [...myActiveServices].sort((a, b) =>
+        toDate(a.service.startTime).getTime() - toDate(b.service.startTime).getTime(),
+      )[0];
+      return { kind: 'active', session: oldest.session, service: oldest.service };
+    }
+    const preferred = myWaitingList.find((e) => entryMatchesMe(e));
+    if (preferred) return { kind: 'queue-preferred', entry: preferred };
+    if (myPausedServices.length > 0) {
+      const oldest = [...myPausedServices].sort((a, b) => {
+        const aT = a.service.pausedAt ? toDate(a.service.pausedAt).getTime() : 0;
+        const bT = b.service.pausedAt ? toDate(b.service.pausedAt).getTime() : 0;
+        return aT - bT;
+      })[0];
+      return { kind: 'paused', session: oldest.session, service: oldest.service };
+    }
+    const openQueue = myWaitingList.find((e) => !entryMatchesMe(e));
+    if (openQueue) return { kind: 'queue-open', entry: openQueue };
+    if (availableServices.length > 0) {
+      return { kind: 'unassigned', session: availableServices[0].session, service: availableServices[0].service };
+    }
+    return { kind: 'idle' };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isToday, myActiveServices, myPausedServices, myWaitingList, availableServices]);
+
+  const [showCompleted, setShowCompleted] = useState(false);
 
   const handleSelfAssign = async (session: Session, service: SessionServiceItem) => {
     haptic.medium();
@@ -689,6 +711,165 @@ export default function MyWorkPage() {
         </div>
       )}
 
+      {/* === SIGUIENTE HERO — the single next action ===
+          Older workers should see one decision, not ten. The hero picks by
+          priority (active > preferred queue > paused > open queue > unassigned)
+          and renders a large, single-CTA card. Everything else on the page
+          becomes optional review. */}
+      {isToday && nextAction.kind !== 'idle' && (() => {
+        if (nextAction.kind === 'active') {
+          const { session, service } = nextAction;
+          const elapsed = Math.max(
+            0,
+            Math.floor((Date.now() - toDate(service.startTime).getTime()) / 60000),
+          );
+          return (
+            <Card className="border-2 border-blue-500 bg-blue-50">
+              <CardBody>
+                <div className="space-y-3">
+                  <p className="text-[11px] uppercase tracking-widest text-blue-700 font-bold">
+                    {ES.staff.nextUpTitle}
+                  </p>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900">{service.serviceName}</p>
+                    <p className="text-base text-gray-700 mt-0.5">{getClientName(session.clientId)}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {ES.staff.nextStartedAgo} {elapsed} min
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="lg"
+                      variant="primary"
+                      className="flex-1 py-4 text-base min-h-[52px]"
+                      onClick={() => handleAdvanceStatus(session, service)}
+                      loading={loading}
+                    >
+                      {service.status === 'pending' ? ES.staff.advancePending : ES.staff.advanceInProgress}
+                    </Button>
+                    {service.status === 'in_progress' && (
+                      <Button
+                        size="lg"
+                        variant="ghost"
+                        className="py-4 px-4 min-h-[52px] text-amber-700"
+                        onClick={() => handlePauseResume(session, service)}
+                        loading={loading}
+                      >
+                        {ES.servicePause.pause}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
+          );
+        }
+        if (nextAction.kind === 'queue-preferred' || nextAction.kind === 'queue-open') {
+          const entry = nextAction.entry;
+          const mins = Math.max(0, Math.floor((Date.now() - entry.arrivalTime.getTime()) / 60000));
+          return (
+            <Card className="border-2 border-green-500 bg-green-50">
+              <CardBody>
+                <div className="space-y-3">
+                  <p className="text-[11px] uppercase tracking-widest text-green-700 font-bold">
+                    {ES.cola.nextUp}
+                  </p>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900">{entry.walkInName || '—'}</p>
+                    <p className="text-base text-gray-700 mt-0.5 truncate">
+                      {(entry.serviceNames || []).join(' · ')}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {ES.staff.nextWaiting} {mins} min
+                    </p>
+                  </div>
+                  <Button
+                    size="lg"
+                    variant="primary"
+                    className="w-full py-4 text-base min-h-[52px]"
+                    onClick={() => handleTakeFromQueue(entry.id)}
+                    loading={loading}
+                  >
+                    {ES.staff.nextTakeClient}
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
+          );
+        }
+        if (nextAction.kind === 'paused') {
+          const { session, service } = nextAction;
+          const pausedFor = service.pausedAt
+            ? Math.max(0, Math.floor((Date.now() - toDate(service.pausedAt).getTime()) / 60000))
+            : 0;
+          return (
+            <Card className="border-2 border-amber-500 bg-amber-50">
+              <CardBody>
+                <div className="space-y-3">
+                  <p className="text-[11px] uppercase tracking-widest text-amber-700 font-bold">
+                    {ES.staff.nextUpTitle}
+                  </p>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900">{service.serviceName}</p>
+                    <p className="text-base text-gray-700 mt-0.5">{getClientName(session.clientId)}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {ES.staff.nextPausedFor} {pausedFor} min
+                    </p>
+                  </div>
+                  <Button
+                    size="lg"
+                    variant="primary"
+                    className="w-full py-4 text-base min-h-[52px]"
+                    onClick={() => handlePauseResume(session, service)}
+                    loading={loading}
+                  >
+                    {ES.staff.nextResume}
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
+          );
+        }
+        // unassigned
+        const { session, service } = nextAction;
+        return (
+          <Card className="border-2 border-blue-400 bg-blue-50">
+            <CardBody>
+              <div className="space-y-3">
+                <p className="text-[11px] uppercase tracking-widest text-blue-700 font-bold">
+                  {ES.staff.nextUpTitle}
+                </p>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{service.serviceName}</p>
+                  <p className="text-base text-gray-700 mt-0.5">{getClientName(session.clientId)}</p>
+                </div>
+                <Button
+                  size="lg"
+                  variant="primary"
+                  className="w-full py-4 text-base min-h-[52px]"
+                  onClick={() => handleSelfAssign(session, service)}
+                  loading={loading}
+                >
+                  {ES.staff.nextSelfAssign}
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        );
+      })()}
+
+      {/* Idle state — calm, no list */}
+      {isToday && nextAction.kind === 'idle' && myActiveServices.length === 0 && myPausedServices.length === 0 && (
+        <Card>
+          <CardBody>
+            <div className="py-6 text-center">
+              <p className="text-lg font-semibold text-gray-800">{ES.staff.nextIdle}</p>
+              <p className="text-sm text-gray-500 mt-1">{ES.staff.nextIdleHint}</p>
+            </div>
+          </CardBody>
+        </Card>
+      )}
+
       {/* === READY-TO-START APPOINTMENT BANNER === */}
       {isToday && readyAppointments.length > 0 && (
         <div className="space-y-2">
@@ -953,7 +1134,6 @@ export default function MyWorkPage() {
                 0,
                 Math.floor((Date.now() - entry.arrivalTime.getTime()) / 60000),
               );
-              const longWait = mins >= 20;
               const forMe = entryMatchesMe(entry);
               // Which of the entry's services can I actually do?
               const doableIdxs = (entry.serviceIds || [])
@@ -961,11 +1141,11 @@ export default function MyWorkPage() {
                 .filter((i) => i >= 0);
               const partialSkill = doableIdxs.length > 0 && doableIdxs.length < (entry.serviceIds || []).length;
               const doableNames = doableIdxs.map((i) => entry.serviceNames?.[i]).filter(Boolean);
+              // Priority lives in the Siguiente hero card, so queue rows are
+              // deliberately flat: no color borders, no red/amber competition.
+              // Typography weight + "Para ti" pill is enough hierarchy.
               return (
-                <Card
-                  key={`queue-${entry.id}`}
-                  className={longWait ? 'border-l-4 border-red-500 bg-red-50' : forMe ? 'border-l-4 border-amber-400' : ''}
-                >
+                <Card key={`queue-${entry.id}`}>
                   <CardBody>
                     <div className="flex items-center gap-3">
                       <div className="min-w-0 flex-1">
@@ -973,18 +1153,9 @@ export default function MyWorkPage() {
                           <p className="font-semibold text-gray-900 truncate">
                             {entry.walkInName || '—'}
                           </p>
-                          {longWait && (
-                            <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 font-medium">
-                              🔔 {ES.cola.longWait}
-                            </span>
-                          )}
-                          {forMe ? (
-                            <span className="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800">
+                          {forMe && (
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-800 font-medium">
                               {ES.cola.forYou}
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-                              {ES.cola.forAnyone}
                             </span>
                           )}
                         </div>
@@ -996,14 +1167,8 @@ export default function MyWorkPage() {
                             ✓ {doableNames.join(' · ')}
                           </p>
                         )}
-                        <p className="text-xs mt-0.5">
-                          <span className={longWait ? 'text-red-700 font-semibold' : 'text-amber-700 font-medium'}>
-                            {mins} min
-                          </span>
-                          <span className="text-gray-400 mx-1">·</span>
-                          <span className="text-gray-600">
-                            {entry.arrivalTime.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
+                        <p className="text-xs mt-0.5 text-gray-500 tabular-nums">
+                          {mins} min · {entry.arrivalTime.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
                       <Button
@@ -1024,101 +1189,57 @@ export default function MyWorkPage() {
         </section>
       )}
 
-      {/* === ATENCIONES EN CURSO (browse all active salon sessions) === */}
-      {isToday && activeSessions.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">{ES.staff.activeSessionsInSalon}</h2>
-          <div className="space-y-3">
-            {activeSessions.map((session) => {
-              const svcCount = (session.services || []).length;
-              const assignedNames = Array.from(
-                new Set(
-                  (session.services || [])
-                    .flatMap((s) => s.assignedStaff || [])
-                    .map(getStaffName)
-                )
-              );
-              return (
-                <Card key={`curso-${session.id}`}>
-                  <CardBody>
-                    <div className="space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-semibold text-gray-900">{getClientName(session.clientId)}</p>
-                            {session.origin === 'cola' && (
-                              <span className="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">
-                                {ES.cola.fromQueue}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {svcCount} {svcCount === 1 ? 'servicio' : 'servicios'}
-                            {assignedNames.length > 0 && ` · ${assignedNames.join(', ')}`}
-                          </p>
-                        </div>
-                        {session.origin === 'cola' ? (
-                          <span className="shrink-0 text-xs text-gray-500 italic max-w-[140px] text-right">
-                            {ES.cola.servicesLocked}
-                          </span>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            className="shrink-0 min-h-[44px]"
-                            onClick={() => { setAddServiceTarget(session); setAddServiceId(''); }}
-                          >
-                            {ES.staff.addMyService}
-                          </Button>
-                        )}
-                      </div>
-                      {svcCount > 0 && (
-                        <div className="bg-gray-50 rounded-lg p-2 space-y-1">
-                          {(session.services || []).map((svc) => (
-                            <p key={svc.id} className="text-xs text-gray-600 truncate">
-                              · {svc.serviceName}
-                              {svc.assignedStaff && svc.assignedStaff.length > 0 && (
-                                <span className="text-gray-400"> — {svc.assignedStaff.map(getStaffName).join(', ')}</span>
-                              )}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </CardBody>
-                </Card>
-              );
-            })}
-          </div>
-        </section>
-      )}
+      {/* Atenciones en Curso (all-salon session browser) removed from /my-work.
+          It surfaced manager-level context that overwhelmed workers. Workers
+          add services to their own sessions through Mis Servicios Activos.
+          Admins/gerentes use /sessions for full-salon visibility. */}
 
-      {/* === COMPLETED (selected date) === */}
-      {myCompletedServices.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold text-gray-700 mb-3">
-            {isToday ? ES.staff.myCompletedToday : `Completados ${fmtDate(selectedDate)}`}
-          </h2>
-          <div className="space-y-2">
-            {myCompletedServices.map(({ session, service }) => (
-              <Card key={`done-${session.id}-${service.id}`} className="opacity-60">
-                <CardBody>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">{service.serviceName}</p>
-                      <p className="text-xs text-gray-500">{getClientName(session.clientId)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-700">{fmtBs(service.price)}</p>
-                      <span className="text-xs text-green-600">{ES.sessions.completed}</span>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* === COMPLETED (selected date) — collapsed by default on today,
+          expanded automatically when viewing a past date (main purpose of
+          navigating back is to review completed work). */}
+      {myCompletedServices.length > 0 && (() => {
+        const expanded = !isToday || showCompleted;
+        return (
+          <section>
+            <button
+              type="button"
+              onClick={() => isToday && setShowCompleted((v) => !v)}
+              disabled={!isToday}
+              className="w-full flex items-center justify-between text-left min-h-[44px] px-1 py-2"
+            >
+              <h2 className="text-base font-semibold text-gray-700">
+                {isToday ? ES.staff.myCompletedToday : `Completados ${fmtDate(selectedDate)}`}
+                <span className="ml-2 text-xs font-normal text-gray-500">{myCompletedServices.length}</span>
+              </h2>
+              {isToday && (
+                <span className="text-xs text-blue-600 font-medium">
+                  {showCompleted ? ES.staff.hideCompletedToday : ES.staff.showCompletedToday}
+                </span>
+              )}
+            </button>
+            {expanded && (
+              <div className="space-y-2 mt-2">
+                {myCompletedServices.map(({ session, service }) => (
+                  <Card key={`done-${session.id}-${service.id}`} className="opacity-60">
+                    <CardBody>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">{service.serviceName}</p>
+                          <p className="text-xs text-gray-500">{getClientName(session.clientId)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-gray-700">{fmtBs(service.price)}</p>
+                          <span className="text-xs text-green-600">{ES.sessions.completed}</span>
+                        </div>
+                      </div>
+                    </CardBody>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
       {/* === MATERIAL MODAL === */}
       <Modal
@@ -1332,45 +1453,6 @@ export default function MyWorkPage() {
             </div>
           </div>
         )}
-      </Modal>
-
-      {/* Add service to existing session (from "Atenciones en Curso") */}
-      <Modal
-        isOpen={!!addServiceTarget}
-        onClose={() => { setAddServiceTarget(null); setAddServiceId(''); }}
-        title={`${ES.staff.addMyService} — ${addServiceTarget ? getClientName(addServiceTarget.clientId) : ''}`}
-      >
-        <div className="space-y-4">
-          <SearchableSelect
-            label={ES.staff.selectService}
-            options={(() => {
-              const myStaff = staffList?.find((s) => s.id === staffId);
-              const myServiceIds = (myStaff as typeof myStaff & { serviceIds?: string[] })?.serviceIds;
-              const filtered = (salonServices || []).filter((s) => {
-                if (!s.isActive) return false;
-                if (myServiceIds && myServiceIds.length > 0) return myServiceIds.includes(s.id);
-                return true;
-              });
-              return filtered.map((s) => ({
-                value: s.id,
-                label: s.name,
-                secondary: `Bs. ${s.price}`,
-              }));
-            })()}
-            value={addServiceId}
-            onChange={setAddServiceId}
-            placeholder={ES.actions.search}
-            required
-          />
-          <div className="flex gap-2 pt-2">
-            <Button variant="secondary" className="flex-1 py-3 min-h-[44px]" onClick={() => { setAddServiceTarget(null); setAddServiceId(''); }}>
-              {ES.actions.cancel}
-            </Button>
-            <Button className="flex-1 py-3 min-h-[44px]" onClick={handleAddServiceFromBrowser} loading={loading}>
-              {ES.staff.addMyService}
-            </Button>
-          </div>
-        </div>
       </Modal>
 
       {/* Client History Modal */}

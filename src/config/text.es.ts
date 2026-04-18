@@ -358,6 +358,20 @@ export const ES = {
     skillsNotConfigured: 'Configura tus servicios',
     skillsNotConfiguredHint: 'Pide al administrador que marque los servicios que haces en tu perfil. Por ahora ves todo.',
     cannotDoService: 'No tienes este servicio en tu perfil',
+    // Siguiente hero card — the one thing to do next
+    nextUpTitle: 'Siguiente',
+    nextContinue: 'Continuar servicio',
+    nextTakeClient: 'Atender cliente',
+    nextResume: 'Reanudar servicio',
+    nextSelfAssign: 'Tomar servicio',
+    nextIdle: 'Todo al día',
+    nextIdleHint: 'Sin atenciones pendientes',
+    nextStartedAgo: 'Comenzado hace',
+    nextPausedFor: 'Pausado hace',
+    nextWaiting: 'Esperando',
+    // Progressive disclosure
+    showCompletedToday: 'Ver completados hoy',
+    hideCompletedToday: 'Ocultar completados',
   },
 
   // Inventory
@@ -847,6 +861,13 @@ export const ES = {
     appointmentOverdue: 'Reserva atrasada',
     startAppointment: 'Iniciar',
     appointmentAt: 'a las',
+    // Estimate display (range + queue depth)
+    estRange: 'Entre',
+    estRangeAnd: 'y',
+    estMinutes: 'min',
+    behindCountOne: 'Detrás de 1 cliente',
+    behindCountMany: 'Detrás de {n} clientes',
+    behindCountNone: 'Siguiente en atención',
   },
 
   // Service pause/resume (in-session actions)
