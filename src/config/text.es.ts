@@ -349,6 +349,15 @@ export const ES = {
     createNewSession: 'Crear nueva atención',
     selectServiceRequired: 'Selecciona un servicio',
     serviceAddedToSession: 'Servicio agregado a la atención',
+    // Release / handoff
+    releaseService: 'Liberar al equipo',
+    releaseConfirm: '¿Liberar este servicio para que otro compañero lo tome?',
+    released: 'Servicio liberado — otro compañero podrá tomarlo',
+    releaseHint: 'Úsalo si no puedes hacer este servicio — quedará disponible para otros',
+    // Skills config banner
+    skillsNotConfigured: 'Configura tus servicios',
+    skillsNotConfiguredHint: 'Pide al administrador que marque los servicios que haces en tu perfil. Por ahora ves todo.',
+    cannotDoService: 'No tienes este servicio en tu perfil',
   },
 
   // Inventory

@@ -26,6 +26,8 @@ import type { Appointment } from '@/types/models';
 import { firebaseConstraints } from '@/lib/firebase/db';
 import type { Session, SessionServiceItem } from '@/types/models';
 import { toDate, fmtBs, fmtDate, getBoliviaDate } from '@/lib/utils/helpers';
+import { canDoService, canDoAny, hasConfiguredSkills } from '@/lib/utils/staffSkills';
+import { haptic } from '@/lib/utils/haptics';
 import ES from '@/config/text.es';
 
 interface MaterialEntry {
@@ -284,21 +286,26 @@ export default function MyWorkPage() {
   const allSessions = sessions || [];
   const activeSessions = allSessions.filter((s) => s.status === 'active');
 
-  // Entry shows in my queue if ANY service preference matches me, OR if it has
-  // no preferences at all (open to anyone). Per-service preferences override
-  // the legacy global preferredStaffId.
+  const myStaffRecord = useMemo(
+    () => (staffList || []).find((s) => s.id === staffId) as ({ serviceIds?: string[] } | undefined),
+    [staffList, staffId],
+  );
+  const skillsConfigured = hasConfiguredSkills(myStaffRecord);
+
+  // Entry shows in my queue if any service is preferred-for-me, OR if I can do
+  // at least one of its services. Workers without configured skills see everything
+  // (backward compat — banner nudges admin to configure).
   const entryMatchesMe = (e: WaitingListEntry): boolean => {
     if (e.preferredStaffId && e.preferredStaffId === staffId) return true;
     return (e.servicePreferences || []).some((p) => p.preferredStaffId === staffId);
   };
-  const entryHasAnyPref = (e: WaitingListEntry): boolean => {
-    if (e.preferredStaffId) return true;
-    return (e.servicePreferences || []).some((p) => !!p.preferredStaffId);
+  const entrySkillMatch = (e: WaitingListEntry): boolean => {
+    return canDoAny(myStaffRecord, e.serviceIds || []);
   };
 
   const myWaitingList = (waitingEntries || [])
     .filter((e) => e.status === 'waiting')
-    .filter((e) => entryMatchesMe(e) || !entryHasAnyPref(e))
+    .filter((e) => entryMatchesMe(e) || entrySkillMatch(e))
     .map((e) => ({ ...e, arrivalTime: toDate(e.arrivalTime) }))
     .sort((a, b) => {
       const aMine = entryMatchesMe(a) ? 0 : 1;
@@ -309,9 +316,11 @@ export default function MyWorkPage() {
 
   const handleTakeFromQueue = async (entryId: string) => {
     if (!staffId) return;
+    haptic.medium();
     setLoading(true);
     try {
       await WaitingListService.take({ entryId, takenByStaffId: staffId });
+      haptic.success();
       success(ES.cola.taken);
     } catch (e) {
       console.error(e);
@@ -338,6 +347,7 @@ export default function MyWorkPage() {
   activeSessions.forEach((session) => {
     (session.services || []).forEach((svc) => {
       if ((!svc.assignedStaff || svc.assignedStaff.length === 0) && svc.status !== 'completed') {
+        if (!canDoService(myStaffRecord, svc.serviceId)) return;
         availableServices.push({ session, service: svc });
       }
     });
@@ -353,6 +363,7 @@ export default function MyWorkPage() {
   });
 
   const handleSelfAssign = async (session: Session, service: SessionServiceItem) => {
+    haptic.medium();
     setLoading(true);
     try {
       const updatedServices = (session.services || []).map((svc) => {
@@ -362,7 +373,29 @@ export default function MyWorkPage() {
         return svc;
       });
       await SessionRepository.updateSession(session.id, { services: updatedServices });
+      haptic.success();
       success(ES.sessions.serviceAdded);
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Release a service back to the team — clears assignedStaff on that one
+  // service. Only available when status is 'pending' or 'paused' (can't release
+  // something you're actively doing).
+  const handleReleaseService = async (session: Session, service: SessionServiceItem) => {
+    if (service.status === 'in_progress' || service.status === 'completed') return;
+    haptic.warning();
+    setLoading(true);
+    try {
+      const updatedServices = (session.services || []).map((svc) => {
+        if (svc.id !== service.id) return svc;
+        return { ...svc, assignedStaff: [] };
+      });
+      await SessionRepository.updateSession(session.id, { services: updatedServices });
+      success(ES.staff.released);
     } catch (err) {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
     } finally {
@@ -374,6 +407,7 @@ export default function MyWorkPage() {
     if (service.status !== 'in_progress' && service.status !== 'paused') return;
     const nextStatus: SessionServiceItem['status'] =
       service.status === 'in_progress' ? 'paused' : 'in_progress';
+    haptic.light();
     setLoading(true);
     try {
       const updatedServices = (session.services || []).map((svc) => {
@@ -399,6 +433,8 @@ export default function MyWorkPage() {
       return;
     }
     const nextStatus = service.status === 'pending' ? 'in_progress' : 'completed';
+    if (nextStatus === 'completed') haptic.success();
+    else haptic.medium();
     setLoading(true);
     try {
       const updatedServices = (session.services || []).map((svc) => {
@@ -645,6 +681,14 @@ export default function MyWorkPage() {
         )}
       </div>
 
+      {/* === SKILLS NOT CONFIGURED BANNER === */}
+      {isToday && staffList && !skillsConfigured && (
+        <div className="rounded-2xl bg-amber-50 border border-amber-200 px-4 py-3">
+          <p className="text-sm font-semibold text-amber-900">{ES.staff.skillsNotConfigured}</p>
+          <p className="text-xs text-amber-700 mt-0.5">{ES.staff.skillsNotConfiguredHint}</p>
+        </div>
+      )}
+
       {/* === READY-TO-START APPOINTMENT BANNER === */}
       {isToday && readyAppointments.length > 0 && (
         <div className="space-y-2">
@@ -769,6 +813,18 @@ export default function MyWorkPage() {
                           >
                             {ES.staff.addMyMaterial}
                           </Button>
+                          {(service.status === 'pending' || service.status === 'paused') && (
+                            <Button
+                              size="lg"
+                              variant="ghost"
+                              className="py-3 px-3 text-sm min-h-[44px] text-gray-600"
+                              onClick={() => handleReleaseService(session, service)}
+                              loading={loading}
+                              title={ES.staff.releaseHint}
+                            >
+                              {ES.staff.releaseService}
+                            </Button>
+                          )}
                           <Button
                             size="lg"
                             variant="ghost"
@@ -833,6 +889,15 @@ export default function MyWorkPage() {
                         >
                           {ES.servicePause.resume}
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="min-h-[44px] text-gray-600"
+                          onClick={() => handleReleaseService(session, service)}
+                          loading={loading}
+                        >
+                          {ES.staff.releaseService}
+                        </Button>
                       </div>
                     </div>
                   </CardBody>
@@ -890,6 +955,12 @@ export default function MyWorkPage() {
               );
               const longWait = mins >= 20;
               const forMe = entryMatchesMe(entry);
+              // Which of the entry's services can I actually do?
+              const doableIdxs = (entry.serviceIds || [])
+                .map((sid, i) => (canDoService(myStaffRecord, sid) ? i : -1))
+                .filter((i) => i >= 0);
+              const partialSkill = doableIdxs.length > 0 && doableIdxs.length < (entry.serviceIds || []).length;
+              const doableNames = doableIdxs.map((i) => entry.serviceNames?.[i]).filter(Boolean);
               return (
                 <Card
                   key={`queue-${entry.id}`}
@@ -920,6 +991,11 @@ export default function MyWorkPage() {
                         <p className="text-xs text-gray-600 mt-0.5 truncate">
                           {(entry.serviceNames || []).join(' · ')}
                         </p>
+                        {partialSkill && skillsConfigured && (
+                          <p className="text-[11px] text-blue-700 mt-0.5 truncate">
+                            ✓ {doableNames.join(' · ')}
+                          </p>
+                        )}
                         <p className="text-xs mt-0.5">
                           <span className={longWait ? 'text-red-700 font-semibold' : 'text-amber-700 font-medium'}>
                             {mins} min

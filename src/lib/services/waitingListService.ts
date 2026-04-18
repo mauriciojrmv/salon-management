@@ -1,8 +1,10 @@
 import { WaitingListRepository } from '@/lib/repositories/waitingListRepository';
 import { SessionRepository } from '@/lib/repositories/sessionRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
+import { StaffRepository } from '@/lib/repositories/staffRepository';
 import type { WaitingListEntry } from '@/types/models';
 import { getBoliviaDate } from '@/lib/utils/helpers';
+import { canDoService } from '@/lib/utils/staffSkills';
 
 export interface TakeEntryParams {
   entryId: string;
@@ -28,13 +30,15 @@ export class WaitingListService {
       waitingListEntryId: params.entryId,
     });
 
-    // Pre-add selected services. Each service is assigned to its preferred worker
-    // (from servicePreferences). If the preferred worker is the taking staff, assign
-    // them. If another worker is preferred, leave that service assigned to THAT
-    // worker (so they see it in /my-work). If no preference and it's the taking
-    // staff's implicit load, fall back to the taking staff.
+    // Per-service assignment rules:
+    //  1. Preference wins (preferred worker takes it, even if another worker "took" the entry)
+    //  2. Else if the taking worker is skilled for this service, assign to them
+    //  3. Else leave unassigned — surfaces in "Disponibles" for another skilled worker
     const prefs = queue.servicePreferences || [];
     const legacyPref = queue.preferredStaffId || '';
+    const taker = await StaffRepository.getStaff(params.takenByStaffId);
+    const takerSkills = taker as { serviceIds?: string[] } | null;
+
     for (const serviceId of queue.serviceIds || []) {
       const service = await ServiceRepository.getService(serviceId);
       if (!service) continue;
@@ -43,12 +47,15 @@ export class WaitingListService {
 
       const pref = prefs.find((p) => p.serviceId === serviceId);
       const preferredId = pref ? pref.preferredStaffId : legacyPref;
-      // Assigned worker rules:
-      //  - If a preference exists, use that worker.
-      //  - If no preference, assign to the taking worker as default.
-      const assignedStaff = preferredId
-        ? [preferredId]
-        : [params.takenByStaffId];
+
+      let assignedStaff: string[];
+      if (preferredId) {
+        assignedStaff = [preferredId];
+      } else if (canDoService(takerSkills, serviceId)) {
+        assignedStaff = [params.takenByStaffId];
+      } else {
+        assignedStaff = [];
+      }
 
       const existing = session.services || [];
       const newItem = {
