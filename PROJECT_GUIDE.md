@@ -582,6 +582,18 @@ New issues discovered during manual verification of P8 fixes. Includes bugs, syn
 
 - [x] **Subtle vibration on key actions** — Fixed 2026-04-18: `navigator.vibrate` wrapper in `src/lib/utils/haptics.ts` fires on take-from-queue (medium+success), self-assign, release (warning), pause/resume (light), complete service (success). Android only — iOS Safari silently no-ops. Never fires on passive events.
 
+#### P11-HIGH — Client-Busy Lock Across Workers
+
+- [x] **Client already in cola excluded from add picker** — Fixed 2026-04-18: `/cola` add-to-queue client picker filters out clients with a `waiting` entry today. Prevents creating duplicate queue rows for the same client. Taken-status entries remain available (they might legitimately queue for a follow-up service).
+- [x] **Block take when client has in_progress service under another worker** — Fixed 2026-04-18: `getClientBusyState()` helper (`src/lib/utils/clientBusy.ts`) inspects active sessions + services for the client. If any service is `in_progress`, `canTakeClient()` returns false. Guard fires in `/cola` `handleTake` and `/my-work` `handleTakeFromQueue` with `ES.cola.takeBlocked` error toast.
+- [x] **Allow take when client's current service is paused or finished** — Fixed 2026-04-18: Paused and pending states do NOT block. Mirrors the business rule: pause exists precisely to free the client for parallel work. Completed services aren't blocking either (client is done with that worker).
+- [x] **Show client state pill on queue cards** — Fixed 2026-04-18: `/my-work` and `/cola` queue cards show a state line below the services: red `En atención con {staffName}` (take disabled) or amber `En pausa con {staffName} · Puedes empezar ahora` (take enabled). Free clients show nothing — clean default state.
+- [x] **Siguiente hero mirrors the lock** — Fixed 2026-04-18: When the Siguiente card shows a queue entry (preferred or open), it surfaces the same state pill and disables the primary button if the client is in_progress elsewhere. Worker isn't left wondering why nothing happens on tap.
+
+#### P11-MED — Agregar Material on Siguiente Hero
+
+- [x] **Materials action promoted to hero for active/paused** — Fixed 2026-04-18: Active and paused hero cards now include a secondary "Agregar material" link below the primary button. Materials are logged mid-service so the action earns a hero spot. Ver Historial stays on the expanded service card only — it's preparation reference, lower priority for older-worker one-action-at-a-time UX.
+
 ### P3 — LOW (future hardening)
 
 - [x] **No confirmation dialogs for delete actions** — Fixed 2026-03-28: All `window.confirm()` calls replaced with custom `Modal` confirmations with Spanish buttons. Zero browser confirm dialogs remain.

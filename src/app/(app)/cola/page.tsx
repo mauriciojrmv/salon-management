@@ -22,6 +22,7 @@ import { AppointmentService } from '@/lib/services/appointmentService';
 import { firebaseConstraints } from '@/lib/firebase/db';
 import { toDate, fmtBs, getBoliviaDate } from '@/lib/utils/helpers';
 import { canDoAny } from '@/lib/utils/staffSkills';
+import { getClientBusyState, canTakeClient } from '@/lib/utils/clientBusy';
 import type { WaitingListEntry, ServicePreference, Appointment, Session } from '@/types/models';
 import ES from '@/config/text.es';
 import { Clock, UserPlus, Check, X, Bell, Megaphone, ChevronDown, ChevronUp, Calendar, PhoneOff, RotateCw } from 'lucide-react';
@@ -222,6 +223,18 @@ export default function ColaPage() {
       error(ES.cola.selectServicesRequired);
       return;
     }
+    // Block take if client has an in_progress service elsewhere — paused is
+    // fine (that's the whole point of pausing, to free the client for parallel
+    // work), but an active service means two workers would fight over the same
+    // person at the same time.
+    const entry = sortedQueue.find((e) => e.id === actionEntryId);
+    if (entry && entry.clientId) {
+      const busy = getClientBusyState(entry.clientId, activeSessionsToday || [], resolveStaffName);
+      if (!canTakeClient(busy)) {
+        error(ES.cola.takeBlocked);
+        return;
+      }
+    }
     setLoading(true);
     try {
       const sessionId = await WaitingListService.take({
@@ -320,11 +333,30 @@ export default function ColaPage() {
     }
   };
 
-  const clientOptions = (clients || []).map((c) => ({
-    value: c.id,
-    label: `${c.firstName} ${c.lastName}`,
-    secondary: c.phone,
-  }));
+  // Clients already waiting today shouldn't appear in the add-to-cola picker
+  // — adding them again would create a duplicate entry. Once their entry is
+  // taken (session started) they're back in the picker — they might legitimately
+  // want to queue for a later service.
+  const inQueueClientIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const e of sortedQueue) {
+      if (e.status === 'waiting' && e.clientId) ids.add(e.clientId);
+    }
+    return ids;
+  }, [sortedQueue]);
+
+  const clientOptions = (clients || [])
+    .filter((c) => !inQueueClientIds.has(c.id))
+    .map((c) => ({
+      value: c.id,
+      label: `${c.firstName} ${c.lastName}`,
+      secondary: c.phone,
+    }));
+
+  const resolveStaffName = (id: string): string => {
+    const s = (staff || []).find((x) => x.id === id);
+    return s ? `${s.firstName} ${s.lastName}` : '';
+  };
 
   const takeStaffOptions = (staff || []).map((s) => ({
     value: s.id,
@@ -465,8 +497,13 @@ export default function ColaPage() {
   // Format a point-estimate as a range ±~30% rounded to 5-min buckets.
   // Communicates uncertainty honestly: a 15-min wait shown as "15-20 min" is
   // harder to get wrong than "15 min" exactly.
+  //
+  // Zero-minute estimates (no prior load, worker is free) render as "≤ 5 min"
+  // rather than collapsing to position text — the caller already shows a
+  // "Siguiente en atención" subtitle via fmtBehindCount, so the time column
+  // should stay a time.
   const fmtEstimateRange = (pointMin: number): string => {
-    if (pointMin <= 0) return ES.cola.behindCountNone;
+    if (pointMin <= 0) return `≤ 5 ${ES.cola.estMinutes}`;
     const roundTo5 = (n: number) => Math.max(5, Math.round(n / 5) * 5);
     const low = roundTo5(pointMin * 0.85);
     const high = roundTo5(Math.max(pointMin * 1.3, pointMin + 5));
@@ -488,6 +525,10 @@ export default function ColaPage() {
     // Only position #1 carries urgency styling. Everyone else is "just waiting".
     const isNext = isWaiting && idx === 0;
     const isOverdue = isNext && mins >= NEXT_OVERDUE_MIN;
+    const busy = entry.clientId
+      ? getClientBusyState(entry.clientId, activeSessionsToday || [], resolveStaffName)
+      : ({ kind: 'free' } as const);
+    const takeBlocked = busy.kind === 'in_progress';
 
     const cardClass = isOverdue
       ? 'border-2 border-red-500 bg-red-50 animate-pulse-slow'
@@ -544,6 +585,16 @@ export default function ColaPage() {
                   <span className={isOverdue ? 'text-red-700 font-bold' : 'text-green-700 font-semibold'}>
                     {ES.cola.waitingSince} {mins} min
                   </span>
+                </p>
+              )}
+              {isWaiting && busy.kind === 'in_progress' && (
+                <p className="text-xs mt-1 text-red-700 font-medium">
+                  {ES.cola.clientBusyInProgress} {busy.staffName}
+                </p>
+              )}
+              {isWaiting && busy.kind === 'paused' && (
+                <p className="text-xs mt-1 text-amber-700">
+                  {ES.cola.clientBusyPaused} {busy.staffName} · {ES.cola.clientBusyHintPaused}
                 </p>
               )}
             </div>
@@ -609,6 +660,8 @@ export default function ColaPage() {
                 size="sm"
                 onClick={() => openTake(entry.id)}
                 className="flex-1 min-h-[44px]"
+                disabled={takeBlocked}
+                title={takeBlocked ? ES.cola.takeBlocked : undefined}
               >
                 <Check className="w-4 h-4 mr-1" />
                 {ES.cola.take}

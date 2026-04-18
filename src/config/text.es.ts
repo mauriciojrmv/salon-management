@@ -868,6 +868,11 @@ export const ES = {
     behindCountOne: 'Detrás de 1 cliente',
     behindCountMany: 'Detrás de {n} clientes',
     behindCountNone: 'Siguiente en atención',
+    // Client-busy state (shown on queue cards when the client is already in a session)
+    clientBusyInProgress: 'En atención con',
+    clientBusyPaused: 'En pausa con',
+    clientBusyHintPaused: 'Puedes empezar ahora',
+    takeBlocked: 'El cliente está siendo atendido por otro compañero — espera a que pausen o terminen',
   },
 
   // Service pause/resume (in-session actions)

@@ -27,6 +27,7 @@ import { firebaseConstraints } from '@/lib/firebase/db';
 import type { Session, SessionServiceItem } from '@/types/models';
 import { toDate, fmtBs, fmtDate, getBoliviaDate } from '@/lib/utils/helpers';
 import { canDoService, canDoAny, hasConfiguredSkills } from '@/lib/utils/staffSkills';
+import { getClientBusyState, canTakeClient } from '@/lib/utils/clientBusy';
 import { haptic } from '@/lib/utils/haptics';
 import ES from '@/config/text.es';
 
@@ -294,6 +295,17 @@ export default function MyWorkPage() {
 
   const handleTakeFromQueue = async (entryId: string) => {
     if (!staffId) return;
+    // Block take if the client has an in_progress service under another
+    // worker — parallel attention would fight over the same person. Paused
+    // is fine; that's explicitly what pause enables.
+    const entry = (waitingEntries || []).find((e) => e.id === entryId);
+    if (entry && entry.clientId) {
+      const busy = getClientBusyState(entry.clientId, activeSessions, getStaffName);
+      if (!canTakeClient(busy)) {
+        error(ES.cola.takeBlocked);
+        return;
+      }
+    }
     haptic.medium();
     setLoading(true);
     try {
@@ -759,6 +771,16 @@ export default function MyWorkPage() {
                       </Button>
                     )}
                   </div>
+                  {/* Secondary action — materials are logged mid-service, so
+                      earning a spot on the hero even though other secondary
+                      actions (release, history) live on the expanded card. */}
+                  <button
+                    type="button"
+                    onClick={() => openMaterialModal(session, service)}
+                    className="w-full text-sm text-blue-700 font-medium underline-offset-2 hover:underline min-h-[40px]"
+                  >
+                    {ES.staff.addMyMaterial}
+                  </button>
                 </div>
               </CardBody>
             </Card>
@@ -767,6 +789,10 @@ export default function MyWorkPage() {
         if (nextAction.kind === 'queue-preferred' || nextAction.kind === 'queue-open') {
           const entry = nextAction.entry;
           const mins = Math.max(0, Math.floor((Date.now() - entry.arrivalTime.getTime()) / 60000));
+          const busy = entry.clientId
+            ? getClientBusyState(entry.clientId, activeSessions, getStaffName)
+            : ({ kind: 'free' } as const);
+          const takeDisabled = busy.kind === 'in_progress';
           return (
             <Card className="border-2 border-green-500 bg-green-50">
               <CardBody>
@@ -782,6 +808,16 @@ export default function MyWorkPage() {
                     <p className="text-xs text-gray-500 mt-1">
                       {ES.staff.nextWaiting} {mins} min
                     </p>
+                    {busy.kind === 'in_progress' && (
+                      <p className="text-xs text-red-700 font-medium mt-1">
+                        {ES.cola.clientBusyInProgress} {busy.staffName}
+                      </p>
+                    )}
+                    {busy.kind === 'paused' && (
+                      <p className="text-xs text-amber-700 mt-1">
+                        {ES.cola.clientBusyPaused} {busy.staffName} · {ES.cola.clientBusyHintPaused}
+                      </p>
+                    )}
                   </div>
                   <Button
                     size="lg"
@@ -789,6 +825,8 @@ export default function MyWorkPage() {
                     className="w-full py-4 text-base min-h-[52px]"
                     onClick={() => handleTakeFromQueue(entry.id)}
                     loading={loading}
+                    disabled={takeDisabled}
+                    title={takeDisabled ? ES.cola.takeBlocked : undefined}
                   >
                     {ES.staff.nextTakeClient}
                   </Button>
@@ -825,6 +863,13 @@ export default function MyWorkPage() {
                   >
                     {ES.staff.nextResume}
                   </Button>
+                  <button
+                    type="button"
+                    onClick={() => openMaterialModal(session, service)}
+                    className="w-full text-sm text-amber-800 font-medium underline-offset-2 hover:underline min-h-[40px]"
+                  >
+                    {ES.staff.addMyMaterial}
+                  </button>
                 </div>
               </CardBody>
             </Card>
@@ -1141,6 +1186,13 @@ export default function MyWorkPage() {
                 .filter((i) => i >= 0);
               const partialSkill = doableIdxs.length > 0 && doableIdxs.length < (entry.serviceIds || []).length;
               const doableNames = doableIdxs.map((i) => entry.serviceNames?.[i]).filter(Boolean);
+              // Client-busy state: if the client is already being worked on
+              // somewhere, take must wait. Paused is fine — parallel work is
+              // the point of pausing.
+              const busy = entry.clientId
+                ? getClientBusyState(entry.clientId, activeSessions, getStaffName)
+                : ({ kind: 'free' } as const);
+              const takeDisabled = busy.kind === 'in_progress';
               // Priority lives in the Siguiente hero card, so queue rows are
               // deliberately flat: no color borders, no red/amber competition.
               // Typography weight + "Para ti" pill is enough hierarchy.
@@ -1167,6 +1219,16 @@ export default function MyWorkPage() {
                             ✓ {doableNames.join(' · ')}
                           </p>
                         )}
+                        {busy.kind === 'in_progress' && (
+                          <p className="text-[11px] text-red-700 font-medium mt-0.5 truncate">
+                            {ES.cola.clientBusyInProgress} {busy.staffName}
+                          </p>
+                        )}
+                        {busy.kind === 'paused' && (
+                          <p className="text-[11px] text-amber-700 mt-0.5 truncate">
+                            {ES.cola.clientBusyPaused} {busy.staffName} · {ES.cola.clientBusyHintPaused}
+                          </p>
+                        )}
                         <p className="text-xs mt-0.5 text-gray-500 tabular-nums">
                           {mins} min · {entry.arrivalTime.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
                         </p>
@@ -1177,6 +1239,8 @@ export default function MyWorkPage() {
                         className="min-h-[44px] shrink-0"
                         onClick={() => handleTakeFromQueue(entry.id)}
                         loading={loading}
+                        disabled={takeDisabled}
+                        title={takeDisabled ? ES.cola.takeBlocked : undefined}
                       >
                         {ES.cola.take}
                       </Button>
