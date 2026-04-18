@@ -594,6 +594,13 @@ New issues discovered during manual verification of P8 fixes. Includes bugs, syn
 
 - [x] **Materials action promoted to hero for active/paused** — Fixed 2026-04-18: Active and paused hero cards now include a secondary "Agregar material" link below the primary button. Materials are logged mid-service so the action earns a hero spot. Ver Historial stays on the expanded service card only — it's preparation reference, lower priority for older-worker one-action-at-a-time UX.
 
+#### P11-MED — Installable PWA
+
+- [x] **Progressive Web App manifest + icons** — Fixed 2026-04-18: Added `public/manifest.webmanifest` with `display: standalone`, black theme, ES locale. Icons generated from `tottos.jpg` via PowerShell System.Drawing: 192, 512, 512-maskable (centered with 20% safe zone for Android round masks), plus 180 apple-touch-icon and 32 favicon. Users get "Add to Home Screen" prompt on Chrome/Android; iOS users add manually via Share menu.
+- [x] **Minimal shell-only service worker** — Fixed 2026-04-18: `public/sw.js` registered via [PWARegister](src/components/PWARegister.tsx) client component on production builds only. Deliberately no data caching — Firestore `onSnapshot` is the source of truth; stale cached queue/session state would mislead workers. SW exists purely to qualify the site as installable.
+- [x] **Layout metadata wired** — Fixed 2026-04-18: `app/layout.tsx` now exports Next.js `metadata` (manifest, icons, appleWebApp) and `viewport` (themeColor `#000000`, viewportFit `cover`). HTML `lang` switched to `es` to match the UI.
+- [x] **Estimate zero-case fix** — Fixed 2026-04-18: `fmtEstimateRange(0)` in `/cola` previously returned "Siguiente en atención" — identical to the subtitle from `fmtBehindCount(0)` — so the time column went blank when a worker was free. Now renders "≤ 5 min", keeping the time column a time.
+
 ### P3 — LOW (future hardening)
 
 - [x] **No confirmation dialogs for delete actions** — Fixed 2026-03-28: All `window.confirm()` calls replaced with custom `Modal` confirmations with Spanish buttons. Zero browser confirm dialogs remain.
