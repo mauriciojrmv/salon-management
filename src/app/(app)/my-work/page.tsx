@@ -1349,7 +1349,7 @@ export default function MyWorkPage() {
                       <div className="flex items-center justify-center gap-3">
                         <button
                           type="button"
-                          onClick={() => handleMaterialQuantityChange(idx, mat.quantity - (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.5))}
+                          onClick={() => handleMaterialQuantityChange(idx, mat.quantity - (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.25))}
                           disabled={mat.quantity <= 0}
                           className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-xl font-bold text-gray-700 flex items-center justify-center transition-colors"
                         >
@@ -1369,7 +1369,7 @@ export default function MyWorkPage() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => handleMaterialQuantityChange(idx, mat.quantity + (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.5))}
+                          onClick={() => handleMaterialQuantityChange(idx, mat.quantity + (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.25))}
                           disabled={mat.quantity >= mat.maxStock}
                           className="w-12 h-12 rounded-xl bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-xl font-bold text-blue-700 flex items-center justify-center transition-colors"
                         >
