@@ -873,6 +873,17 @@ export const ES = {
     clientBusyPaused: 'En pausa con',
     clientBusyHintPaused: 'Puedes empezar ahora',
     takeBlocked: 'El cliente está siendo atendido por otro compañero — espera a que pausen o terminen',
+    alreadyTaken: 'Otro compañero tomó esta atención primero',
+  },
+
+  // Connection state pill (header indicator for flaky wifi)
+  connection: {
+    online: 'En línea',
+    syncing: 'Sincronizando',
+    offline: 'Sin conexión',
+    pendingOne: '1 acción pendiente',
+    pendingMany: (n: number) => `${n} acciones pendientes`,
+    offlineHint: 'Tus cambios se enviarán al volver la señal',
   },
 
   // Service pause/resume (in-session actions)

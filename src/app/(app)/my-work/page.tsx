@@ -314,7 +314,10 @@ export default function MyWorkPage() {
       success(ES.cola.taken);
     } catch (e) {
       console.error(e);
-      error(ES.messages.operationFailed);
+      const msg = e instanceof Error && e.message === 'ENTRY_ALREADY_TAKEN'
+        ? ES.cola.alreadyTaken
+        : ES.messages.operationFailed;
+      error(msg);
     } finally {
       setLoading(false);
     }

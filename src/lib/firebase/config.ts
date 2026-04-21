@@ -1,6 +1,13 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import {
+  initializeFirestore,
+  getFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  CACHE_SIZE_UNLIMITED,
+  type Firestore,
+} from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -22,9 +29,26 @@ export const secondaryApp = getApps().find(a => a.name === 'secondary')
   || initializeApp(firebaseConfig, 'secondary');
 export const secondaryAuth = getAuth(secondaryApp);
 
-// Initialize Firebase services
+// Firestore with persistent IndexedDB cache: reads served instantly from cache
+// and writes queue transparently when offline, auto-flushing on reconnect.
+// Critical for the salon's flaky wifi — network drops are invisible to workers.
+// Multi-tab manager lets multiple browser tabs share the same cache safely.
+function createFirestore(): Firestore {
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+        cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+      }),
+    });
+  } catch {
+    // Already initialized (HMR or double-import) — fall back to existing instance
+    return getFirestore(app);
+  }
+}
+
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = createFirestore();
 export const storage = getStorage(app);
 
 export default app;

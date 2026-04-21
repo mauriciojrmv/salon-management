@@ -13,6 +13,7 @@ import { canAccessRoute } from '@/lib/auth/roles';
 import type { Salon } from '@/types/models';
 import type { UserRole } from '@/lib/auth/roles';
 import { RoleGuard } from '@/components/RoleGuard';
+import { ConnectionPill } from '@/components/ConnectionPill';
 import ES from '@/config/text.es';
 import {
   LayoutDashboard,
@@ -210,14 +211,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {currentSalonName && (
                 <div className="text-xs text-gray-500 truncate">{currentSalonName}</div>
               )}
-              <div className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-                userRole === 'admin' ? 'bg-red-500/20 text-red-300' :
-                userRole === 'manager' ? 'bg-blue-500/20 text-blue-300' :
-                'bg-green-500/20 text-green-300'
-              }`}>
-                {ES.roles[userRole as keyof typeof ES.roles] || userRole}
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                  userRole === 'admin' ? 'bg-red-500/20 text-red-300' :
+                  userRole === 'manager' ? 'bg-blue-500/20 text-blue-300' :
+                  'bg-green-500/20 text-green-300'
+                }`}>
+                  {ES.roles[userRole as keyof typeof ES.roles] || userRole}
+                </div>
+                <ConnectionPill />
               </div>
             </>
+          )}
+          {!showLabels && (
+            <div className="flex justify-center">
+              <ConnectionPill compact />
+            </div>
           )}
           <button
             onClick={handleLogout}
@@ -241,12 +250,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           ☰
         </button>
         <h1 className="font-bold text-lg">{ES.app.name}</h1>
-        <div className={`px-2 py-0.5 rounded text-xs font-medium ${
-          userRole === 'admin' ? 'bg-red-500/20 text-red-300' :
-          userRole === 'manager' ? 'bg-blue-500/20 text-blue-300' :
-          'bg-green-500/20 text-green-300'
-        }`}>
-          {ES.roles[userRole as keyof typeof ES.roles] || userRole}
+        <div className="flex items-center gap-2">
+          <ConnectionPill compact />
+          <div className={`px-2 py-0.5 rounded text-xs font-medium ${
+            userRole === 'admin' ? 'bg-red-500/20 text-red-300' :
+            userRole === 'manager' ? 'bg-blue-500/20 text-blue-300' :
+            'bg-green-500/20 text-green-300'
+          }`}>
+            {ES.roles[userRole as keyof typeof ES.roles] || userRole}
+          </div>
         </div>
       </div>
 

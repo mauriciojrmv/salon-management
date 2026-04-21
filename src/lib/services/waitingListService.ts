@@ -1,9 +1,16 @@
 import { WaitingListRepository } from '@/lib/repositories/waitingListRepository';
-import { SessionRepository } from '@/lib/repositories/sessionRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { StaffRepository } from '@/lib/repositories/staffRepository';
-import type { WaitingListEntry } from '@/types/models';
-import { getBoliviaDate } from '@/lib/utils/helpers';
+import { db } from '@/lib/firebase/config';
+import { trackWrite } from '@/lib/firebase/connectionState';
+import {
+  collection,
+  doc,
+  getDoc,
+  runTransaction,
+} from 'firebase/firestore';
+import type { WaitingListEntry, SessionServiceItem } from '@/types/models';
+import { getBoliviaDate, toDate } from '@/lib/utils/helpers';
 import { canDoService } from '@/lib/utils/staffSkills';
 
 export interface TakeEntryParams {
@@ -12,82 +19,90 @@ export interface TakeEntryParams {
 }
 
 export class WaitingListService {
+  // Atomic take: verifies the entry is still 'waiting' and marks it 'taken' + creates
+  // the session in a single Firestore transaction. Two workers tapping Tomar at the
+  // same time on a flaky connection → exactly one wins, the other gets ENTRY_ALREADY_TAKEN.
+  // All lookups (services, staff skills) happen before the transaction, so the critical
+  // section stays small and the transaction only touches 2 documents.
   static async take(params: TakeEntryParams): Promise<string> {
-    const queue = await this.findEntry(params.entryId);
-    if (!queue) throw new Error('Waiting list entry not found');
-    if (queue.status !== 'waiting') throw new Error('Entry is no longer waiting');
+    const entryRef = doc(db, 'waitingList', params.entryId);
 
-    const sessionId = await SessionRepository.createSession({
-      salonId: queue.salonId,
-      clientId: queue.clientId || '',
-      date: queue.date || getBoliviaDate(),
-      startTime: new Date(),
-    });
+    const preSnap = await getDoc(entryRef);
+    if (!preSnap.exists()) throw new Error('Waiting list entry not found');
+    const raw = preSnap.data() as Omit<WaitingListEntry, 'arrivalTime'> & { arrivalTime: unknown };
+    const entry: WaitingListEntry = { ...raw, arrivalTime: toDate(raw.arrivalTime) } as WaitingListEntry;
+    if (entry.status !== 'waiting') throw new Error('ENTRY_ALREADY_TAKEN');
 
-    // Tag session as coming from the queue so workers cannot add services ad-hoc
-    await SessionRepository.updateSession(sessionId, {
-      origin: 'cola',
-      waitingListEntryId: params.entryId,
-    });
+    // Pre-fetch everything we need to build the session payload
+    const services = await Promise.all(
+      (entry.serviceIds || []).map((id) => ServiceRepository.getService(id)),
+    );
+    const taker = await StaffRepository.getStaff(params.takenByStaffId);
+    const takerSkills = taker as { serviceIds?: string[] } | null;
+    const prefs = entry.servicePreferences || [];
+    const legacyPref = entry.preferredStaffId || '';
 
     // Per-service assignment rules:
     //  1. Preference wins (preferred worker takes it, even if another worker "took" the entry)
     //  2. Else if the taking worker is skilled for this service, assign to them
     //  3. Else leave unassigned — surfaces in "Disponibles" for another skilled worker
-    const prefs = queue.servicePreferences || [];
-    const legacyPref = queue.preferredStaffId || '';
-    const taker = await StaffRepository.getStaff(params.takenByStaffId);
-    const takerSkills = taker as { serviceIds?: string[] } | null;
-
-    for (const serviceId of queue.serviceIds || []) {
-      const service = await ServiceRepository.getService(serviceId);
-      if (!service) continue;
-      const session = await SessionRepository.getSession(sessionId);
-      if (!session) break;
-
-      const pref = prefs.find((p) => p.serviceId === serviceId);
-      const preferredId = pref ? pref.preferredStaffId : legacyPref;
-
-      let assignedStaff: string[];
-      if (preferredId) {
-        assignedStaff = [preferredId];
-      } else if (canDoService(takerSkills, serviceId)) {
-        assignedStaff = [params.takenByStaffId];
-      } else {
-        assignedStaff = [];
-      }
-
-      const existing = session.services || [];
-      const newItem = {
-        id: `service_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        serviceId: service.id,
-        serviceName: service.name,
-        price: service.price,
-        commissionRate: 50,
-        assignedStaff,
-        startTime: new Date(),
-        status: 'pending' as const,
-        materialsUsed: [],
-      };
-      const updatedServices = [...existing, newItem];
-      const totalAmount = updatedServices.reduce((s, it) => s + it.price, 0);
-      await SessionRepository.updateSession(sessionId, {
-        services: updatedServices,
-        totalAmount,
+    const now = new Date();
+    const serviceItems: SessionServiceItem[] = services
+      .filter((s): s is NonNullable<typeof s> => s !== null)
+      .map((service, idx) => {
+        const pref = prefs.find((p) => p.serviceId === service.id);
+        const preferredId = pref ? pref.preferredStaffId : legacyPref;
+        let assignedStaff: string[];
+        if (preferredId) assignedStaff = [preferredId];
+        else if (canDoService(takerSkills, service.id)) assignedStaff = [params.takenByStaffId];
+        else assignedStaff = [];
+        return {
+          id: `service_${now.getTime()}_${idx}_${Math.random().toString(36).slice(2, 6)}`,
+          serviceId: service.id,
+          serviceName: service.name,
+          price: service.price,
+          commissionRate: 50,
+          assignedStaff,
+          startTime: now,
+          status: 'pending',
+          materialsUsed: [],
+        };
       });
-    }
 
-    await WaitingListRepository.markTaken(params.entryId, sessionId);
-    return sessionId;
-  }
+    const totalAmount = serviceItems.reduce((s, it) => s + it.price, 0);
+    const newSessionRef = doc(collection(db, 'sessions'));
 
-  private static async findEntry(entryId: string): Promise<WaitingListEntry | null> {
-    // No direct getById helper; scan today's queues. Cheap enough — small collection.
-    // Fallback to a direct document fetch via repository.
-    const { getDocument } = await import('@/lib/firebase/db');
-    const raw = (await getDocument('waitingList', entryId)) as (WaitingListEntry & { arrivalTime: unknown }) | null;
-    if (!raw) return null;
-    const { toDate } = await import('@/lib/utils/helpers');
-    return { ...raw, arrivalTime: toDate(raw.arrivalTime) } as WaitingListEntry;
+    await trackWrite(() => runTransaction(db, async (tx) => {
+      const snap = await tx.get(entryRef);
+      if (!snap.exists()) throw new Error('Waiting list entry not found');
+      const cur = snap.data() as { status?: string };
+      if (cur.status !== 'waiting') throw new Error('ENTRY_ALREADY_TAKEN');
+
+      tx.set(newSessionRef, {
+        salonId: entry.salonId,
+        clientId: entry.clientId || '',
+        date: entry.date || getBoliviaDate(),
+        startTime: now,
+        services: serviceItems,
+        payments: [],
+        materialsUsed: [],
+        totalAmount,
+        tax: 0,
+        status: 'active',
+        origin: 'cola',
+        waitingListEntryId: params.entryId,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      tx.update(entryRef, {
+        status: 'taken',
+        takenAt: now,
+        takenSessionId: newSessionRef.id,
+        updatedAt: now,
+      });
+    }));
+
+    return newSessionRef.id;
   }
 }

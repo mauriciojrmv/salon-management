@@ -16,20 +16,23 @@ import {
   QueryConstraint,
 } from 'firebase/firestore';
 import { db } from './config';
+import { trackWrite } from './connectionState';
 
 export async function addDocument(collectionName: string, data: Record<string, unknown>, docId?: string) {
-  try {
-    const docRef = docId ? doc(db, collectionName, docId) : doc(collection(db, collectionName));
-    await setDoc(docRef, {
-      ...data,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    return docRef.id;
-  } catch (error) {
-    console.error(`Error adding document to ${collectionName}:`, error);
-    throw error;
-  }
+  return trackWrite(async () => {
+    try {
+      const docRef = docId ? doc(db, collectionName, docId) : doc(collection(db, collectionName));
+      await setDoc(docRef, {
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      return docRef.id;
+    } catch (error) {
+      console.error(`Error adding document to ${collectionName}:`, error);
+      throw error;
+    }
+  });
 }
 
 export async function getDocument(collectionName: string, docId: string) {
@@ -47,26 +50,30 @@ export async function getDocument(collectionName: string, docId: string) {
 }
 
 export async function updateDocument(collectionName: string, docId: string, data: Record<string, unknown>) {
-  try {
-    const docRef = doc(db, collectionName, docId);
-    await updateDoc(docRef, {
-      ...data,
-      updatedAt: new Date(),
-    });
-  } catch (error) {
-    console.error(`Error updating document in ${collectionName}:`, error);
-    throw error;
-  }
+  return trackWrite(async () => {
+    try {
+      const docRef = doc(db, collectionName, docId);
+      await updateDoc(docRef, {
+        ...data,
+        updatedAt: new Date(),
+      });
+    } catch (error) {
+      console.error(`Error updating document in ${collectionName}:`, error);
+      throw error;
+    }
+  });
 }
 
 export async function deleteDocument(collectionName: string, docId: string) {
-  try {
-    const docRef = doc(db, collectionName, docId);
-    await deleteDoc(docRef);
-  } catch (error) {
-    console.error(`Error deleting document from ${collectionName}:`, error);
-    throw error;
-  }
+  return trackWrite(async () => {
+    try {
+      const docRef = doc(db, collectionName, docId);
+      await deleteDoc(docRef);
+    } catch (error) {
+      console.error(`Error deleting document from ${collectionName}:`, error);
+      throw error;
+    }
+  });
 }
 
 export async function queryDocuments(
@@ -94,12 +101,14 @@ export async function getAllDocuments(collectionName: string) {
 }
 
 export async function batchUpdate(updates: { collection: string; docId: string; data: Record<string, unknown> }[]) {
-  const batch = writeBatch(db);
-  for (const u of updates) {
-    const docRef = doc(db, u.collection, u.docId);
-    batch.update(docRef, { ...u.data, updatedAt: new Date() });
-  }
-  await batch.commit();
+  return trackWrite(async () => {
+    const batch = writeBatch(db);
+    for (const u of updates) {
+      const docRef = doc(db, u.collection, u.docId);
+      batch.update(docRef, { ...u.data, updatedAt: new Date() });
+    }
+    await batch.commit();
+  });
 }
 
 export function subscribeToQuery(
