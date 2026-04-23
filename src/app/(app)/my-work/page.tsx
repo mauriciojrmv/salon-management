@@ -6,7 +6,6 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { SearchableSelect } from '@/components/SearchableSelect';
-import { ClientHistoryModal } from '@/components/ClientHistoryModal';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
@@ -64,9 +63,6 @@ export default function MyWorkPage() {
     serviceName: string;
   } | null>(null);
   const [materials, setMaterials] = useState<MaterialEntry[]>([]);
-
-  // Client history modal
-  const [historyClientId, setHistoryClientId] = useState<string | null>(null);
 
   // Duplicate-session confirmation (client already has active session when creating new)
   const [duplicateConfirm, setDuplicateConfirm] = useState<{ existingSession: Session; serviceId: string } | null>(null);
@@ -1055,25 +1051,7 @@ export default function MyWorkPage() {
                               {ES.staff.releaseService}
                             </Button>
                           )}
-                          <Button
-                            size="lg"
-                            variant="ghost"
-                            className="py-3 px-3 min-h-[44px]"
-                            onClick={() => setHistoryClientId(session.clientId)}
-                          >
-                            {ES.sessions.viewClientHistory}
-                          </Button>
                         </div>
-                      )}
-                      {!isToday && (
-                        <Button
-                          size="lg"
-                          variant="ghost"
-                          className="w-full py-3 min-h-[44px]"
-                          onClick={() => setHistoryClientId(session.clientId)}
-                        >
-                          {ES.sessions.viewClientHistory}
-                        </Button>
                       )}
                     </div>
                   </CardBody>
@@ -1523,15 +1501,6 @@ export default function MyWorkPage() {
         )}
       </Modal>
 
-      {/* Client History Modal */}
-      <ClientHistoryModal
-        isOpen={!!historyClientId}
-        onClose={() => setHistoryClientId(null)}
-        clientId={historyClientId || ''}
-        clientName={historyClientId ? getClientName(historyClientId) : ''}
-        salonId={userData?.salonId || ''}
-        getStaffName={getStaffName}
-      />
     </div>
   );
 }
