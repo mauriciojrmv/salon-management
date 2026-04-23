@@ -32,6 +32,7 @@ import {
   Gift,
   Building2,
   UserCog,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface NavItem {
@@ -65,6 +66,7 @@ const allNavItems: NavItem[] = [
   { name: ES.loyalty.rewards, href: '/rewards', icon: Gift, adminOnly: true, group: 'system' },
   { name: ES.salons.title, href: '/salons', icon: Building2, adminOnly: true, group: 'system' },
   { name: ES.users.title, href: '/users', icon: UserCog, adminOnly: true, group: 'system' },
+  { name: ES.staffAudit.title, href: '/staff-audit', icon: ShieldAlert, adminOnly: true, group: 'system' },
 ];
 
 const groupLabels: Record<string, string> = {

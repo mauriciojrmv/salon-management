@@ -94,6 +94,7 @@ export function canAccessRoute(role: UserRole, route: string): boolean {
     '/rewards': (r) => r === 'admin',
     '/salons': (r) => r === 'admin',
     '/users': (r) => r === 'admin',
+    '/staff-audit': (r) => r === 'admin',
   };
 
   const checker = routePermissions[route];

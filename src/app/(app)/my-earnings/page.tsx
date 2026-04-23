@@ -58,6 +58,9 @@ export default function MyEarningsPage() {
   const myCompletedServices = useMemo(() => {
     const result: { serviceName: string; price: number; materialCost: number; commission: number; rate: number }[] = [];
     (sessions || []).forEach((session) => {
+      // Cancelled sessions are voided work — never count toward earnings even
+      // if the individual service was marked completed before the cancellation.
+      if (session.status === 'cancelled') return;
       (session.services || []).forEach((svc) => {
         if (svc.assignedStaff?.includes(staffId) && svc.status === 'completed') {
           const materialCost = (svc.materialsUsed || []).reduce((s, m) => s + (productCostMap[m.productId] ?? 0) * m.quantity, 0);

@@ -348,6 +348,7 @@ export default function MyWorkPage() {
 
   const myCompletedServices: { session: Session; service: SessionServiceItem }[] = [];
   allSessions.forEach((session) => {
+    if (session.status === 'cancelled') return;
     (session.services || []).forEach((svc) => {
       if (svc.assignedStaff?.includes(staffId) && svc.status === 'completed') {
         myCompletedServices.push({ session, service: svc });

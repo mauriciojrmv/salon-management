@@ -120,10 +120,19 @@ export class SessionService {
     const alreadyAwarded = (session as unknown as Record<string, unknown>).loyaltyPointsAwarded === true;
     const pointsEarned = alreadyAwarded ? 0 : Math.floor(totalAmount / LOYALTY_POINTS_RATE);
 
+    // Cascade: any service still in pending/in_progress/paused when the session
+    // closes is treated as done. Without this, /my-work and /my-earnings (which
+    // filter on svc.status === 'completed') stay empty for the worker even
+    // though the session is closed and they're in assignedStaff.
+    const cascadedServices = (session.services || []).map((s) =>
+      s.status === 'completed' ? s : { ...s, status: 'completed' as const },
+    );
+
     await SessionRepository.updateSession(sessionId, {
       status: 'completed',
       endTime: new Date(),
       totalAmount,
+      services: cascadedServices,
       ...(pointsEarned > 0 ? { loyaltyPointsAwarded: true } : {}),
     });
 
