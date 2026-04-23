@@ -167,12 +167,14 @@ export default function Dashboard() {
     return s ? `${s.firstName} ${s.lastName}` : id;
   };
 
-  // For staff role: filter sessions to only those with services assigned to this staff
+  // For staff role: filter sessions to only those with services assigned to this staff.
+  // Cancelled sessions are excluded — that work is voided and should not appear in
+  // the worker's panel (both the table and the KPIs that derive from this list).
   const staffSessions = useMemo(() => {
     if (!isStaff || !user?.uid) return sessions || [];
-    return (sessions || []).filter((s) =>
-      (s.services || []).some((svc) => svc.assignedStaff?.includes(user.uid))
-    );
+    return (sessions || [])
+      .filter((s) => s.status !== 'cancelled')
+      .filter((s) => (s.services || []).some((svc) => svc.assignedStaff?.includes(user.uid)));
   }, [isStaff, user?.uid, sessions]);
 
   // Staff-specific KPIs (only when role === 'staff')
