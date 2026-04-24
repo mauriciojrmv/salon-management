@@ -250,6 +250,61 @@ export class AnalyticsService {
     }));
   }
 
+  // Unpaid-aware payroll used by /pagos (filters out services already paid out).
+  // For /reports, use getStaffPerformanceRange below — it returns the full period
+  // regardless of payment status, which is what admins expect on a report.
+  static async getStaffPerformanceRange(salonId: string, startDate: string, endDate: string) {
+    const [sessions, staffList, products] = await Promise.all([
+      queryDocuments('sessions', [
+        firebaseConstraints.where('salonId', '==', salonId),
+        firebaseConstraints.where('status', '==', 'completed'),
+      ]) as Promise<Session[]>,
+      StaffRepository.getSalonStaff(salonId),
+      ProductRepository.getSalonProducts(salonId),
+    ]);
+
+    const staffNameMap = new Map(staffList.map(s => [s.id, `${s.firstName} ${s.lastName}`]));
+    const productCostMap = new Map(products.map(p => [p.id, p.cost]));
+
+    const staffStats = new Map<string, {
+      servicesCompleted: number;
+      revenue: number;
+      materialCost: number;
+      totalCommission: number;
+    }>();
+
+    sessions.forEach(session => {
+      if (session.date < startDate || session.date > endDate) return;
+      session.services.forEach(service => {
+        service.assignedStaff.forEach(staffId => {
+          const existing = staffStats.get(staffId) || {
+            servicesCompleted: 0,
+            revenue: 0,
+            materialCost: 0,
+            totalCommission: 0,
+          };
+          const matCost = (service.materialsUsed || []).reduce((sum, m) => sum + (productCostMap.get(m.productId) ?? 0) * m.quantity, 0);
+          const rate = service.commissionRate ?? DEFAULT_COMMISSION_RATE;
+          const commission = Math.max(0, (service.price - matCost) * rate / 100);
+          staffStats.set(staffId, {
+            servicesCompleted: existing.servicesCompleted + 1,
+            revenue: existing.revenue + service.price,
+            materialCost: existing.materialCost + matCost,
+            totalCommission: existing.totalCommission + commission,
+          });
+        });
+      });
+    });
+
+    return Array.from(staffStats.entries())
+      .map(([staffId, data]) => ({
+        staffId,
+        staffName: staffNameMap.get(staffId) || staffId,
+        ...data,
+      }))
+      .sort((a, b) => b.totalCommission - a.totalCommission);
+  }
+
   static async getStaffPayroll(salonId: string, startDate: string, endDate: string): Promise<PayrollStaffEntry[]> {
     const [sessions, staffList, clients, products, paidRefs] = await Promise.all([
       queryDocuments('sessions', [

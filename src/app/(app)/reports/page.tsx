@@ -32,9 +32,12 @@ export default function ReportsPage() {
     return AnalyticsService.getServiceProfitability(userData.salonId, validStartDate, validEndDate);
   }, [userData?.salonId, validStartDate, validEndDate]);
 
+  // Uses the unfiltered perf range so totals and staff breakdown reflect the
+  // whole period — not just the unpaid remainder. /pagos still uses the
+  // paid-aware getStaffPayroll for its "owed now" flow.
   const { data: payroll } = useAsync(async () => {
     if (!userData?.salonId) return [];
-    return AnalyticsService.getStaffPayroll(userData.salonId, validStartDate, validEndDate);
+    return AnalyticsService.getStaffPerformanceRange(userData.salonId, validStartDate, validEndDate);
   }, [userData?.salonId, validStartDate, validEndDate]);
 
   const profitabilityColumns = [
@@ -110,6 +113,60 @@ export default function ReportsPage() {
       {/* Date Filter */}
       <Card className="no-print">
         <CardBody>
+          <div className="flex flex-wrap gap-2 mb-3">
+            <button
+              type="button"
+              onClick={() => {
+                const t = getBoliviaDate();
+                setStartDate(t);
+                setEndDate(t);
+              }}
+              className={`px-4 py-2 min-h-[44px] text-sm border rounded-lg font-medium transition-colors ${
+                startDate === getBoliviaDate() && endDate === getBoliviaDate()
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+              }`}
+            >
+              Hoy
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const d = new Date();
+                d.setDate(d.getDate() - 1);
+                const y = d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+                setStartDate(y);
+                setEndDate(y);
+              }}
+              className="px-4 py-2 min-h-[44px] text-sm border rounded-lg font-medium bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 transition-colors"
+            >
+              Ayer
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                setStartDate(d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' }));
+                setEndDate(getBoliviaDate());
+              }}
+              className="px-4 py-2 min-h-[44px] text-sm border rounded-lg font-medium bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 transition-colors"
+            >
+              7 días
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const d = new Date();
+                d.setDate(d.getDate() - 30);
+                setStartDate(d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' }));
+                setEndDate(getBoliviaDate());
+              }}
+              className="px-4 py-2 min-h-[44px] text-sm border rounded-lg font-medium bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 transition-colors"
+            >
+              30 días
+            </button>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Input

@@ -19,6 +19,16 @@ export function getBoliviaDate(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
 }
 
+// Returns a YYYY-MM-DD Bolivia-local date offset N days before today.
+// Used to cap worker date pickers (dashboard, my-work, my-earnings) to the
+// last 7 days — keeps historical snooping bounded while still letting workers
+// look up a recent shift.
+export function getBoliviaDateOffset(daysAgo: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+}
+
 // Format a YYYY-MM-DD date string as dd/mm/yyyy for Bolivian users
 export function fmtDate(dateStr: string): string {
   if (!dateStr) return '-';

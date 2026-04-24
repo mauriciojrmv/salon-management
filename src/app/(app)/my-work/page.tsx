@@ -24,7 +24,7 @@ import { useRouter } from 'next/navigation';
 import type { Appointment } from '@/types/models';
 import { firebaseConstraints } from '@/lib/firebase/db';
 import type { Session, SessionServiceItem } from '@/types/models';
-import { toDate, fmtBs, fmtDate, getBoliviaDate } from '@/lib/utils/helpers';
+import { toDate, fmtBs, fmtDate, getBoliviaDate, getBoliviaDateOffset } from '@/lib/utils/helpers';
 import { canDoService, canDoAny, hasConfiguredSkills } from '@/lib/utils/staffSkills';
 import { getClientBusyState, canTakeClient } from '@/lib/utils/clientBusy';
 import { haptic } from '@/lib/utils/haptics';
@@ -698,6 +698,7 @@ export default function MyWorkPage() {
             <input
               type="date"
               value={selectedDate}
+              min={getBoliviaDateOffset(7)}
               max={today}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm w-full"

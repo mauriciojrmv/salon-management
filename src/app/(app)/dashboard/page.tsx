@@ -17,7 +17,7 @@ import { StaffRepository } from '@/lib/repositories/staffRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { Session, Client, Product, Appointment } from '@/types/models';
 import ES from '@/config/text.es';
-import { fmtBs, unitLabel, getBoliviaDate, fmtDate, toDate } from '@/lib/utils/helpers';
+import { fmtBs, unitLabel, getBoliviaDate, getBoliviaDateOffset, fmtDate, toDate } from '@/lib/utils/helpers';
 import Link from 'next/link';
 
 export default function Dashboard() {
@@ -286,6 +286,8 @@ export default function Dashboard() {
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
+              min={isStaff ? getBoliviaDateOffset(7) : undefined}
+              max={isStaff ? today : undefined}
               className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
             />
             <span className="text-[10px] text-gray-500 mt-0.5">{fmtDate(selectedDate)}</span>

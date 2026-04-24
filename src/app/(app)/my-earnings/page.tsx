@@ -11,7 +11,7 @@ import { firebaseConstraints } from '@/lib/firebase/db';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { PayrollPaymentRepository, PayrollPaymentRecord } from '@/lib/repositories/payrollPaymentRepository';
 import type { Session } from '@/types/models';
-import { fmtBs, fmtDate, getBoliviaDate, toDate } from '@/lib/utils/helpers';
+import { fmtBs, fmtDate, getBoliviaDate, getBoliviaDateOffset, toDate } from '@/lib/utils/helpers';
 import ES from '@/config/text.es';
 
 export default function MyEarningsPage() {
@@ -116,6 +116,8 @@ export default function MyEarningsPage() {
           <input
             type="date"
             value={selectedDate}
+            min={getBoliviaDateOffset(7)}
+            max={today}
             onChange={(e) => setSelectedDate(e.target.value)}
             className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm w-full"
           />
