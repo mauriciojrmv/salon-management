@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardBody, CardHeader } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -48,6 +49,21 @@ export default function InventoryPage() {
   const products = productsData || [];
 
   const lowStockProducts = products.filter((p) => p.currentStock <= p.minStock);
+
+  // Deep-link: /inventory?edit=<productId> opens the edit modal immediately.
+  // Used by the dashboard's low-stock alert so admins can fix stock in one tap.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId || !products.length) return;
+    const product = products.find((p) => p.id === editId);
+    if (product) {
+      openEditModal(product);
+      router.replace('/inventory');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, products.length]);
 
   const resetForm = () => {
     setFormData({ ...initialFormData });
@@ -203,18 +219,31 @@ export default function InventoryPage() {
         </Button>
       </div>
 
-      {/* Low Stock Alert */}
+      {/* Low Stock Alert — each row opens the edit modal for that product */}
       {lowStockProducts.length > 0 && (
         <Card className="bg-red-50 border border-red-200">
           <CardBody>
             <p className="font-semibold text-red-900 mb-3">
               ⚠️ {lowStockProducts.length} {ES.inventory.lowStock}
             </p>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {lowStockProducts.map((product) => (
-                <div key={product.id} className="text-sm text-red-800">
-                  {product.name}: {product.currentStock} {unitLabel(product.unit)} (min: {product.minStock})
-                </div>
+                <button
+                  key={product.id}
+                  type="button"
+                  onClick={() => openEditModal(product)}
+                  className="w-full text-left bg-white hover:bg-red-100 active:bg-red-200 border border-red-100 rounded-lg px-3 py-2 min-h-[44px] transition-colors flex items-center justify-between gap-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                    <p className="text-xs text-red-700">
+                      {product.currentStock} {unitLabel(product.unit)} / min {product.minStock}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${product.currentStock === 0 ? 'bg-red-200 text-red-800' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {product.currentStock === 0 ? ES.stockAlert.outOfStock : ES.stockAlert.lowStock}
+                  </span>
+                </button>
               ))}
             </div>
           </CardBody>

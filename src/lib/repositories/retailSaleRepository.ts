@@ -37,4 +37,15 @@ export class RetailSaleRepository {
       return saleDate === date;
     });
   }
+
+  static async getSalonSalesByDateRange(salonId: string, startDate: string, endDate: string): Promise<RetailSale[]> {
+    const sales = await this.getSalonSales(salonId);
+    return sales.filter((s) => {
+      const d = s.createdAt instanceof Date
+        ? s.createdAt
+        : new Date((s.createdAt as unknown as { seconds: number }).seconds * 1000);
+      const saleDate = d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+      return saleDate >= startDate && saleDate <= endDate;
+    });
+  }
 }

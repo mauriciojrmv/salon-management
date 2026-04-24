@@ -459,8 +459,8 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Low-Stock Alert */}
-      {(lowStockProducts || []).length > 0 && (
+      {/* Low-Stock Alert — admin/gerente only; workers don't need this noise */}
+      {!isStaff && (lowStockProducts || []).length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-red-600 text-lg">&#9888;</span>
@@ -469,7 +469,11 @@ export default function Dashboard() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
             {(lowStockProducts || []).map((p: Product) => (
-              <div key={p.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-red-100">
+              <Link
+                key={p.id}
+                href={`/inventory?edit=${p.id}`}
+                className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-red-100 hover:bg-red-50 active:bg-red-100 transition-colors"
+              >
                 <div>
                   <p className="text-sm font-medium text-gray-900">{p.name}</p>
                   <p className="text-xs text-gray-500">{ES.stockAlert.currentStock}: {p.currentStock} {unitLabel(p.unit)} / {ES.stockAlert.minStock}: {p.minStock}</p>
@@ -477,7 +481,7 @@ export default function Dashboard() {
                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.currentStock === 0 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
                   {p.currentStock === 0 ? ES.stockAlert.outOfStock : ES.stockAlert.lowStock}
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
