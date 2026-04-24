@@ -87,11 +87,17 @@ export default function ReportsPage() {
   // BI expansion metrics
   const retailRevenue = (retailSales || []).reduce((sum, s) => sum + s.totalAmount, 0);
   const totalExpenses = (expenses || []).reduce((sum, e) => sum + e.amount, 0);
-  // Net profit: services + retail (top-line) minus materials, commissions, and expenses.
-  // Business-intelligence view of the salon's actual bottom line for the period.
-  const netProfit = totalRevenue + retailRevenue - totalMaterialCost - totalPayroll - totalExpenses;
-  // Retain "salon profit" = service-only gross margin (legacy), and add netProfit as new headline.
-  const salonProfit = totalRevenue - totalMaterialCost - totalPayroll;
+  // Net profit matches the dashboard's cash-flow model: Ingresos + Ventas − Gastos.
+  // Rationale: material purchases are typically logged in /gastos when products
+  // are bought, so the cash already left. Per-service materialCost on this page
+  // is internal bookkeeping (drives commission math + inventory planning), not
+  // a new outflow. Same for payroll — /pagos creates an expense when commissions
+  // are paid out, so they're already captured in totalExpenses. Subtracting
+  // materialCost + payroll here would double-count those outflows.
+  const netProfit = totalRevenue + retailRevenue - totalExpenses;
+  // Service margin = service revenue left after the cost of materials consumed,
+  // ignoring cash-timing. Useful for pricing decisions independent of the expense log.
+  const serviceMargin = totalRevenue - totalMaterialCost;
 
   // Cash flow by payment method (only completed sessions + retail sales in period)
   const cashFlow = useMemo(() => {
@@ -341,13 +347,13 @@ export default function ReportsPage() {
         </Card>
       </div>
 
-      {/* Secondary metrics: salon gross profit + operational health */}
+      {/* Secondary metrics: service margin + operational health */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardBody>
-            <p className="text-gray-600 text-sm font-medium mb-1">{ES.reports.salonProfit}</p>
-            <p className={`text-xl font-bold ${salonProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{fmtBs(salonProfit)}</p>
-            <p className="text-[10px] text-gray-500 mt-0.5">Servicios − materiales − comisiones</p>
+            <p className="text-gray-600 text-sm font-medium mb-1">{ES.reports.serviceMargin}</p>
+            <p className={`text-xl font-bold ${serviceMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>{fmtBs(serviceMargin)}</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">{ES.reports.serviceMarginFormula}</p>
           </CardBody>
         </Card>
         <Card>
