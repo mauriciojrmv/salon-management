@@ -934,6 +934,17 @@ export const ES = {
     alreadyTaken: 'Otro compañero tomó esta atención primero',
   },
 
+  // Duplicate-name hint (shown in create/edit modals when a similar item exists)
+  duplicateHint: {
+    serviceTitle: 'Servicios con nombre similar',
+    productTitle: 'Productos con nombre similar',
+    tapToEdit: 'Toca para editar el existente en lugar de crear duplicado',
+    confirmCreateAnyway: 'Existe un elemento con nombre similar. ¿Crear igual?',
+    confirmTitle: 'Posible duplicado',
+    cancel: 'Cancelar',
+    createAnyway: 'Crear igual',
+  },
+
   // Connection state pill (header indicator for flaky wifi)
   connection: {
     online: 'En línea',

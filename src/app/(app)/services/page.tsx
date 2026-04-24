@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardBody, CardHeader } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -13,7 +13,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
+import { DuplicateHint } from '@/components/DuplicateHint';
 import { fmtBs } from '@/lib/utils/helpers';
+import { findSimilarByName } from '@/lib/utils/fuzzy';
 import ES from '@/config/text.es';
 
 const initialFormData = {
@@ -62,6 +64,7 @@ export default function ServicesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmCreateAnyway, setConfirmCreateAnyway] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [formData, setFormData] = useState(initialFormData);
 
@@ -71,6 +74,27 @@ export default function ServicesPage() {
   }, [userData?.salonId]);
 
   const services = servicesData || [];
+
+  // Live duplicate detection as admin types — excludes the item being edited.
+  const similarServices = useMemo(() => {
+    return findSimilarByName(formData.name, services, {
+      excludeId: editingService?.id,
+    }).map((s) => ({ id: s.id, name: s.name, secondary: `${fmtBs(s.price)} · ${s.duration} min` }));
+  }, [formData.name, services, editingService?.id]);
+
+  const pickExisting = (id: string) => {
+    const svc = services.find((s) => s.id === id);
+    if (svc) {
+      setEditingService(svc);
+      setFormData({
+        name: svc.name,
+        description: svc.description,
+        category: svc.category,
+        price: svc.price,
+        duration: svc.duration,
+      });
+    }
+  };
 
   const openCreateModal = () => {
     setEditingService(null);
@@ -96,9 +120,16 @@ export default function ServicesPage() {
     setFormData(initialFormData);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (force = false) => {
     if (!formData.name || !userData?.salonId) {
       error(ES.messages.fillRequiredFields);
+      return;
+    }
+
+    // Soft-confirm: if we're creating (not editing) and similar names exist,
+    // require an explicit "crear igual" tap first. Edits skip this.
+    if (!editingService && !force && similarServices.length > 0) {
+      setConfirmCreateAnyway(true);
       return;
     }
 
@@ -207,13 +238,20 @@ export default function ServicesPage() {
         size="lg"
       >
         <div className="space-y-4">
-          <Input
-            label={ES.services.name}
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
-            maxLength={50}
-          />
+          <div>
+            <Input
+              label={ES.services.name}
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              required
+              maxLength={50}
+            />
+            <DuplicateHint
+              kind="service"
+              matches={editingService ? [] : similarServices}
+              onPick={pickExisting}
+            />
+          </div>
           <Input
             label={ES.services.description}
             value={formData.description}
@@ -248,8 +286,39 @@ export default function ServicesPage() {
             <Button variant="secondary" onClick={closeModal}>
               {ES.actions.cancel}
             </Button>
-            <Button onClick={handleSave} loading={loading}>
+            <Button onClick={() => handleSave()} loading={loading}>
               {editingService ? ES.actions.save : ES.services.add}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Duplicate soft-confirm */}
+      <Modal
+        isOpen={confirmCreateAnyway}
+        onClose={() => setConfirmCreateAnyway(false)}
+        title={ES.duplicateHint.confirmTitle}
+        size="sm"
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700">{ES.duplicateHint.confirmCreateAnyway}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {similarServices.map((m) => (
+              <span key={m.id} className="text-xs px-2 py-1 bg-amber-50 border border-amber-200 rounded-md text-amber-900">{m.name}</span>
+            ))}
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setConfirmCreateAnyway(false)}>
+              {ES.duplicateHint.cancel}
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                setConfirmCreateAnyway(false);
+                handleSave(true);
+              }}
+            >
+              {ES.duplicateHint.createAnyway}
             </Button>
           </div>
         </div>

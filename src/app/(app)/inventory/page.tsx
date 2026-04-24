@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardBody, CardHeader } from '@/components/Card';
 import { Button } from '@/components/Button';
@@ -9,6 +9,7 @@ import { Select } from '@/components/Select';
 import { Modal } from '@/components/Modal';
 import { Table, TableColumn } from '@/components/Table';
 import { Toast } from '@/components/Toast';
+import { DuplicateHint } from '@/components/DuplicateHint';
 import { useAuth } from '@/hooks/useAuth';
 import { useAsync } from '@/hooks/useAsync';
 import { useNotification } from '@/hooks/useNotification';
@@ -17,6 +18,7 @@ import { SessionRepository } from '@/lib/repositories/sessionRepository';
 import { RetailSaleRepository } from '@/lib/repositories/retailSaleRepository';
 import { Product, ProductCategory } from '@/types/models';
 import { fmtBs, unitLabel } from '@/lib/utils/helpers';
+import { findSimilarByName } from '@/lib/utils/fuzzy';
 import ES from '@/config/text.es';
 
 const initialFormData = {
@@ -40,6 +42,7 @@ export default function InventoryPage() {
   const [formData, setFormData] = useState({ ...initialFormData });
   const [loading, setLoading] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmCreateAnyway, setConfirmCreateAnyway] = useState(false);
 
   const { data: productsData, refetch, loading: productsLoading } = useAsync(async () => {
     if (!userData?.salonId) return [];
@@ -49,6 +52,18 @@ export default function InventoryPage() {
   const products = productsData || [];
 
   const lowStockProducts = products.filter((p) => p.currentStock <= p.minStock);
+
+  // Live duplicate detection as admin types — excludes the item being edited.
+  const similarProducts = useMemo(() => {
+    return findSimilarByName(formData.name, products, {
+      excludeId: editingProduct?.id,
+    }).map((p) => ({ id: p.id, name: p.name, secondary: `${p.currentStock} ${unitLabel(p.unit)} · ${fmtBs(p.cost)}` }));
+  }, [formData.name, products, editingProduct?.id]);
+
+  const pickExistingProduct = (id: string) => {
+    const p = products.find((x) => x.id === id);
+    if (p) openEditModal(p);
+  };
 
   // Deep-link: /inventory?edit=<productId> opens the edit modal immediately.
   // Used by the dashboard's low-stock alert so admins can fix stock in one tap.
@@ -97,9 +112,15 @@ export default function InventoryPage() {
     resetForm();
   };
 
-  const handleSaveProduct = async () => {
+  const handleSaveProduct = async (force = false) => {
     if (!formData.name || !userData?.salonId) {
       error(ES.messages.fillRequiredFields);
+      return;
+    }
+
+    // Soft-confirm: warn on create if similar-named product already exists.
+    if (!editingProduct && !force && similarProducts.length > 0) {
+      setConfirmCreateAnyway(true);
       return;
     }
 
@@ -274,13 +295,20 @@ export default function InventoryPage() {
         size="lg"
       >
         <div className="space-y-4">
-          <Input
-            label={ES.inventory.name}
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
-            maxLength={50}
-          />
+          <div>
+            <Input
+              label={ES.inventory.name}
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              required
+              maxLength={50}
+            />
+            <DuplicateHint
+              kind="product"
+              matches={editingProduct ? [] : similarProducts}
+              onPick={pickExistingProduct}
+            />
+          </div>
           <Input
             label={ES.inventory.sku}
             value={formData.sku}
@@ -377,8 +405,39 @@ export default function InventoryPage() {
             <Button variant="secondary" onClick={closeModal}>
               {ES.actions.cancel}
             </Button>
-            <Button onClick={handleSaveProduct} loading={loading}>
+            <Button onClick={() => handleSaveProduct()} loading={loading}>
               {editingProduct ? ES.actions.save : ES.inventory.add}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Duplicate soft-confirm */}
+      <Modal
+        isOpen={confirmCreateAnyway}
+        onClose={() => setConfirmCreateAnyway(false)}
+        title={ES.duplicateHint.confirmTitle}
+        size="sm"
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700">{ES.duplicateHint.confirmCreateAnyway}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {similarProducts.map((m) => (
+              <span key={m.id} className="text-xs px-2 py-1 bg-amber-50 border border-amber-200 rounded-md text-amber-900">{m.name}</span>
+            ))}
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setConfirmCreateAnyway(false)}>
+              {ES.duplicateHint.cancel}
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                setConfirmCreateAnyway(false);
+                handleSaveProduct(true);
+              }}
+            >
+              {ES.duplicateHint.createAnyway}
             </Button>
           </div>
         </div>
