@@ -20,11 +20,9 @@ import { fmtBs, fmtDate, getBoliviaDate } from '@/lib/utils/helpers';
 export default function ReportsPage() {
   const { userData } = useAuth();
   const { notifications, removeNotification } = useNotification();
-  const [startDate, setStartDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
-  });
+  // Default to Hoy — admins typically open /reportes to check today's numbers.
+  // They can still tap Ayer / 7 dias / 30 dias to widen the range.
+  const [startDate, setStartDate] = useState(() => getBoliviaDate());
   const [endDate, setEndDate] = useState(() => getBoliviaDate());
 
   // Auto-correct: if start > end, swap them
