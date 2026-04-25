@@ -75,6 +75,17 @@ export default function ServicesPage() {
 
   const services = servicesData || [];
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const filteredServices = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return services;
+    return services.filter((s) =>
+      s.name.toLowerCase().includes(q) ||
+      (s.description || '').toLowerCase().includes(q) ||
+      (categoryLabels[s.category] || s.category).toLowerCase().includes(q),
+    );
+  }, [services, searchQuery]);
+
   // Live duplicate detection as admin types — excludes the item being edited.
   const similarServices = useMemo(() => {
     return findSimilarByName(formData.name, services, {
@@ -218,12 +229,21 @@ export default function ServicesPage() {
 
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900">{ES.services.title}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold text-gray-900 shrink-0">{ES.services.title}</h2>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={ES.services.search}
+              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </CardHeader>
         <CardBody>
           <Table
             columns={serviceColumns}
-            data={services}
+            data={filteredServices}
             rowKey="id"
             loading={servicesLoading}
             emptyMessage={ES.services.noServices}

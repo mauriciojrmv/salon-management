@@ -244,6 +244,7 @@ export const ES = {
   services: {
     title: 'Servicios',
     add: '+ Agregar Servicio',
+    search: 'Buscar por nombre o categoría...',
     name: 'Nombre',
     category: 'Categoría',
     price: 'Precio',
@@ -273,6 +274,7 @@ export const ES = {
   staff: {
     title: 'Personal',
     add: '+ Agregar Personal',
+    search: 'Buscar por nombre, apellido o correo...',
     name: 'Nombre',
     lastName: 'Apellido',
     email: 'Correo',
@@ -378,6 +380,7 @@ export const ES = {
   inventory: {
     title: 'Inventario',
     add: '+ Agregar Producto',
+    search: 'Buscar por nombre, SKU o categoría...',
     name: 'Producto',
     sku: 'SKU',
     category: 'Categoría',

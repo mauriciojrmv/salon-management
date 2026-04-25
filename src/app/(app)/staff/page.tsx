@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardBody, CardHeader } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -81,6 +81,18 @@ export default function StaffPage() {
 
   const staff = staffData || [];
   const services = servicesData || [];
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const filteredStaff = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return staff;
+    return staff.filter((s) =>
+      s.firstName.toLowerCase().includes(q) ||
+      (s.lastName || '').toLowerCase().includes(q) ||
+      (s.email || '').toLowerCase().includes(q) ||
+      (s.phone || '').includes(q),
+    );
+  }, [staff, searchQuery]);
 
   const resetForm = () => {
     setFormData({
@@ -264,14 +276,23 @@ export default function StaffPage() {
       {/* Staff Table */}
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900">
-            {ES.staff.teamMembers}
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold text-gray-900 shrink-0">
+              {ES.staff.teamMembers}
+            </h2>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={ES.staff.search}
+              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </CardHeader>
         <CardBody>
           <Table
             columns={staffColumns}
-            data={staff}
+            data={filteredStaff}
             rowKey="id"
             loading={staffLoading}
             emptyMessage={ES.staff.noStaff}

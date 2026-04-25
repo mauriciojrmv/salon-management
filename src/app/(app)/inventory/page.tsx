@@ -53,6 +53,17 @@ export default function InventoryPage() {
 
   const lowStockProducts = products.filter((p) => p.currentStock <= p.minStock);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const filteredProducts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter((p) =>
+      p.name.toLowerCase().includes(q) ||
+      (p.sku || '').toLowerCase().includes(q) ||
+      p.category.toLowerCase().includes(q),
+    );
+  }, [products, searchQuery]);
+
   // Live duplicate detection as admin types — excludes the item being edited.
   const similarProducts = useMemo(() => {
     return findSimilarByName(formData.name, products, {
@@ -274,12 +285,21 @@ export default function InventoryPage() {
       {/* Products Table */}
       <Card>
         <CardHeader>
-          <h2 className="text-xl font-semibold text-gray-900">{ES.inventory.allProducts}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold text-gray-900 shrink-0">{ES.inventory.allProducts}</h2>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={ES.inventory.search}
+              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </CardHeader>
         <CardBody>
           <Table
             columns={productColumns}
-            data={products}
+            data={filteredProducts}
             rowKey="id"
             loading={productsLoading}
             emptyMessage={ES.inventory.noProducts}
