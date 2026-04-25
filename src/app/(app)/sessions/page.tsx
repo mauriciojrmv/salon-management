@@ -36,6 +36,9 @@ interface MaterialEntry {
   pricePerUnit: number; // buy cost per unit
   totalPrice: number; // pricePerUnit * quantity (buy cost total)
   maxStock: number; // available stock for validation
+  imprecise: boolean;
+  defaultUsage: number;
+  manualOverride: boolean;
 }
 
 interface PaymentEntry {
@@ -232,7 +235,7 @@ export default function SessionsPage() {
 
   // Material helpers
   const handleAddMaterialRow = () => {
-    setMaterials([...materials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0, maxStock: 0 }]);
+    setMaterials([...materials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0, maxStock: 0, imprecise: false, defaultUsage: 0, manualOverride: false }]);
   };
 
   const handleMaterialProductSelect = (index: number, productId: string) => {
@@ -249,7 +252,31 @@ export default function SessionsPage() {
       maxStock: product.currentStock,
       quantity: qty,
       totalPrice: product.cost * qty,
+      imprecise: product.imprecise === true,
+      defaultUsage: product.defaultUsage || 0,
+      manualOverride: false,
     };
+    setMaterials(updated);
+  };
+
+  // Imprecise: each tap adds defaultUsage to running total. Cap at maxStock.
+  const handleMarkUsage = (index: number) => {
+    const updated = [...materials];
+    const cur = updated[index];
+    const next = Math.min(cur.quantity + cur.defaultUsage, cur.maxStock || Infinity);
+    updated[index] = { ...cur, quantity: next, totalPrice: cur.pricePerUnit * next };
+    setMaterials(updated);
+  };
+
+  const handleResetUsage = (index: number) => {
+    const updated = [...materials];
+    updated[index] = { ...updated[index], quantity: 0, totalPrice: 0 };
+    setMaterials(updated);
+  };
+
+  const toggleManualOverride = (index: number, manual: boolean) => {
+    const updated = [...materials];
+    updated[index] = { ...updated[index], manualOverride: manual };
     setMaterials(updated);
   };
 
@@ -284,6 +311,9 @@ export default function SessionsPage() {
       pricePerUnit: m.cost / (m.quantity || 1),
       totalPrice: m.cost,
       maxStock: (product?.currentStock || 0) + m.quantity, // available = current + already deducted
+      imprecise: product?.imprecise === true,
+      defaultUsage: product?.defaultUsage || 0,
+      manualOverride: !product?.imprecise || (product?.defaultUsage ? (m.quantity % product.defaultUsage !== 0) : false),
     };
     });
     setEditMaterials(existing);
@@ -1381,36 +1411,68 @@ export default function SessionsPage() {
                             <span>{fmtBs(mat.pricePerUnit)}/{mat.unit}</span>
                           </div>
 
-                          <div className="flex items-center justify-center gap-3">
-                            <button
-                              type="button"
-                              onClick={() => handleMaterialQuantityChange(idx, mat.quantity - (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.25))}
-                              disabled={mat.quantity <= 0}
-                              className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-xl font-bold text-gray-700 flex items-center justify-center transition-colors"
-                            >
-                              −
-                            </button>
-                            <div className="text-center min-w-[80px]">
-                              <input
-                                type="number"
-                                value={mat.quantity}
-                                onChange={(e) => handleMaterialQuantityChange(idx, parseFloat(e.target.value) || 0)}
-                                step="0.01"
-                                min="0"
-                                max={mat.maxStock}
-                                className="w-20 text-center text-2xl font-bold text-gray-900 border-b-2 border-gray-300 focus:border-blue-500 outline-none bg-transparent"
-                              />
-                              <p className="text-xs text-gray-400 mt-0.5">{mat.unit}</p>
+                          {mat.imprecise && !mat.manualOverride && mat.defaultUsage > 0 ? (
+                            <div className="space-y-2">
+                              <button
+                                type="button"
+                                onClick={() => handleMarkUsage(idx)}
+                                disabled={mat.quantity + mat.defaultUsage > mat.maxStock}
+                                className="w-full py-4 min-h-[56px] rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold text-lg flex flex-col items-center justify-center transition-colors"
+                              >
+                                <span>{ES.inventory.markUsage}</span>
+                                <span className="text-xs font-normal opacity-90 mt-0.5">{ES.inventory.markUsageDetail(mat.defaultUsage, mat.unit)}</span>
+                              </button>
+                              {mat.quantity > 0 && (
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="text-gray-700">
+                                    {Math.round(mat.quantity / mat.defaultUsage)} {Math.round(mat.quantity / mat.defaultUsage) === 1 ? 'uso' : 'usos'} · {mat.quantity} {mat.unit}
+                                  </span>
+                                  <button type="button" onClick={() => handleResetUsage(idx)} className="text-red-500 hover:text-red-700 underline">Reiniciar</button>
+                                </div>
+                              )}
+                              <button type="button" onClick={() => toggleManualOverride(idx, true)} className="w-full text-xs text-gray-500 hover:text-gray-700 underline py-1">
+                                {ES.inventory.adjustManually}
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleMaterialQuantityChange(idx, mat.quantity + (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.25))}
-                              disabled={mat.quantity >= mat.maxStock}
-                              className="w-12 h-12 rounded-xl bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-xl font-bold text-blue-700 flex items-center justify-center transition-colors"
-                            >
-                              +
-                            </button>
-                          </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center justify-center gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMaterialQuantityChange(idx, mat.quantity - (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.25))}
+                                  disabled={mat.quantity <= 0}
+                                  className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-xl font-bold text-gray-700 flex items-center justify-center transition-colors"
+                                >
+                                  −
+                                </button>
+                                <div className="text-center min-w-[80px]">
+                                  <input
+                                    type="number"
+                                    value={mat.quantity}
+                                    onChange={(e) => handleMaterialQuantityChange(idx, parseFloat(e.target.value) || 0)}
+                                    step="0.01"
+                                    min="0"
+                                    max={mat.maxStock}
+                                    className="w-20 text-center text-2xl font-bold text-gray-900 border-b-2 border-gray-300 focus:border-blue-500 outline-none bg-transparent"
+                                  />
+                                  <p className="text-xs text-gray-400 mt-0.5">{mat.unit}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMaterialQuantityChange(idx, mat.quantity + (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.25))}
+                                  disabled={mat.quantity >= mat.maxStock}
+                                  className="w-12 h-12 rounded-xl bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-xl font-bold text-blue-700 flex items-center justify-center transition-colors"
+                                >
+                                  +
+                                </button>
+                              </div>
+                              {mat.imprecise && mat.defaultUsage > 0 && (
+                                <button type="button" onClick={() => toggleManualOverride(idx, false)} className="w-full text-xs text-blue-600 hover:text-blue-800 underline py-1">
+                                  {ES.inventory.backToPreset}
+                                </button>
+                              )}
+                            </>
+                          )}
 
                           <p className="text-center text-sm font-semibold text-gray-700">{fmtBs(mat.totalPrice)}</p>
                         </>
@@ -2005,7 +2067,19 @@ export default function SessionsPage() {
                           const oldMat = editMaterials[idx];
                           const availStock = product.currentStock + (oldMat.productId === v ? oldMat.quantity : 0);
                           const qty = Math.min(updated[idx].quantity, availStock);
-                          updated[idx] = { ...updated[idx], productId: v, productName: product.name, unit: product.unit || 'ud', pricePerUnit: product.cost, maxStock: availStock, quantity: qty, totalPrice: product.cost * qty };
+                          updated[idx] = {
+                            ...updated[idx],
+                            productId: v,
+                            productName: product.name,
+                            unit: product.unit || 'ud',
+                            pricePerUnit: product.cost,
+                            maxStock: availStock,
+                            quantity: qty,
+                            totalPrice: product.cost * qty,
+                            imprecise: product.imprecise === true,
+                            defaultUsage: product.defaultUsage || 0,
+                            manualOverride: false,
+                          };
                           setEditMaterials(updated);
                         }}
                         placeholder={ES.material.product}
@@ -2023,54 +2097,117 @@ export default function SessionsPage() {
                         <span>{fmtBs(mat.pricePerUnit)}/{mat.unit}</span>
                       </div>
 
-                      <div className="flex items-center justify-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const step = mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.5;
-                            const qty = Math.max(0, mat.quantity - step);
-                            const updated = [...editMaterials];
-                            updated[idx] = { ...updated[idx], quantity: qty, totalPrice: mat.pricePerUnit * qty };
-                            setEditMaterials(updated);
-                          }}
-                          disabled={mat.quantity <= 0}
-                          className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-xl font-bold text-gray-700 flex items-center justify-center transition-colors"
-                        >
-                          −
-                        </button>
-                        <div className="text-center min-w-[80px]">
-                          <input
-                            type="number"
-                            value={mat.quantity}
-                            onChange={(e) => {
-                              const raw = parseFloat(e.target.value) || 0;
-                              const qty = Math.min(Math.max(0, raw), mat.maxStock || Infinity);
+                      {mat.imprecise && !mat.manualOverride && mat.defaultUsage > 0 ? (
+                        <div className="space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = Math.min(mat.quantity + mat.defaultUsage, mat.maxStock || Infinity);
                               const updated = [...editMaterials];
-                              updated[idx] = { ...updated[idx], quantity: qty, totalPrice: mat.pricePerUnit * qty };
+                              updated[idx] = { ...updated[idx], quantity: next, totalPrice: mat.pricePerUnit * next };
                               setEditMaterials(updated);
                             }}
-                            step="0.01"
-                            min="0"
-                            max={mat.maxStock}
-                            className="w-20 text-center text-2xl font-bold text-gray-900 border-b-2 border-gray-300 focus:border-blue-500 outline-none bg-transparent"
-                          />
-                          <p className="text-xs text-gray-400 mt-0.5">{mat.unit}</p>
+                            disabled={mat.quantity + mat.defaultUsage > mat.maxStock}
+                            className="w-full py-4 min-h-[56px] rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold text-lg flex flex-col items-center justify-center transition-colors"
+                          >
+                            <span>{ES.inventory.markUsage}</span>
+                            <span className="text-xs font-normal opacity-90 mt-0.5">{ES.inventory.markUsageDetail(mat.defaultUsage, mat.unit)}</span>
+                          </button>
+                          {mat.quantity > 0 && (
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-700">
+                                {Math.round(mat.quantity / mat.defaultUsage)} {Math.round(mat.quantity / mat.defaultUsage) === 1 ? 'uso' : 'usos'} · {mat.quantity} {mat.unit}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...editMaterials];
+                                  updated[idx] = { ...updated[idx], quantity: 0, totalPrice: 0 };
+                                  setEditMaterials(updated);
+                                }}
+                                className="text-red-500 hover:text-red-700 underline"
+                              >
+                                Reiniciar
+                              </button>
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = [...editMaterials];
+                              updated[idx] = { ...updated[idx], manualOverride: true };
+                              setEditMaterials(updated);
+                            }}
+                            className="w-full text-xs text-gray-500 hover:text-gray-700 underline py-1"
+                          >
+                            {ES.inventory.adjustManually}
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const step = mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.5;
-                            const qty = Math.min(mat.quantity + step, mat.maxStock);
-                            const updated = [...editMaterials];
-                            updated[idx] = { ...updated[idx], quantity: qty, totalPrice: mat.pricePerUnit * qty };
-                            setEditMaterials(updated);
-                          }}
-                          disabled={mat.quantity >= mat.maxStock}
-                          className="w-12 h-12 rounded-xl bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-xl font-bold text-blue-700 flex items-center justify-center transition-colors"
-                        >
-                          +
-                        </button>
-                      </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const step = mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.5;
+                                const qty = Math.max(0, mat.quantity - step);
+                                const updated = [...editMaterials];
+                                updated[idx] = { ...updated[idx], quantity: qty, totalPrice: mat.pricePerUnit * qty };
+                                setEditMaterials(updated);
+                              }}
+                              disabled={mat.quantity <= 0}
+                              className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-xl font-bold text-gray-700 flex items-center justify-center transition-colors"
+                            >
+                              −
+                            </button>
+                            <div className="text-center min-w-[80px]">
+                              <input
+                                type="number"
+                                value={mat.quantity}
+                                onChange={(e) => {
+                                  const raw = parseFloat(e.target.value) || 0;
+                                  const qty = Math.min(Math.max(0, raw), mat.maxStock || Infinity);
+                                  const updated = [...editMaterials];
+                                  updated[idx] = { ...updated[idx], quantity: qty, totalPrice: mat.pricePerUnit * qty };
+                                  setEditMaterials(updated);
+                                }}
+                                step="0.01"
+                                min="0"
+                                max={mat.maxStock}
+                                className="w-20 text-center text-2xl font-bold text-gray-900 border-b-2 border-gray-300 focus:border-blue-500 outline-none bg-transparent"
+                              />
+                              <p className="text-xs text-gray-400 mt-0.5">{mat.unit}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const step = mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.5;
+                                const qty = Math.min(mat.quantity + step, mat.maxStock);
+                                const updated = [...editMaterials];
+                                updated[idx] = { ...updated[idx], quantity: qty, totalPrice: mat.pricePerUnit * qty };
+                                setEditMaterials(updated);
+                              }}
+                              disabled={mat.quantity >= mat.maxStock}
+                              className="w-12 h-12 rounded-xl bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-xl font-bold text-blue-700 flex items-center justify-center transition-colors"
+                            >
+                              +
+                            </button>
+                          </div>
+                          {mat.imprecise && mat.defaultUsage > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = [...editMaterials];
+                                updated[idx] = { ...updated[idx], manualOverride: false };
+                                setEditMaterials(updated);
+                              }}
+                              className="w-full text-xs text-blue-600 hover:text-blue-800 underline py-1"
+                            >
+                              {ES.inventory.backToPreset}
+                            </button>
+                          )}
+                        </>
+                      )}
 
                       <p className="text-center text-sm font-semibold text-gray-700">{fmtBs(mat.totalPrice)}</p>
                     </>
@@ -2083,7 +2220,7 @@ export default function SessionsPage() {
 
           <button
             type="button"
-            onClick={() => setEditMaterials([...editMaterials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0, maxStock: 0 }])}
+            onClick={() => setEditMaterials([...editMaterials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0, maxStock: 0, imprecise: false, defaultUsage: 0, manualOverride: false }])}
             className="w-full py-3.5 border-2 border-dashed border-gray-300 rounded-xl text-sm text-blue-600 font-medium hover:border-blue-400 hover:bg-blue-50 transition-colors"
           >
             {ES.sessions.addMaterial}

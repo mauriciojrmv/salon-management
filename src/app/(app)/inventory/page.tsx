@@ -33,6 +33,8 @@ const initialFormData = {
   cost: 0,
   price: 0,
   packageNote: '',
+  imprecise: false,
+  defaultUsage: 0,
 };
 
 // Spanish labels for product categories — used both in the form Select and
@@ -150,6 +152,8 @@ export default function InventoryPage() {
       cost: product.cost,
       price: product.price,
       packageNote: product.packageNote || '',
+      imprecise: product.imprecise === true,
+      defaultUsage: product.defaultUsage || 0,
     });
     setIsModalOpen(true);
   };
@@ -180,6 +184,10 @@ export default function InventoryPage() {
         type: formData.type,
         unit: formData.type !== 'service_cost' ? formData.unit as Product['unit'] : undefined,
         packageNote: formData.packageNote || '',
+        imprecise: formData.imprecise === true,
+        // Only meaningful when imprecise=true. Stored as 0 otherwise so existing
+        // products without this field don't break the type contract.
+        defaultUsage: formData.imprecise ? Number(formData.defaultUsage) || 0 : 0,
         currentStock: formData.currentStock,
         minStock: formData.minStock,
         maxStock: formData.maxStock,
@@ -426,6 +434,36 @@ export default function InventoryPage() {
                 maxLength={120}
               />
               <p className="text-xs text-gray-500 mt-1">{ES.inventory.packageNoteHelp}</p>
+            </div>
+          )}
+          {/* Imprecise mode — single-tap "Marcar uso" for products workers can't measure (shine, sprays) */}
+          {formData.type === 'measurable' && (
+            <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.imprecise}
+                  onChange={(e) => setFormData({ ...formData, imprecise: e.target.checked })}
+                  className="mt-0.5 w-4 h-4 text-blue-600 rounded"
+                />
+                <div className="flex-1">
+                  <span className="text-sm font-medium text-gray-900">{ES.inventory.impreciseLabel}</span>
+                  <p className="text-xs text-gray-500 mt-1 leading-relaxed">{ES.inventory.impreciseHelp}</p>
+                </div>
+              </label>
+              {formData.imprecise && (
+                <div className="mt-3 ml-6">
+                  <Input
+                    label={`${ES.inventory.defaultUsageLabel} (${formData.unit})`}
+                    type="number"
+                    value={formData.defaultUsage}
+                    onChange={(e) => setFormData({ ...formData, defaultUsage: parseFloat(e.target.value) || 0 })}
+                    min={0}
+                    step="0.01"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">{ES.inventory.defaultUsageHelp}</p>
+                </div>
+              )}
             </div>
           )}
           <Input

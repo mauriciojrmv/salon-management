@@ -269,6 +269,13 @@ export interface Product {
   // bought in bulk and repackaged into sachets/small bottles by the staff.
   // Example: "Frasco de 1kg, repartido en sobres de 50g".
   packageNote?: string;
+  // "Use without measure" mode for items workers can't reasonably measure
+  // (shine, sprays, gotas de vitaminas). When true, the material picker hides
+  // the numeric quantity stepper and shows a single "Marcar uso" button that
+  // deducts `defaultUsage` per tap. Admin recalibrates `defaultUsage` from the
+  // gap between actual stock and total uses logged.
+  imprecise?: boolean;
+  defaultUsage?: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

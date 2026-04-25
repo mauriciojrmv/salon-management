@@ -38,6 +38,11 @@ interface MaterialEntry {
   pricePerUnit: number;
   totalPrice: number;
   maxStock: number;
+  imprecise: boolean;
+  defaultUsage: number;
+  // When the worker taps "Ajustar manualmente", flip to the numeric stepper
+  // so they can override the preset for an unusual case (very long hair, etc.).
+  manualOverride: boolean;
 }
 
 export default function MyWorkPage() {
@@ -497,7 +502,7 @@ export default function MyWorkPage() {
   }));
 
   const handleAddMaterialRow = () => {
-    setMaterials([...materials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0, maxStock: 0 }]);
+    setMaterials([...materials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0, maxStock: 0, imprecise: false, defaultUsage: 0, manualOverride: false }]);
   };
 
   const handleMaterialProductSelect = (index: number, productId: string) => {
@@ -514,6 +519,9 @@ export default function MyWorkPage() {
       maxStock: product.currentStock,
       quantity: qty,
       totalPrice: product.cost * qty,
+      imprecise: product.imprecise === true,
+      defaultUsage: product.defaultUsage || 0,
+      manualOverride: false,
     };
     setMaterials(updated);
   };
@@ -533,6 +541,29 @@ export default function MyWorkPage() {
     setMaterials(materials.filter((_, i) => i !== index));
   };
 
+  // Imprecise products: each tap adds defaultUsage to the running quantity. Lets the
+  // worker log "1 use", "2 uses", etc. without measuring. Capped at maxStock.
+  const handleMarkUsage = (index: number) => {
+    const updated = [...materials];
+    const cur = updated[index];
+    const next = Math.min(cur.quantity + cur.defaultUsage, cur.maxStock || Infinity);
+    updated[index] = { ...cur, quantity: next, totalPrice: cur.pricePerUnit * next };
+    setMaterials(updated);
+    haptic.light();
+  };
+
+  const handleResetUsage = (index: number) => {
+    const updated = [...materials];
+    updated[index] = { ...updated[index], quantity: 0, totalPrice: 0 };
+    setMaterials(updated);
+  };
+
+  const toggleManualOverride = (index: number, manual: boolean) => {
+    const updated = [...materials];
+    updated[index] = { ...updated[index], manualOverride: manual };
+    setMaterials(updated);
+  };
+
   const openMaterialModal = (session: Session, service: SessionServiceItem) => {
     const existing: MaterialEntry[] = (service.materialsUsed || []).map((m) => {
       const product = products?.find((p) => p.id === m.productId);
@@ -544,6 +575,11 @@ export default function MyWorkPage() {
         pricePerUnit: m.cost / (m.quantity || 1),
         totalPrice: m.cost,
         maxStock: (product?.currentStock || 0) + m.quantity,
+        imprecise: product?.imprecise === true,
+        defaultUsage: product?.defaultUsage || 0,
+        // Existing rows that don't match a defaultUsage multiple are treated as
+        // manual entries so the worker can keep editing without surprises.
+        manualOverride: !product?.imprecise || (product?.defaultUsage ? (m.quantity % product.defaultUsage !== 0) : false),
       };
     });
     setMaterials(existing);
@@ -1328,37 +1364,84 @@ export default function MyWorkPage() {
                         <span>{fmtBs(mat.pricePerUnit)}/{mat.unit}</span>
                       </div>
 
-                      {/* Stepper: big -/+ buttons with quantity in center */}
-                      <div className="flex items-center justify-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => handleMaterialQuantityChange(idx, mat.quantity - (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.25))}
-                          disabled={mat.quantity <= 0}
-                          className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-xl font-bold text-gray-700 flex items-center justify-center transition-colors"
-                        >
-                          −
-                        </button>
-                        <div className="text-center min-w-[80px]">
-                          <input
-                            type="number"
-                            value={mat.quantity}
-                            onChange={(e) => handleMaterialQuantityChange(idx, parseFloat(e.target.value) || 0)}
-                            step="0.01"
-                            min="0"
-                            max={mat.maxStock}
-                            className="w-20 text-center text-2xl font-bold text-gray-900 border-b-2 border-gray-300 focus:border-blue-500 outline-none bg-transparent"
-                          />
-                          <p className="text-xs text-gray-400 mt-0.5">{mat.unit}</p>
+                      {mat.imprecise && !mat.manualOverride && mat.defaultUsage > 0 ? (
+                        // Imprecise mode: single-tap "Marcar uso" — each tap adds defaultUsage
+                        <div className="space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => handleMarkUsage(idx)}
+                            disabled={mat.quantity + mat.defaultUsage > mat.maxStock}
+                            className="w-full py-4 min-h-[56px] rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold text-lg flex flex-col items-center justify-center transition-colors"
+                          >
+                            <span>{ES.inventory.markUsage}</span>
+                            <span className="text-xs font-normal opacity-90 mt-0.5">{ES.inventory.markUsageDetail(mat.defaultUsage, mat.unit)}</span>
+                          </button>
+                          {mat.quantity > 0 && (
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-700">
+                                {Math.round(mat.quantity / mat.defaultUsage)} {Math.round(mat.quantity / mat.defaultUsage) === 1 ? 'uso' : 'usos'} · {mat.quantity} {mat.unit}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleResetUsage(idx)}
+                                className="text-red-500 hover:text-red-700 underline"
+                              >
+                                Reiniciar
+                              </button>
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => toggleManualOverride(idx, true)}
+                            className="w-full text-xs text-gray-500 hover:text-gray-700 underline py-1"
+                          >
+                            {ES.inventory.adjustManually}
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleMaterialQuantityChange(idx, mat.quantity + (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.25))}
-                          disabled={mat.quantity >= mat.maxStock}
-                          className="w-12 h-12 rounded-xl bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-xl font-bold text-blue-700 flex items-center justify-center transition-colors"
-                        >
-                          +
-                        </button>
-                      </div>
+                      ) : (
+                        // Numeric stepper: ml/g step 10, integer step 1, fractional 0.25
+                        <>
+                          <div className="flex items-center justify-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handleMaterialQuantityChange(idx, mat.quantity - (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.25))}
+                              disabled={mat.quantity <= 0}
+                              className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-xl font-bold text-gray-700 flex items-center justify-center transition-colors"
+                            >
+                              −
+                            </button>
+                            <div className="text-center min-w-[80px]">
+                              <input
+                                type="number"
+                                value={mat.quantity}
+                                onChange={(e) => handleMaterialQuantityChange(idx, parseFloat(e.target.value) || 0)}
+                                step="0.01"
+                                min="0"
+                                max={mat.maxStock}
+                                className="w-20 text-center text-2xl font-bold text-gray-900 border-b-2 border-gray-300 focus:border-blue-500 outline-none bg-transparent"
+                              />
+                              <p className="text-xs text-gray-400 mt-0.5">{mat.unit}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleMaterialQuantityChange(idx, mat.quantity + (mat.unit === 'ml' || mat.unit === 'g' ? 10 : 0.25))}
+                              disabled={mat.quantity >= mat.maxStock}
+                              className="w-12 h-12 rounded-xl bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-xl font-bold text-blue-700 flex items-center justify-center transition-colors"
+                            >
+                              +
+                            </button>
+                          </div>
+                          {mat.imprecise && mat.defaultUsage > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => toggleManualOverride(idx, false)}
+                              className="w-full text-xs text-blue-600 hover:text-blue-800 underline py-1"
+                            >
+                              {ES.inventory.backToPreset}
+                            </button>
+                          )}
+                        </>
+                      )}
 
                       {/* Cost total */}
                       <p className="text-center text-sm font-semibold text-gray-700">{fmtBs(mat.totalPrice)}</p>

@@ -439,6 +439,15 @@ export const ES = {
     packageNote: 'Notas de presentación',
     packageNotePlaceholder: 'Ej: Frasco de 1kg, repartido en sobres de 50g',
     packageNoteHelp: 'Opcional — describe cómo viene el producto y cómo lo dividen los trabajadores.',
+    // Imprecise consumption (shine, sprays, vitaminas)
+    impreciseLabel: 'Uso impreciso (un solo botón "Marcar uso")',
+    impreciseHelp: 'Recomendado para productos que los trabajadores no pueden medir: shine, sprays, gotas. El trabajador toca un botón en lugar de ingresar cantidad. El sistema descuenta la cantidad predeterminada cada vez.',
+    defaultUsageLabel: 'Cantidad por uso',
+    defaultUsageHelp: 'Cuánto se descuenta del stock cada vez que un trabajador toca "Marcar uso". Ajustá según consumo real (stock real ÷ usos registrados).',
+    markUsage: 'Marcar uso',
+    markUsageDetail: (qty: number, unit: string) => `≈ ${qty} ${unit} por uso`,
+    adjustManually: 'Ajustar manualmente',
+    backToPreset: 'Volver a "Marcar uso"',
   },
 
   // Reports
