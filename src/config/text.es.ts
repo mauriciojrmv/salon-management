@@ -416,16 +416,29 @@ export const ES = {
     catAccessories: 'Accesorios',
     catSupplies: 'Suministros',
     catOther: 'Otro',
-    // Types
-    typeUnit: 'Por Unidad',
-    typeMeasurable: 'Medible (ml/g)',
-    typeServiceCost: 'Costo de Servicio',
-    // Units
+    // Types — clearer naming + helper hints with examples
+    typeUnit: 'Por unidad (contable)',
+    typeUnitHint: 'Se cuenta en piezas enteras: guantes, brochas, kits, tubos, frascos.',
+    typeMeasurable: 'Medible (ml o gramos)',
+    typeMeasurableHint: 'Se consume en cantidad: tinte, blondor, peróxido, shine, vitaminas.',
+    typeServiceCost: 'Sin stock fijo (recarga continua)',
+    typeServiceCostHint: 'No se descuenta por uso: cera, sprays, dispensadores que se rellenan.',
+    typeHelperLabel: 'Tipo de seguimiento',
+    // Units — countable + measurable
     unitPieces: 'Piezas',
-    unitMl: 'Mililitros',
-    unitG: 'Gramos',
-    unitBottles: 'Botellas',
+    unitMl: 'Mililitros (ml)',
+    unitG: 'Gramos (g)',
+    unitL: 'Litros (l)',
+    unitKg: 'Kilos (kg)',
+    unitBottles: 'Frascos',
     unitSachets: 'Sobres',
+    unitTubes: 'Tubos',
+    unitPairs: 'Pares',
+    unitKits: 'Kits',
+    // Presentation note
+    packageNote: 'Notas de presentación',
+    packageNotePlaceholder: 'Ej: Frasco de 1kg, repartido en sobres de 50g',
+    packageNoteHelp: 'Opcional — describe cómo viene el producto y cómo lo dividen los trabajadores.',
   },
 
   // Reports

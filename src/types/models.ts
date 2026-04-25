@@ -254,7 +254,9 @@ export interface Product {
   sku: string;
   category: ProductCategory;
   type: 'measurable' | 'unit' | 'service_cost';
-  unit?: 'ml' | 'g' | 'l' | 'kg' | 'pieces' | 'sachets' | 'bottles';
+  // Measurable units (ml/g/l/kg) consume a fractional amount per use.
+  // Countable units (pieces/tubes/pairs/bottles/sachets/kits) consume integer counts.
+  unit?: 'ml' | 'g' | 'l' | 'kg' | 'pieces' | 'sachets' | 'bottles' | 'tubes' | 'pairs' | 'kits';
   currentStock: number;
   minStock: number;
   maxStock: number;
@@ -263,6 +265,10 @@ export interface Product {
   price: number; // Selling price
   expiryDate?: string;
   image?: string;
+  // Free-text presentation note shown on the material picker — useful for items
+  // bought in bulk and repackaged into sachets/small bottles by the staff.
+  // Example: "Frasco de 1kg, repartido en sobres de 50g".
+  packageNote?: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

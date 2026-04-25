@@ -124,8 +124,13 @@ const UNIT_LABEL_MAP: Record<string, string> = {
   pieces: 'Piezas',
   ml: 'ml',
   g: 'g',
-  bottles: 'Botellas',
+  l: 'l',
+  kg: 'kg',
+  bottles: 'Frascos',
   sachets: 'Sobres',
+  tubes: 'Tubos',
+  pairs: 'Pares',
+  kits: 'Kits',
 };
 
 export function unitLabel(unit: string | undefined): string {

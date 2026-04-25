@@ -32,7 +32,42 @@ const initialFormData = {
   maxStock: 100,
   cost: 0,
   price: 0,
+  packageNote: '',
 };
+
+// Spanish labels for product categories — used both in the form Select and
+// the products table render. Source of truth for category translation.
+const categoryLabels: Record<ProductCategory, string> = {
+  hair_products: 'Productos Capilares',
+  hair_dye: 'Tintes',
+  shampoo: 'Shampoos / Acondicionadores',
+  treatment: 'Tratamientos',
+  skincare: 'Cuidado de Piel',
+  makeup: 'Maquillaje',
+  wax: 'Cera',
+  nail_products: 'Productos de Uñas',
+  tools: 'Herramientas',
+  accessories: 'Accesorios',
+  supplies: 'Suministros',
+  other: 'Otro',
+};
+
+// Unit options grouped by tracking type. Measurable products consume fractional
+// amounts (ml/g/l/kg); countable products are tracked in integer counts.
+const measurableUnits = [
+  { value: 'ml', label: 'Mililitros (ml)' },
+  { value: 'g', label: 'Gramos (g)' },
+  { value: 'l', label: 'Litros (l)' },
+  { value: 'kg', label: 'Kilos (kg)' },
+];
+const countableUnits = [
+  { value: 'pieces', label: 'Piezas' },
+  { value: 'tubes', label: 'Tubos' },
+  { value: 'bottles', label: 'Frascos' },
+  { value: 'sachets', label: 'Sobres' },
+  { value: 'pairs', label: 'Pares' },
+  { value: 'kits', label: 'Kits' },
+];
 
 export default function InventoryPage() {
   const { userData } = useAuth();
@@ -114,6 +149,7 @@ export default function InventoryPage() {
       maxStock: product.maxStock,
       cost: product.cost,
       price: product.price,
+      packageNote: product.packageNote || '',
     });
     setIsModalOpen(true);
   };
@@ -143,6 +179,7 @@ export default function InventoryPage() {
         category: formData.category,
         type: formData.type,
         unit: formData.type !== 'service_cost' ? formData.unit as Product['unit'] : undefined,
+        packageNote: formData.packageNote || '',
         currentStock: formData.currentStock,
         minStock: formData.minStock,
         maxStock: formData.maxStock,
@@ -197,7 +234,7 @@ export default function InventoryPage() {
   const productColumns: TableColumn<Product>[] = [
     { key: 'name', label: ES.inventory.name },
     { key: 'sku', label: ES.inventory.sku },
-    { key: 'category', label: ES.inventory.category },
+    { key: 'category', label: ES.inventory.category, render: (v) => categoryLabels[v as ProductCategory] || (v as string) },
     {
       key: 'currentStock',
       label: ES.inventory.stock,
@@ -339,47 +376,57 @@ export default function InventoryPage() {
             label={ES.inventory.category}
             value={formData.category}
             onChange={(e) => setFormData({ ...formData, category: e.target.value as ProductCategory })}
-            options={[
-              { value: 'hair_products', label: ES.inventory.catHairProducts },
-              { value: 'hair_dye', label: ES.inventory.catHairDye },
-              { value: 'shampoo', label: ES.inventory.catShampoo },
-              { value: 'treatment', label: ES.inventory.catTreatment },
-              { value: 'skincare', label: ES.inventory.catSkincare },
-              { value: 'makeup', label: ES.inventory.catMakeup },
-              { value: 'wax', label: ES.inventory.catWax },
-              { value: 'nail_products', label: ES.inventory.catNailProducts },
-              { value: 'tools', label: ES.inventory.catTools },
-              { value: 'accessories', label: ES.inventory.catAccessories },
-              { value: 'supplies', label: ES.inventory.catSupplies },
-              { value: 'other', label: ES.inventory.catOther },
-            ]}
+            options={(Object.keys(categoryLabels) as ProductCategory[]).map((k) => ({ value: k, label: categoryLabels[k] }))}
             required
           />
-          <Select
-            label={ES.inventory.type}
-            value={formData.type}
-            onChange={(e) => setFormData({ ...formData, type: e.target.value as 'unit' | 'measurable' | 'service_cost' })}
-            options={[
-              { value: 'unit', label: ES.inventory.typeUnit },
-              { value: 'measurable', label: ES.inventory.typeMeasurable },
-              { value: 'service_cost', label: ES.inventory.typeServiceCost },
-            ]}
-            required
-          />
+          {/* Tracking type — drives which units are valid + helper text below */}
+          <div>
+            <Select
+              label={ES.inventory.typeHelperLabel}
+              value={formData.type}
+              onChange={(e) => {
+                const newType = e.target.value as 'unit' | 'measurable' | 'service_cost';
+                // When switching tracking type, reset to a sensible default unit so we
+                // don't end up with e.g. type=measurable + unit=pieces.
+                let nextUnit = formData.unit;
+                if (newType === 'measurable' && !measurableUnits.some((u) => u.value === formData.unit)) nextUnit = 'ml';
+                if (newType === 'unit' && !countableUnits.some((u) => u.value === formData.unit)) nextUnit = 'pieces';
+                setFormData({ ...formData, type: newType, unit: nextUnit });
+              }}
+              options={[
+                { value: 'unit', label: ES.inventory.typeUnit },
+                { value: 'measurable', label: ES.inventory.typeMeasurable },
+                { value: 'service_cost', label: ES.inventory.typeServiceCost },
+              ]}
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              {formData.type === 'unit' && ES.inventory.typeUnitHint}
+              {formData.type === 'measurable' && ES.inventory.typeMeasurableHint}
+              {formData.type === 'service_cost' && ES.inventory.typeServiceCostHint}
+            </p>
+          </div>
           {formData.type !== 'service_cost' && (
             <Select
               label={ES.inventory.unit}
               value={formData.unit}
               onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-              options={[
-                { value: 'pieces', label: ES.inventory.unitPieces },
-                { value: 'ml', label: ES.inventory.unitMl },
-                { value: 'g', label: ES.inventory.unitG },
-                { value: 'bottles', label: ES.inventory.unitBottles },
-                { value: 'sachets', label: ES.inventory.unitSachets },
-              ]}
+              options={formData.type === 'measurable' ? measurableUnits : countableUnits}
               required
             />
+          )}
+          {/* Optional presentation note — useful for items repackaged by staff */}
+          {formData.type !== 'service_cost' && (
+            <div>
+              <Input
+                label={ES.inventory.packageNote}
+                value={formData.packageNote}
+                onChange={(e) => setFormData({ ...formData, packageNote: e.target.value })}
+                placeholder={ES.inventory.packageNotePlaceholder}
+                maxLength={120}
+              />
+              <p className="text-xs text-gray-500 mt-1">{ES.inventory.packageNoteHelp}</p>
+            </div>
           )}
           <Input
             label={ES.inventory.currentStock}
