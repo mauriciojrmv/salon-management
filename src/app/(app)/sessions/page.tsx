@@ -242,18 +242,21 @@ export default function SessionsPage() {
     const product = products?.find((p) => p.id === productId);
     if (!product) return;
     const updated = [...materials];
-    const qty = Math.min(updated[index].quantity, product.currentStock);
+    // service_cost: no stock, behaves like imprecise=true with defaultUsage=1.
+    const isServiceCost = product.type === 'service_cost';
+    const max = isServiceCost ? Number.MAX_SAFE_INTEGER : product.currentStock;
+    const qty = Math.min(updated[index].quantity, max);
     updated[index] = {
       ...updated[index],
       productId,
       productName: product.name,
-      unit: product.unit || 'ud',
+      unit: product.unit || (isServiceCost ? 'uso' : 'ud'),
       pricePerUnit: product.cost,
-      maxStock: product.currentStock,
+      maxStock: max,
       quantity: qty,
       totalPrice: product.cost * qty,
-      imprecise: product.imprecise === true,
-      defaultUsage: product.defaultUsage || 0,
+      imprecise: isServiceCost ? true : product.imprecise === true,
+      defaultUsage: isServiceCost ? 1 : (product.defaultUsage || 0),
       manualOverride: false,
     };
     setMaterials(updated);
@@ -303,17 +306,20 @@ export default function SessionsPage() {
     const svc = session?.services?.find((s) => s.id === serviceId);
     const existing: MaterialEntry[] = (svc?.materialsUsed || []).map((m) => {
       const product = products?.find((p) => p.id === m.productId);
+      const isServiceCost = product?.type === 'service_cost';
+      const isImprecise = isServiceCost || product?.imprecise === true;
+      const defaultUsage = isServiceCost ? 1 : (product?.defaultUsage || 0);
       return {
       productId: m.productId,
       productName: m.productName,
       quantity: m.quantity,
-      unit: m.unit || 'ud',
+      unit: m.unit || (isServiceCost ? 'uso' : 'ud'),
       pricePerUnit: m.cost / (m.quantity || 1),
       totalPrice: m.cost,
-      maxStock: (product?.currentStock || 0) + m.quantity, // available = current + already deducted
-      imprecise: product?.imprecise === true,
-      defaultUsage: product?.defaultUsage || 0,
-      manualOverride: !product?.imprecise || (product?.defaultUsage ? (m.quantity % product.defaultUsage !== 0) : false),
+      maxStock: isServiceCost ? Number.MAX_SAFE_INTEGER : (product?.currentStock || 0) + m.quantity,
+      imprecise: isImprecise,
+      defaultUsage,
+      manualOverride: !isImprecise || (defaultUsage ? (m.quantity % defaultUsage !== 0) : false),
     };
     });
     setEditMaterials(existing);
@@ -1406,10 +1412,12 @@ export default function SessionsPage() {
 
                       {mat.productId && (
                         <>
-                          <div className="flex items-center justify-between text-xs text-gray-400">
-                            <span>Stock: {mat.maxStock} {mat.unit}</span>
-                            <span>{fmtBs(mat.pricePerUnit)}/{mat.unit}</span>
-                          </div>
+                          {mat.unit !== 'uso' && (
+                            <div className="flex items-center justify-between text-xs text-gray-400">
+                              <span>Stock: {mat.maxStock} {mat.unit}</span>
+                              <span>{fmtBs(mat.pricePerUnit)}/{mat.unit}</span>
+                            </div>
+                          )}
 
                           {mat.imprecise && !mat.manualOverride && mat.defaultUsage > 0 ? (
                             <div className="space-y-2">
@@ -1420,12 +1428,18 @@ export default function SessionsPage() {
                                 className="w-full py-4 min-h-[56px] rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold text-lg flex flex-col items-center justify-center transition-colors"
                               >
                                 <span>{ES.inventory.markUsage}</span>
-                                <span className="text-xs font-normal opacity-90 mt-0.5">{ES.inventory.markUsageDetail(mat.defaultUsage, mat.unit)}</span>
+                                <span className="text-xs font-normal opacity-90 mt-0.5">
+                                  {mat.unit === 'uso'
+                                    ? ES.inventory.markUsageCost(fmtBs(mat.pricePerUnit))
+                                    : ES.inventory.markUsageDetail(mat.defaultUsage, mat.unit)}
+                                </span>
                               </button>
                               {mat.quantity > 0 && (
                                 <div className="flex items-center justify-between text-xs">
                                   <span className="text-gray-700">
-                                    {Math.round(mat.quantity / mat.defaultUsage)} {Math.round(mat.quantity / mat.defaultUsage) === 1 ? 'uso' : 'usos'} · {mat.quantity} {mat.unit}
+                                    {mat.unit === 'uso'
+                                      ? `${mat.quantity} ${mat.quantity === 1 ? 'uso' : 'usos'}`
+                                      : `${Math.round(mat.quantity / mat.defaultUsage)} ${Math.round(mat.quantity / mat.defaultUsage) === 1 ? 'uso' : 'usos'} · ${mat.quantity} ${mat.unit}`}
                                   </span>
                                   <button type="button" onClick={() => handleResetUsage(idx)} className="text-red-500 hover:text-red-700 underline">Reiniciar</button>
                                 </div>
@@ -2065,19 +2079,22 @@ export default function SessionsPage() {
                           if (!product) return;
                           const updated = [...editMaterials];
                           const oldMat = editMaterials[idx];
-                          const availStock = product.currentStock + (oldMat.productId === v ? oldMat.quantity : 0);
+                          const isServiceCost = product.type === 'service_cost';
+                          const availStock = isServiceCost
+                            ? Number.MAX_SAFE_INTEGER
+                            : product.currentStock + (oldMat.productId === v ? oldMat.quantity : 0);
                           const qty = Math.min(updated[idx].quantity, availStock);
                           updated[idx] = {
                             ...updated[idx],
                             productId: v,
                             productName: product.name,
-                            unit: product.unit || 'ud',
+                            unit: product.unit || (isServiceCost ? 'uso' : 'ud'),
                             pricePerUnit: product.cost,
                             maxStock: availStock,
                             quantity: qty,
                             totalPrice: product.cost * qty,
-                            imprecise: product.imprecise === true,
-                            defaultUsage: product.defaultUsage || 0,
+                            imprecise: isServiceCost ? true : product.imprecise === true,
+                            defaultUsage: isServiceCost ? 1 : (product.defaultUsage || 0),
                             manualOverride: false,
                           };
                           setEditMaterials(updated);
@@ -2092,10 +2109,12 @@ export default function SessionsPage() {
 
                   {mat.productId && (
                     <>
-                      <div className="flex items-center justify-between text-xs text-gray-400">
-                        <span>Stock: {mat.maxStock} {mat.unit}</span>
-                        <span>{fmtBs(mat.pricePerUnit)}/{mat.unit}</span>
-                      </div>
+                      {mat.unit !== 'uso' && (
+                        <div className="flex items-center justify-between text-xs text-gray-400">
+                          <span>Stock: {mat.maxStock} {mat.unit}</span>
+                          <span>{fmtBs(mat.pricePerUnit)}/{mat.unit}</span>
+                        </div>
+                      )}
 
                       {mat.imprecise && !mat.manualOverride && mat.defaultUsage > 0 ? (
                         <div className="space-y-2">
@@ -2111,12 +2130,18 @@ export default function SessionsPage() {
                             className="w-full py-4 min-h-[56px] rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold text-lg flex flex-col items-center justify-center transition-colors"
                           >
                             <span>{ES.inventory.markUsage}</span>
-                            <span className="text-xs font-normal opacity-90 mt-0.5">{ES.inventory.markUsageDetail(mat.defaultUsage, mat.unit)}</span>
+                            <span className="text-xs font-normal opacity-90 mt-0.5">
+                              {mat.unit === 'uso'
+                                ? ES.inventory.markUsageCost(fmtBs(mat.pricePerUnit))
+                                : ES.inventory.markUsageDetail(mat.defaultUsage, mat.unit)}
+                            </span>
                           </button>
                           {mat.quantity > 0 && (
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-gray-700">
-                                {Math.round(mat.quantity / mat.defaultUsage)} {Math.round(mat.quantity / mat.defaultUsage) === 1 ? 'uso' : 'usos'} · {mat.quantity} {mat.unit}
+                                {mat.unit === 'uso'
+                                  ? `${mat.quantity} ${mat.quantity === 1 ? 'uso' : 'usos'}`
+                                  : `${Math.round(mat.quantity / mat.defaultUsage)} ${Math.round(mat.quantity / mat.defaultUsage) === 1 ? 'uso' : 'usos'} · ${mat.quantity} ${mat.unit}`}
                               </span>
                               <button
                                 type="button"

@@ -16,6 +16,7 @@ import { useNotification } from '@/hooks/useNotification';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { SessionRepository } from '@/lib/repositories/sessionRepository';
 import { RetailSaleRepository } from '@/lib/repositories/retailSaleRepository';
+import { deleteField } from 'firebase/firestore';
 import { Product, ProductCategory } from '@/types/models';
 import { fmtBs, unitLabel } from '@/lib/utils/helpers';
 import { findSimilarByName } from '@/lib/utils/fuzzy';
@@ -177,12 +178,16 @@ export default function InventoryPage() {
 
     setLoading(true);
     try {
-      const productData = {
+      // Firestore rejects writes with undefined values. For service_cost products
+      // we omit the unit field entirely on create, and use deleteField() on edit
+      // to clear any leftover unit from a previous type. For unit/measurable we
+      // include the chosen unit normally.
+      const isServiceCost = formData.type === 'service_cost';
+      const productData: Record<string, unknown> = {
         name: formData.name,
         sku: formData.sku,
         category: formData.category,
         type: formData.type,
-        unit: formData.type !== 'service_cost' ? formData.unit as Product['unit'] : undefined,
         packageNote: formData.packageNote || '',
         imprecise: formData.imprecise === true,
         // Only meaningful when imprecise=true. Stored as 0 otherwise so existing
@@ -194,12 +199,17 @@ export default function InventoryPage() {
         cost: formData.cost,
         price: formData.price,
       };
+      if (!isServiceCost) {
+        productData.unit = formData.unit;
+      } else if (editingProduct?.unit) {
+        productData.unit = deleteField();
+      }
 
       if (editingProduct) {
-        await ProductRepository.updateProduct(editingProduct.id, productData);
+        await ProductRepository.updateProduct(editingProduct.id, productData as Partial<Product>);
         success(ES.inventory.updated);
       } else {
-        await ProductRepository.createProduct(userData.salonId, productData);
+        await ProductRepository.createProduct(userData.salonId, productData as Omit<Product, 'id' | 'salonId' | 'isActive' | 'createdAt' | 'updatedAt'>);
         success(ES.actions.success);
       }
 
@@ -466,38 +476,53 @@ export default function InventoryPage() {
               )}
             </div>
           )}
-          <Input
-            label={ES.inventory.currentStock}
-            type="number"
-            value={formData.currentStock}
-            onChange={(e) => setFormData({ ...formData, currentStock: parseFloat(e.target.value) })}
-            required
-            min={0}
-          />
-          <Input
-            label={ES.inventory.minStock}
-            type="number"
-            value={formData.minStock}
-            onChange={(e) => setFormData({ ...formData, minStock: parseFloat(e.target.value) })}
-            required
-            min={0}
-          />
-          <Input
-            label={ES.inventory.maxStock}
-            type="number"
-            value={formData.maxStock}
-            onChange={(e) => setFormData({ ...formData, maxStock: parseFloat(e.target.value) })}
-            required
-            min={0}
-          />
-          <Input
-            label={ES.inventory.costPerUnit}
-            type="number"
-            value={formData.cost}
-            onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) })}
-            required
-            min={0}
-          />
+          {/* Stock fields are meaningless for "Sin stock fijo" — hide them */}
+          {formData.type !== 'service_cost' && (
+            <>
+              <Input
+                label={ES.inventory.currentStock}
+                type="number"
+                value={formData.currentStock}
+                onChange={(e) => setFormData({ ...formData, currentStock: parseFloat(e.target.value) })}
+                required
+                min={0}
+              />
+              <Input
+                label={ES.inventory.minStock}
+                type="number"
+                value={formData.minStock}
+                onChange={(e) => setFormData({ ...formData, minStock: parseFloat(e.target.value) })}
+                required
+                min={0}
+              />
+              <Input
+                label={ES.inventory.maxStock}
+                type="number"
+                value={formData.maxStock}
+                onChange={(e) => setFormData({ ...formData, maxStock: parseFloat(e.target.value) })}
+                required
+                min={0}
+              />
+            </>
+          )}
+          {formData.type === 'service_cost' && (
+            <p className="text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-2.5">
+              {ES.inventory.serviceCostNoStock}
+            </p>
+          )}
+          <div>
+            <Input
+              label={formData.type === 'service_cost' ? ES.inventory.costPerUse : ES.inventory.costPerUnit}
+              type="number"
+              value={formData.cost}
+              onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) })}
+              required
+              min={0}
+            />
+            {formData.type === 'service_cost' && (
+              <p className="text-xs text-gray-500 mt-1">{ES.inventory.costPerUseHint}</p>
+            )}
+          </div>
           <Input
             label={ES.inventory.sellingPrice}
             type="number"

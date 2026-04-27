@@ -509,18 +509,22 @@ export default function MyWorkPage() {
     const product = products?.find((p) => p.id === productId);
     if (!product) return;
     const updated = [...materials];
-    const qty = Math.min(updated[index].quantity, product.currentStock);
+    // service_cost has no stock — uncapped quantity, behaves like imprecise=true
+    // with defaultUsage=1 so each tap adds one "uso" at the configured cost.
+    const isServiceCost = product.type === 'service_cost';
+    const max = isServiceCost ? Number.MAX_SAFE_INTEGER : product.currentStock;
+    const qty = Math.min(updated[index].quantity, max);
     updated[index] = {
       ...updated[index],
       productId,
       productName: product.name,
-      unit: product.unit || 'ud',
+      unit: product.unit || (isServiceCost ? 'uso' : 'ud'),
       pricePerUnit: product.cost,
-      maxStock: product.currentStock,
+      maxStock: max,
       quantity: qty,
       totalPrice: product.cost * qty,
-      imprecise: product.imprecise === true,
-      defaultUsage: product.defaultUsage || 0,
+      imprecise: isServiceCost ? true : product.imprecise === true,
+      defaultUsage: isServiceCost ? 1 : (product.defaultUsage || 0),
       manualOverride: false,
     };
     setMaterials(updated);
@@ -567,19 +571,22 @@ export default function MyWorkPage() {
   const openMaterialModal = (session: Session, service: SessionServiceItem) => {
     const existing: MaterialEntry[] = (service.materialsUsed || []).map((m) => {
       const product = products?.find((p) => p.id === m.productId);
+      const isServiceCost = product?.type === 'service_cost';
+      const isImprecise = isServiceCost || product?.imprecise === true;
+      const defaultUsage = isServiceCost ? 1 : (product?.defaultUsage || 0);
       return {
         productId: m.productId,
         productName: m.productName,
         quantity: m.quantity,
-        unit: m.unit || 'ud',
+        unit: m.unit || (isServiceCost ? 'uso' : 'ud'),
         pricePerUnit: m.cost / (m.quantity || 1),
         totalPrice: m.cost,
-        maxStock: (product?.currentStock || 0) + m.quantity,
-        imprecise: product?.imprecise === true,
-        defaultUsage: product?.defaultUsage || 0,
+        maxStock: isServiceCost ? Number.MAX_SAFE_INTEGER : (product?.currentStock || 0) + m.quantity,
+        imprecise: isImprecise,
+        defaultUsage,
         // Existing rows that don't match a defaultUsage multiple are treated as
         // manual entries so the worker can keep editing without surprises.
-        manualOverride: !product?.imprecise || (product?.defaultUsage ? (m.quantity % product.defaultUsage !== 0) : false),
+        manualOverride: !isImprecise || (defaultUsage ? (m.quantity % defaultUsage !== 0) : false),
       };
     });
     setMaterials(existing);
@@ -1358,11 +1365,13 @@ export default function MyWorkPage() {
 
                   {mat.productId && (
                     <>
-                      {/* Stock indicator */}
-                      <div className="flex items-center justify-between text-xs text-gray-400">
-                        <span>Stock: {mat.maxStock} {mat.unit}</span>
-                        <span>{fmtBs(mat.pricePerUnit)}/{mat.unit}</span>
-                      </div>
+                      {/* Stock indicator — hidden for service_cost (no real stock) */}
+                      {mat.unit !== 'uso' && (
+                        <div className="flex items-center justify-between text-xs text-gray-400">
+                          <span>Stock: {mat.maxStock} {mat.unit}</span>
+                          <span>{fmtBs(mat.pricePerUnit)}/{mat.unit}</span>
+                        </div>
+                      )}
 
                       {mat.imprecise && !mat.manualOverride && mat.defaultUsage > 0 ? (
                         // Imprecise mode: single-tap "Marcar uso" — each tap adds defaultUsage
@@ -1374,12 +1383,18 @@ export default function MyWorkPage() {
                             className="w-full py-4 min-h-[56px] rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold text-lg flex flex-col items-center justify-center transition-colors"
                           >
                             <span>{ES.inventory.markUsage}</span>
-                            <span className="text-xs font-normal opacity-90 mt-0.5">{ES.inventory.markUsageDetail(mat.defaultUsage, mat.unit)}</span>
+                            <span className="text-xs font-normal opacity-90 mt-0.5">
+                              {mat.unit === 'uso'
+                                ? ES.inventory.markUsageCost(fmtBs(mat.pricePerUnit))
+                                : ES.inventory.markUsageDetail(mat.defaultUsage, mat.unit)}
+                            </span>
                           </button>
                           {mat.quantity > 0 && (
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-gray-700">
-                                {Math.round(mat.quantity / mat.defaultUsage)} {Math.round(mat.quantity / mat.defaultUsage) === 1 ? 'uso' : 'usos'} · {mat.quantity} {mat.unit}
+                                {mat.unit === 'uso'
+                                  ? `${mat.quantity} ${mat.quantity === 1 ? 'uso' : 'usos'}`
+                                  : `${Math.round(mat.quantity / mat.defaultUsage)} ${Math.round(mat.quantity / mat.defaultUsage) === 1 ? 'uso' : 'usos'} · ${mat.quantity} ${mat.unit}`}
                               </span>
                               <button
                                 type="button"
