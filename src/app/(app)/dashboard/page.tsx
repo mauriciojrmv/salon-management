@@ -104,13 +104,15 @@ export default function Dashboard() {
   }, [allProducts]);
 
   const materialsConsumed = useMemo(() => {
-    return (sessions || []).reduce((sum, s) => {
-      return sum + (s.materialsUsed || []).reduce((ms, m) => {
-        const buyCost = productCostMap[m.productId];
-        // Use product buy cost if available, otherwise fall back to stored cost
-        return ms + (buyCost !== undefined ? buyCost * m.quantity : (m.cost || 0));
+    return (sessions || [])
+      .filter((s) => s.status !== 'cancelled')
+      .reduce((sum, s) => {
+        return sum + (s.materialsUsed || []).reduce((ms, m) => {
+          const buyCost = productCostMap[m.productId];
+          // Use product buy cost if available, otherwise fall back to stored cost
+          return ms + (buyCost !== undefined ? buyCost * m.quantity : (m.cost || 0));
+        }, 0);
       }, 0);
-    }, 0);
   }, [sessions, productCostMap]);
 
   // Birthday detection

@@ -30,7 +30,9 @@
       "Bash(export PATH=\"/c/Program Files/Git/bin:/c/nvm4w/nodejs:/usr/bin:$PATH\")",
       "Bash(export PATH=\"/c/Program Files/Git/bin:$PATH\")",
       "Bash(export PATH=\"/c/Program Files/Git/bin:/c/Program Files/Git/usr/bin:$PATH\")",
-      "Bash(awk 'END{print NR}' \"d:/projects/salon/src/app/\\(app\\)/sessions/page.tsx\")"
+      "Bash(awk 'END{print NR}' \"d:/projects/salon/src/app/\\(app\\)/sessions/page.tsx\")",
+      "Bash(git mv *)",
+      "PowerShell(npx tsc --noEmit)"
     ]
   }
 }
