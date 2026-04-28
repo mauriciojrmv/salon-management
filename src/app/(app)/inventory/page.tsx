@@ -21,8 +21,9 @@ import { InventoryWithdrawalRepository } from '@/lib/repositories/inventoryWithd
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { deleteField } from 'firebase/firestore';
 import { Product, ProductCategory } from '@/types/models';
-import { fmtBs, unitLabel, getBoliviaDate } from '@/lib/utils/helpers';
+import { fmtBs, unitLabel } from '@/lib/utils/helpers';
 import { findSimilarByName } from '@/lib/utils/fuzzy';
+import { inventoryTemplates, categoryDefaults, InventoryTemplateFormData } from '@/lib/inventoryTemplates';
 import ES from '@/config/text.es';
 
 const initialFormData = {
@@ -87,6 +88,9 @@ export default function InventoryPage() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawForm, setWithdrawForm] = useState({ productId: '', quantity: 1, takenBy: '', note: '' });
   const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  // Category filter chip — null = "Todas". User-driven scope for the products table.
+  const [categoryFilter, setCategoryFilter] = useState<ProductCategory | null>(null);
 
   const { data: productsData, refetch, loading: productsLoading } = useAsync(async () => {
     if (!userData?.salonId) return [];
@@ -115,13 +119,24 @@ export default function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const filteredProducts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter((p) =>
-      p.name.toLowerCase().includes(q) ||
-      (p.sku || '').toLowerCase().includes(q) ||
-      p.category.toLowerCase().includes(q),
-    );
-  }, [products, searchQuery]);
+    return products.filter((p) => {
+      if (categoryFilter && p.category !== categoryFilter) return false;
+      if (!q) return true;
+      return (
+        p.name.toLowerCase().includes(q) ||
+        (p.sku || '').toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q)
+      );
+    });
+  }, [products, searchQuery, categoryFilter]);
+
+  // Categories that actually exist in this salon's inventory — drives chip
+  // strip so we don't show 12 chips when only 3 are in use.
+  const usedCategories = useMemo(() => {
+    const set = new Set<ProductCategory>();
+    products.forEach((p) => set.add(p.category));
+    return Array.from(set);
+  }, [products]);
 
   // Live duplicate detection as admin types — excludes the item being edited.
   const similarProducts = useMemo(() => {
@@ -210,6 +225,35 @@ export default function InventoryPage() {
   const openCreateModal = () => {
     resetForm();
     setIsModalOpen(true);
+  };
+
+  // QoL: pick a plantilla → pre-fill the form with sensible defaults so admin
+  // only fills in name + cost. Closes the templates picker and opens the
+  // regular create modal with values loaded.
+  const pickTemplate = (templateId: string) => {
+    const tpl = inventoryTemplates.find((t) => t.id === templateId);
+    if (!tpl) return;
+    setEditingProduct(null);
+    setFormData({ ...tpl.formData });
+    setTemplatesOpen(false);
+    setIsModalOpen(true);
+    success(ES.inventory.templatePicked);
+  };
+
+  // QoL: when admin picks a category, suggest type/unit/stock defaults that
+  // match the typical Bolivian salon usage for that category. Only applies on
+  // create (don't surprise-overwrite an existing product on edit).
+  const handleCategoryChange = (category: ProductCategory) => {
+    if (editingProduct) {
+      setFormData({ ...formData, category });
+      return;
+    }
+    const defaults = categoryDefaults[category];
+    setFormData({
+      ...formData,
+      category,
+      ...(defaults || {}),
+    } as InventoryTemplateFormData);
   };
 
   const openEditModal = (product: Product) => {
@@ -329,17 +373,25 @@ export default function InventoryPage() {
     {
       key: 'currentStock',
       label: ES.inventory.stock,
-      render: (value, item) => (
-        <span
-          className={
-            value <= item.minStock
-              ? 'text-red-600 font-semibold'
-              : 'text-green-600 font-semibold'
-          }
-        >
-          {value} {unitLabel(item.unit)}
-        </span>
-      ),
+      render: (value, item) => {
+        if (item.type === 'service_cost') {
+          return <span className="text-gray-400 text-xs">— {ES.inventory.serviceCostNoStock.split(' — ')[0]}</span>;
+        }
+        const stock = Number(value);
+        const isOut = stock <= 0;
+        const isLow = stock > 0 && stock <= item.minStock;
+        const dotColor = isOut ? 'bg-red-500' : isLow ? 'bg-amber-500' : 'bg-green-500';
+        const textColor = isOut ? 'text-red-700' : isLow ? 'text-amber-700' : 'text-green-700';
+        const label = isOut ? ES.inventory.stockDotEmpty : isLow ? ES.inventory.stockDotLow : ES.inventory.stockDotOk;
+        return (
+          <div className="flex items-center gap-2">
+            <span className={`inline-block w-2.5 h-2.5 rounded-full ${dotColor} shrink-0`} title={label} />
+            <span className={`${textColor} font-semibold`}>
+              {stock} {unitLabel(item.unit)}
+            </span>
+          </div>
+        );
+      },
     },
     { key: 'cost', label: ES.inventory.cost, render: (v) => fmtBs(Number(v)) },
     { key: 'price', label: ES.inventory.price, render: (v) => fmtBs(Number(v)) },
@@ -374,7 +426,10 @@ export default function InventoryPage() {
       <Toast notifications={notifications} onDismiss={removeNotification} />
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-3xl font-bold text-gray-900">{ES.inventory.title}</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="ghost" onClick={() => setTemplatesOpen(true)} size="lg">
+            {ES.inventory.startFromTemplate}
+          </Button>
           <Button variant="secondary" onClick={openWithdrawModal} size="lg">
             {ES.inventory.withdraw}
           </Button>
@@ -383,6 +438,29 @@ export default function InventoryPage() {
           </Button>
         </div>
       </div>
+
+      {/* QoL: empty state CTA — first-time admin lands here with no products,
+          we surface plantillas as the easiest path forward. Skipped on edit
+          deep-links since productsLoading hasn't settled yet. */}
+      {!productsLoading && products.length === 0 && (
+        <Card className="bg-blue-50 border border-blue-200">
+          <CardBody>
+            <div className="text-center py-4">
+              <p className="text-2xl mb-2">📦</p>
+              <p className="text-base font-semibold text-blue-900">{ES.inventory.emptyTitle}</p>
+              <p className="text-sm text-blue-800 mt-1 max-w-md mx-auto">{ES.inventory.emptyHint}</p>
+              <div className="mt-4 flex gap-2 justify-center flex-wrap">
+                <Button onClick={() => setTemplatesOpen(true)}>
+                  {ES.inventory.startFromTemplate}
+                </Button>
+                <Button variant="secondary" onClick={openCreateModal}>
+                  {ES.inventory.emptyCreateBlank}
+                </Button>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+      )}
 
       {/* Low Stock Alert — each row opens the edit modal for that product */}
       {lowStockProducts.length > 0 && (
@@ -418,15 +496,48 @@ export default function InventoryPage() {
       {/* Products Table */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold text-gray-900 shrink-0">{ES.inventory.allProducts}</h2>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={ES.inventory.search}
-              className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-semibold text-gray-900 shrink-0">{ES.inventory.allProducts}</h2>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={ES.inventory.search}
+                className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            {/* QoL: category filter chips — only show categories actually in
+                use so the strip stays short. Tap "Todas" to clear. */}
+            {usedCategories.length > 1 && (
+              <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+                <button
+                  type="button"
+                  onClick={() => setCategoryFilter(null)}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                    categoryFilter === null
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {ES.inventory.categoryFilterAll}
+                </button>
+                {usedCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCategoryFilter(cat)}
+                    className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                      categoryFilter === cat
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    {categoryLabels[cat]}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardBody>
@@ -453,6 +564,7 @@ export default function InventoryPage() {
               label={ES.inventory.name}
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder={ES.inventory.nameExamplePlaceholder}
               required
               maxLength={50}
             />
@@ -462,46 +574,67 @@ export default function InventoryPage() {
               onPick={pickExistingProduct}
             />
           </div>
-          <Input
-            label={ES.inventory.sku}
-            value={formData.sku}
-            onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-            maxLength={20}
-          />
+
           <Select
             label={ES.inventory.category}
             value={formData.category}
-            onChange={(e) => setFormData({ ...formData, category: e.target.value as ProductCategory })}
+            onChange={(e) => handleCategoryChange(e.target.value as ProductCategory)}
             options={(Object.keys(categoryLabels) as ProductCategory[]).map((k) => ({ value: k, label: categoryLabels[k] }))}
             required
           />
-          {/* Tracking type — drives which units are valid + helper text below */}
+
+          {/* QoL: 3-card "How do you control it?" picker — replaces the abstract
+              type select. Visually matches the salon owner's mental model
+              (cuento / mido / marco uso). Picking a card also sets a sensible
+              default unit + imprecise flag so they don't have to guess. */}
           <div>
-            <Select
-              label={ES.inventory.typeHelperLabel}
-              value={formData.type}
-              onChange={(e) => {
-                const newType = e.target.value as 'unit' | 'measurable' | 'service_cost';
-                // When switching tracking type, reset to a sensible default unit so we
-                // don't end up with e.g. type=measurable + unit=pieces.
-                let nextUnit = formData.unit;
-                if (newType === 'measurable' && !measurableUnits.some((u) => u.value === formData.unit)) nextUnit = 'ml';
-                if (newType === 'unit' && !countableUnits.some((u) => u.value === formData.unit)) nextUnit = 'pieces';
-                setFormData({ ...formData, type: newType, unit: nextUnit });
-              }}
-              options={[
-                { value: 'unit', label: ES.inventory.typeUnit },
-                { value: 'measurable', label: ES.inventory.typeMeasurable },
-                { value: 'service_cost', label: ES.inventory.typeServiceCost },
-              ]}
-              required
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              {formData.type === 'unit' && ES.inventory.typeUnitHint}
-              {formData.type === 'measurable' && ES.inventory.typeMeasurableHint}
-              {formData.type === 'service_cost' && ES.inventory.typeServiceCostHint}
-            </p>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {ES.inventory.typePickerLabel}
+            </label>
+            <p className="text-xs text-gray-500 mb-2">{ES.inventory.typePickerHint}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {([
+                { key: 'unit' as const, emoji: '📦', title: ES.inventory.typeUnitCardTitle, hint: ES.inventory.typeUnitCardHint },
+                { key: 'measurable' as const, emoji: '📏', title: ES.inventory.typeMeasurableCardTitle, hint: ES.inventory.typeMeasurableCardHint },
+                { key: 'service_cost' as const, emoji: '💧', title: ES.inventory.typeServiceCostCardTitle, hint: ES.inventory.typeServiceCostCardHint },
+              ]).map((card) => {
+                const selected = formData.type === card.key;
+                return (
+                  <button
+                    key={card.key}
+                    type="button"
+                    onClick={() => {
+                      let nextUnit = formData.unit;
+                      let imprecise = formData.imprecise;
+                      let defaultUsage = formData.defaultUsage;
+                      if (card.key === 'measurable' && !measurableUnits.some((u) => u.value === formData.unit)) nextUnit = 'ml';
+                      if (card.key === 'unit' && !countableUnits.some((u) => u.value === formData.unit)) nextUnit = 'pieces';
+                      if (card.key === 'service_cost') {
+                        nextUnit = '';
+                        imprecise = true;
+                        defaultUsage = 1;
+                      }
+                      if (card.key !== 'service_cost' && imprecise && card.key === 'unit') {
+                        imprecise = false;
+                        defaultUsage = 0;
+                      }
+                      setFormData({ ...formData, type: card.key, unit: nextUnit, imprecise, defaultUsage });
+                    }}
+                    className={`text-left p-3 rounded-lg border-2 transition-colors ${
+                      selected
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="text-2xl mb-1">{card.emoji}</div>
+                    <p className={`text-sm font-semibold ${selected ? 'text-blue-900' : 'text-gray-900'}`}>{card.title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-snug">{card.hint}</p>
+                  </button>
+                );
+              })}
+            </div>
           </div>
+
           {formData.type !== 'service_cost' && (
             <Select
               label={ES.inventory.unit}
@@ -510,19 +643,6 @@ export default function InventoryPage() {
               options={formData.type === 'measurable' ? measurableUnits : countableUnits}
               required
             />
-          )}
-          {/* Optional presentation note — useful for items repackaged by staff */}
-          {formData.type !== 'service_cost' && (
-            <div>
-              <Input
-                label={ES.inventory.packageNote}
-                value={formData.packageNote}
-                onChange={(e) => setFormData({ ...formData, packageNote: e.target.value })}
-                placeholder={ES.inventory.packageNotePlaceholder}
-                maxLength={120}
-              />
-              <p className="text-xs text-gray-500 mt-1">{ES.inventory.packageNoteHelp}</p>
-            </div>
           )}
           {/* Imprecise mode — single-tap "Marcar uso" for products workers can't measure (shine, sprays) */}
           {formData.type === 'measurable' && (
@@ -557,33 +677,44 @@ export default function InventoryPage() {
           {/* Stock fields are meaningless for "Sin stock fijo" — hide them */}
           {formData.type !== 'service_cost' && (
             <>
-              <Input
-                label={ES.inventory.currentStock}
-                type="number"
-                value={formData.currentStock}
-                onChange={(e) => setFormData({ ...formData, currentStock: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
-                required
-                min={0}
-                step="any"
-              />
-              <Input
-                label={ES.inventory.minStock}
-                type="number"
-                value={formData.minStock}
-                onChange={(e) => setFormData({ ...formData, minStock: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
-                required
-                min={0}
-                step="any"
-              />
-              <Input
-                label={ES.inventory.maxStock}
-                type="number"
-                value={formData.maxStock}
-                onChange={(e) => setFormData({ ...formData, maxStock: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
-                required
-                min={0}
-                step="any"
-              />
+              <div>
+                <Input
+                  label={ES.inventory.currentStockFriendly}
+                  type="number"
+                  value={formData.currentStock}
+                  onChange={(e) => setFormData({ ...formData, currentStock: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
+                  required
+                  min={0}
+                  step="any"
+                />
+                <p className="text-xs text-gray-500 mt-1">{ES.inventory.currentStockFriendlyHint}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Input
+                    label={ES.inventory.minStockFriendly}
+                    type="number"
+                    value={formData.minStock}
+                    onChange={(e) => setFormData({ ...formData, minStock: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
+                    required
+                    min={0}
+                    step="any"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">{ES.inventory.minStockFriendlyHint}</p>
+                </div>
+                <div>
+                  <Input
+                    label={ES.inventory.maxStockFriendly}
+                    type="number"
+                    value={formData.maxStock}
+                    onChange={(e) => setFormData({ ...formData, maxStock: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
+                    required
+                    min={0}
+                    step="any"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">{ES.inventory.maxStockFriendlyHint}</p>
+                </div>
+              </div>
             </>
           )}
           {formData.type === 'service_cost' && (
@@ -593,7 +724,7 @@ export default function InventoryPage() {
           )}
           <div>
             <Input
-              label={formData.type === 'service_cost' ? ES.inventory.costPerUse : ES.inventory.costPerUnit}
+              label={formData.type === 'service_cost' ? ES.inventory.costPerUse : ES.inventory.costFriendly}
               type="number"
               value={formData.cost}
               onChange={(e) => setFormData({ ...formData, cost: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
@@ -601,19 +732,54 @@ export default function InventoryPage() {
               min={0}
               step="any"
             />
-            {formData.type === 'service_cost' && (
-              <p className="text-xs text-gray-500 mt-1">{ES.inventory.costPerUseHint}</p>
-            )}
+            <p className="text-xs text-gray-500 mt-1">
+              {formData.type === 'service_cost' ? ES.inventory.costPerUseHint : ES.inventory.costFriendlyHint}
+            </p>
           </div>
-          <Input
-            label={ES.inventory.sellingPrice}
-            type="number"
-            value={formData.price}
-            onChange={(e) => setFormData({ ...formData, price: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
-            required
-            min={0}
-            step="any"
-          />
+          <div>
+            <Input
+              label={ES.inventory.priceFriendly}
+              type="number"
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
+              required
+              min={0}
+              step="any"
+            />
+            <p className="text-xs text-gray-500 mt-1">{ES.inventory.priceFriendlyHint}</p>
+          </div>
+
+          {/* Más detalles — keep optional/advanced fields out of the way for
+              the common case. SKU and packageNote rarely matter on first add. */}
+          <details className="border border-gray-200 rounded-lg">
+            <summary className="px-3 py-2 text-sm font-medium text-gray-700 cursor-pointer select-none hover:bg-gray-50">
+              Más detalles (opcional)
+            </summary>
+            <div className="px-3 pb-3 pt-1 space-y-3">
+              <div>
+                <Input
+                  label={ES.inventory.skuLabelFriendly}
+                  value={formData.sku}
+                  onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                  maxLength={20}
+                />
+                <p className="text-xs text-gray-500 mt-1">{ES.inventory.skuHint}</p>
+              </div>
+              {formData.type !== 'service_cost' && (
+                <div>
+                  <Input
+                    label={ES.inventory.packageNote}
+                    value={formData.packageNote}
+                    onChange={(e) => setFormData({ ...formData, packageNote: e.target.value })}
+                    placeholder={ES.inventory.packageNotePlaceholder}
+                    maxLength={120}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">{ES.inventory.packageNoteHelp}</p>
+                </div>
+              )}
+            </div>
+          </details>
+
           <div className="flex gap-2">
             <Button variant="secondary" onClick={closeModal}>
               {ES.actions.cancel}
@@ -670,6 +836,41 @@ export default function InventoryPage() {
             </Button>
             <Button variant="danger" onClick={() => confirmDeleteId && handleDeleteProduct(confirmDeleteId)}>
               Eliminar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* QoL: plantillas (templates) — first-time admin picks a card and the
+          create modal opens with sensible defaults so they only edit name +
+          cost. Closes on pick (handled by pickTemplate). */}
+      <Modal
+        isOpen={templatesOpen}
+        onClose={() => setTemplatesOpen(false)}
+        title={ES.inventory.templatesTitle}
+        size="lg"
+      >
+        <div className="space-y-4 pb-16 sm:pb-0">
+          <p className="text-sm text-gray-600">{ES.inventory.templatesHint}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {inventoryTemplates.map((tpl) => (
+              <button
+                key={tpl.id}
+                type="button"
+                onClick={() => pickTemplate(tpl.id)}
+                className="text-left p-3 rounded-lg border-2 border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors min-h-[72px] flex items-start gap-3"
+              >
+                <div className="text-3xl shrink-0">{tpl.emoji}</div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">{tpl.title}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 leading-snug">{tpl.hint}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="flex justify-end pt-2">
+            <Button variant="secondary" onClick={() => setTemplatesOpen(false)}>
+              {ES.actions.cancel}
             </Button>
           </div>
         </div>
