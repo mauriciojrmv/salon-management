@@ -16,9 +16,12 @@ import { useNotification } from '@/hooks/useNotification';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { SessionRepository } from '@/lib/repositories/sessionRepository';
 import { RetailSaleRepository } from '@/lib/repositories/retailSaleRepository';
+import { StaffRepository } from '@/lib/repositories/staffRepository';
+import { InventoryWithdrawalRepository } from '@/lib/repositories/inventoryWithdrawalRepository';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import { deleteField } from 'firebase/firestore';
 import { Product, ProductCategory } from '@/types/models';
-import { fmtBs, unitLabel } from '@/lib/utils/helpers';
+import { fmtBs, unitLabel, getBoliviaDate } from '@/lib/utils/helpers';
 import { findSimilarByName } from '@/lib/utils/fuzzy';
 import ES from '@/config/text.es';
 
@@ -81,10 +84,28 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmCreateAnyway, setConfirmCreateAnyway] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [withdrawForm, setWithdrawForm] = useState({ productId: '', quantity: 1, takenBy: '', note: '' });
+  const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
 
   const { data: productsData, refetch, loading: productsLoading } = useAsync(async () => {
     if (!userData?.salonId) return [];
     return ProductRepository.getSalonProducts(userData.salonId);
+  }, [userData?.salonId]);
+
+  const { data: staffList } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    return StaffRepository.getSalonStaff(userData.salonId);
+  }, [userData?.salonId]);
+
+  const { data: recentWithdrawals, refetch: refetchWithdrawals } = useAsync(async () => {
+    if (!userData?.salonId) return [];
+    const fromDate = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      return d.toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+    })();
+    return InventoryWithdrawalRepository.getRecentWithdrawals(userData.salonId, fromDate);
   }, [userData?.salonId]);
 
   const products = productsData || [];
@@ -132,6 +153,58 @@ export default function InventoryPage() {
   const resetForm = () => {
     setFormData({ ...initialFormData });
     setEditingProduct(null);
+  };
+
+  const openWithdrawModal = () => {
+    setWithdrawForm({ productId: '', quantity: 1, takenBy: '', note: '' });
+    setWithdrawOpen(true);
+  };
+
+  const handleWithdraw = async () => {
+    if (!userData?.salonId || !userData?.id) return;
+    if (!withdrawForm.productId) {
+      error(ES.inventory.withdrawSelectProduct);
+      return;
+    }
+    const product = products.find((p) => p.id === withdrawForm.productId);
+    if (!product) return;
+    const qty = Number(withdrawForm.quantity) || 0;
+    if (qty <= 0) {
+      error(ES.messages.fillRequiredFields);
+      return;
+    }
+    const isServiceCost = product.type === 'service_cost';
+    if (!isServiceCost && qty > product.currentStock) {
+      error(ES.inventory.withdrawNoStock);
+      return;
+    }
+    setWithdrawSubmitting(true);
+    try {
+      const staffMatch = staffList?.find((s) => s.id === withdrawForm.takenBy);
+      await InventoryWithdrawalRepository.create({
+        salonId: userData.salonId,
+        productId: product.id,
+        productName: product.name,
+        quantity: qty,
+        unit: product.unit || (isServiceCost ? 'uso' : 'ud'),
+        cost: product.cost * qty,
+        ...(staffMatch ? { takenBy: staffMatch.id, takenByName: `${staffMatch.firstName} ${staffMatch.lastName}` } : {}),
+        ...(withdrawForm.note ? { note: withdrawForm.note } : {}),
+        createdBy: userData.id,
+      });
+      // Service-cost products have no real stock so we skip the decrement.
+      if (!isServiceCost) {
+        await ProductRepository.updateStock(product.id, qty);
+      }
+      success(ES.inventory.withdrawSuccess);
+      setWithdrawOpen(false);
+      refetch();
+      refetchWithdrawals();
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setWithdrawSubmitting(false);
+    }
   };
 
   const openCreateModal = () => {
@@ -299,11 +372,16 @@ export default function InventoryPage() {
   return (
     <div className="space-y-6 p-6">
       <Toast notifications={notifications} onDismiss={removeNotification} />
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-3xl font-bold text-gray-900">{ES.inventory.title}</h1>
-        <Button onClick={openCreateModal} size="lg">
-          {ES.inventory.add}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={openWithdrawModal} size="lg">
+            {ES.inventory.withdraw}
+          </Button>
+          <Button onClick={openCreateModal} size="lg">
+            {ES.inventory.add}
+          </Button>
+        </div>
       </div>
 
       {/* Low Stock Alert — each row opens the edit modal for that product */}
@@ -483,25 +561,28 @@ export default function InventoryPage() {
                 label={ES.inventory.currentStock}
                 type="number"
                 value={formData.currentStock}
-                onChange={(e) => setFormData({ ...formData, currentStock: parseFloat(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, currentStock: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                 required
                 min={0}
+                step="any"
               />
               <Input
                 label={ES.inventory.minStock}
                 type="number"
                 value={formData.minStock}
-                onChange={(e) => setFormData({ ...formData, minStock: parseFloat(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, minStock: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                 required
                 min={0}
+                step="any"
               />
               <Input
                 label={ES.inventory.maxStock}
                 type="number"
                 value={formData.maxStock}
-                onChange={(e) => setFormData({ ...formData, maxStock: parseFloat(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, maxStock: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
                 required
                 min={0}
+                step="any"
               />
             </>
           )}
@@ -515,9 +596,10 @@ export default function InventoryPage() {
               label={formData.type === 'service_cost' ? ES.inventory.costPerUse : ES.inventory.costPerUnit}
               type="number"
               value={formData.cost}
-              onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) })}
+              onChange={(e) => setFormData({ ...formData, cost: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
               required
               min={0}
+              step="any"
             />
             {formData.type === 'service_cost' && (
               <p className="text-xs text-gray-500 mt-1">{ES.inventory.costPerUseHint}</p>
@@ -527,9 +609,10 @@ export default function InventoryPage() {
             label={ES.inventory.sellingPrice}
             type="number"
             value={formData.price}
-            onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+            onChange={(e) => setFormData({ ...formData, price: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
             required
             min={0}
+            step="any"
           />
           <div className="flex gap-2">
             <Button variant="secondary" onClick={closeModal}>
@@ -589,6 +672,107 @@ export default function InventoryPage() {
               Eliminar
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Out-of-session inventory withdrawal */}
+      <Modal
+        isOpen={withdrawOpen}
+        onClose={() => setWithdrawOpen(false)}
+        title={ES.inventory.withdrawTitle}
+      >
+        <div className="space-y-4 pb-16 sm:pb-0">
+          <p className="text-xs text-gray-600">{ES.inventory.withdrawSubtitle}</p>
+          <SearchableSelect
+            label={ES.inventory.withdrawProduct}
+            options={products.map((p) => ({
+              value: p.id,
+              label: p.name,
+              secondary: p.type === 'service_cost'
+                ? `${fmtBs(p.cost)} / uso`
+                : `${p.currentStock} ${unitLabel(p.unit)} · ${fmtBs(p.cost)}`,
+            }))}
+            value={withdrawForm.productId}
+            onChange={(v) => setWithdrawForm({ ...withdrawForm, productId: v })}
+            placeholder={ES.actions.search}
+            required
+          />
+          {(() => {
+            const p = products.find((x) => x.id === withdrawForm.productId);
+            if (!p) return null;
+            const totalCost = p.cost * (Number(withdrawForm.quantity) || 0);
+            return (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm space-y-1">
+                <p className="text-gray-700">
+                  {p.type === 'service_cost'
+                    ? <>Sin stock fijo · {fmtBs(p.cost)} / uso</>
+                    : <>Stock actual: <span className="font-semibold">{p.currentStock} {unitLabel(p.unit)}</span></>}
+                </p>
+                <p className="text-gray-700">Costo total: <span className="font-semibold">{fmtBs(totalCost)}</span></p>
+              </div>
+            );
+          })()}
+          <Input
+            label={`${ES.inventory.withdrawQuantity}${(() => {
+              const p = products.find((x) => x.id === withdrawForm.productId);
+              return p ? ` (${unitLabel(p.unit) || 'uso'})` : '';
+            })()}`}
+            type="number"
+            value={withdrawForm.quantity}
+            onChange={(e) => setWithdrawForm({ ...withdrawForm, quantity: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
+            required
+            min={0}
+            step="any"
+          />
+          <SearchableSelect
+            label={ES.inventory.withdrawTakenBy}
+            options={[
+              { value: '', label: ES.inventory.withdrawNoStaff },
+              ...((staffList || []).map((s) => ({ value: s.id, label: `${s.firstName} ${s.lastName}` }))),
+            ]}
+            value={withdrawForm.takenBy}
+            onChange={(v) => setWithdrawForm({ ...withdrawForm, takenBy: v })}
+            placeholder={ES.actions.search}
+          />
+          <Input
+            label={ES.inventory.withdrawNote}
+            value={withdrawForm.note}
+            onChange={(e) => setWithdrawForm({ ...withdrawForm, note: e.target.value })}
+            placeholder={ES.inventory.withdrawNotePlaceholder}
+          />
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" className="flex-1 py-3" onClick={() => setWithdrawOpen(false)}>
+              {ES.actions.cancel}
+            </Button>
+            <Button className="flex-1 py-3" onClick={handleWithdraw} loading={withdrawSubmitting}>
+              {ES.inventory.withdrawSubmit}
+            </Button>
+          </div>
+
+          {recentWithdrawals && recentWithdrawals.length > 0 && (
+            <div className="pt-4 border-t border-gray-200">
+              <p className="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">{ES.inventory.withdrawHistoryTitle}</p>
+              <ul className="space-y-1.5 max-h-48 overflow-y-auto">
+                {recentWithdrawals.slice(0, 10).map((w) => {
+                  const ts = w.createdAt instanceof Date ? w.createdAt : new Date(w.createdAt as unknown as string);
+                  const dateLabel = ts.toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', timeZone: 'America/La_Paz' });
+                  return (
+                    <li key={w.id} className="text-xs flex items-start justify-between gap-2 py-1">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-gray-900 truncate">
+                          <span className="font-medium">{w.productName}</span> · {w.quantity} {unitLabel(w.unit)}
+                        </p>
+                        <p className="text-gray-500 truncate">
+                          {dateLabel}{w.takenByName ? ` · ${w.takenByName}` : ''}{w.note ? ` · ${w.note}` : ''}
+                        </p>
+                      </div>
+                      <span className="text-gray-700 shrink-0">{fmtBs(w.cost)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
         </div>
       </Modal>
     </div>

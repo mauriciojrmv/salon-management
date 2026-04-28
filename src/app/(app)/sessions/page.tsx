@@ -667,7 +667,7 @@ export default function SessionsPage() {
     }
   };
 
-  const handleQuickCreateClient = async () => {
+  const handleQuickCreateClient = async (target: 'session' | 'assign' = 'session') => {
     if (!quickClient.firstName || !userData?.salonId) {
       error(ES.messages.fillRequiredFields);
       return;
@@ -682,7 +682,11 @@ export default function SessionsPage() {
       success(ES.clients.clientCreated);
       setQuickClient({ firstName: '', lastName: '', phone: '' });
       setIsQuickClientOpen(false);
-      setClientId(newClientId);
+      if (target === 'assign') {
+        setAssignClientSelection(newClientId);
+      } else {
+        setClientId(newClientId);
+      }
       refetchClients();
     } catch (err) {
       const msg = err instanceof Error && err.message === 'PHONE_EXISTS'
@@ -955,6 +959,7 @@ export default function SessionsPage() {
               }}
               onRemoveRetailItem={(itemId) => handleRemoveRetailItem(session.id, itemId)}
               canCancel={canCancel}
+              canAssignClient={canEditCompleted}
               loading={(loading && activeSessionId === session.id) || loadingSessionId === session.id}
             />
           ))}
@@ -1206,33 +1211,73 @@ export default function SessionsPage() {
       {/* Assign Client Modal — walk-in → registered client */}
       <Modal
         isOpen={!!assignClientSessionId}
-        onClose={() => { setAssignClientSessionId(null); setAssignClientSelection(''); }}
+        onClose={() => { setAssignClientSessionId(null); setAssignClientSelection(''); setIsQuickClientOpen(false); }}
         title={ES.sessions.assignClientTitle}
       >
-        <div className="space-y-4">
-          <SearchableSelect
-            label={ES.sessions.selectClient}
-            options={(clients || []).map((c) => ({
-              value: c.id,
-              label: `${c.firstName} ${c.lastName}`,
-              secondary: c.phone,
-            }))}
-            value={assignClientSelection}
-            onChange={setAssignClientSelection}
-            placeholder={ES.actions.search}
-            required
-          />
-          <p className="text-xs text-gray-500">
-            {ES.sessions.assignClient} — {ES.clients.addQuick.toLowerCase()} desde la página de Clientes.
-          </p>
-          <div className="flex gap-2 pt-2">
-            <Button variant="secondary" className="flex-1 py-3 min-h-[44px]" onClick={() => { setAssignClientSessionId(null); setAssignClientSelection(''); }}>
-              {ES.actions.cancel}
-            </Button>
-            <Button className="flex-1 py-3 min-h-[44px]" onClick={handleAssignClient} loading={loading}>
-              {ES.actions.save}
-            </Button>
-          </div>
+        <div className="space-y-4 pb-16 sm:pb-0">
+          {!isQuickClientOpen ? (
+            <>
+              <SearchableSelect
+                label={ES.sessions.selectClient}
+                options={(clients || []).map((c) => ({
+                  value: c.id,
+                  label: `${c.firstName} ${c.lastName}`,
+                  secondary: c.phone,
+                }))}
+                value={assignClientSelection}
+                onChange={setAssignClientSelection}
+                placeholder={ES.actions.search}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => { setIsQuickClientOpen(true); setQuickClient({ firstName: '', lastName: '', phone: '' }); }}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
+                {ES.clients.addQuick}
+              </button>
+              <div className="flex gap-2 pt-2">
+                <Button variant="secondary" className="flex-1 py-3 min-h-[44px]" onClick={() => { setAssignClientSessionId(null); setAssignClientSelection(''); }}>
+                  {ES.actions.cancel}
+                </Button>
+                <Button className="flex-1 py-3 min-h-[44px]" onClick={handleAssignClient} loading={loading}>
+                  {ES.actions.save}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-gray-700">{ES.clients.quickAddTitle}</p>
+              <Input
+                label={ES.clients.name}
+                value={quickClient.firstName}
+                onChange={(e) => setQuickClient({ ...quickClient, firstName: e.target.value })}
+                required
+                maxLength={30}
+              />
+              <Input
+                label={ES.clients.lastName}
+                value={quickClient.lastName}
+                onChange={(e) => setQuickClient({ ...quickClient, lastName: e.target.value })}
+                maxLength={30}
+              />
+              <Input
+                label={ES.clients.phoneOptional}
+                type="tel"
+                value={quickClient.phone}
+                onChange={(e) => setQuickClient({ ...quickClient, phone: e.target.value })}
+                maxLength={10}
+              />
+              <div className="flex gap-2 pt-2">
+                <Button variant="secondary" className="flex-1 py-3 min-h-[44px]" onClick={() => setIsQuickClientOpen(false)}>
+                  {ES.actions.back}
+                </Button>
+                <Button className="flex-1 py-3 min-h-[44px]" onClick={() => handleQuickCreateClient('assign')} loading={loading}>
+                  {ES.actions.save}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 
@@ -1292,7 +1337,7 @@ export default function SessionsPage() {
                 <Button variant="secondary" onClick={() => setIsQuickClientOpen(false)}>
                   {ES.actions.back}
                 </Button>
-                <Button onClick={handleQuickCreateClient} loading={loading}>
+                <Button onClick={() => handleQuickCreateClient('session')} loading={loading}>
                   {ES.actions.save}
                 </Button>
               </div>

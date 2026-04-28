@@ -177,30 +177,15 @@ export default function MyAppointmentsPage() {
     if (!userData?.salonId) return;
     setStartingId(apt.id);
     try {
-      const sessionId = await SessionService.createSession({
-        clientId: apt.clientId,
-        date: getBoliviaDate(),
-        startTime: new Date(),
-        salonId: userData.salonId,
-      });
-      for (const serviceId of (apt.serviceIds || [])) {
-        const svc = salonServices?.find((s) => s.id === serviceId);
-        if (svc) {
-          await SessionService.addServiceToSession({
-            sessionId,
-            serviceId: svc.id,
-            serviceName: svc.name,
-            price: svc.price,
-            staffIds: apt.staffId ? [apt.staffId] : [],
-            materials: [],
-          });
-        }
-      }
+      await SessionService.createSessionFromAppointment(userData.salonId, apt, salonServices || []);
       await AppointmentService.updateAppointmentStatus(apt.id, 'completed');
       success(ES.sessions.sessionCreated);
       router.push('/my-work');
-    } catch {
-      showError(ES.messages.operationFailed);
+    } catch (err) {
+      const msg = err instanceof Error && err.message === 'APPOINTMENT_SERVICES_MISSING'
+        ? ES.appointments.convertServicesMissing
+        : ES.messages.operationFailed;
+      showError(msg);
     } finally {
       setStartingId(null);
     }

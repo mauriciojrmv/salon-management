@@ -82,25 +82,54 @@ export function SearchableSelect({
   const computeDropdownStyle = useCallback(() => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
+    // Use visualViewport when available so the keyboard is treated as taking
+    // away usable height — otherwise the dropdown can render under the keyboard.
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    const viewportTop = vv?.offsetTop ?? 0;
+    const viewportHeight = vv?.height ?? window.innerHeight;
+    const viewportBottom = viewportTop + viewportHeight;
+    const spaceBelow = viewportBottom - rect.bottom;
+    const spaceAbove = rect.top - viewportTop;
     const openUpward = spaceBelow < 280 && spaceAbove > spaceBelow;
+    const usable = openUpward ? spaceAbove : spaceBelow;
+    const maxHeight = Math.max(160, Math.min(usable - 16, 480));
     setDropdownStyle({
       position: 'fixed',
       left: rect.left,
       width: rect.width,
       zIndex: 9999,
+      maxHeight,
       ...(openUpward
         ? { bottom: window.innerHeight - rect.top + 4, top: 'auto' }
         : { top: rect.bottom + 4 }),
     });
   }, []);
 
+  // Reposition the dropdown when the keyboard opens/closes or the page scrolls
+  // — visualViewport.height shrinks when the on-screen keyboard appears.
+  useEffect(() => {
+    if (!isOpen) return;
+    const reposition = () => computeDropdownStyle();
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    vv?.addEventListener('resize', reposition);
+    vv?.addEventListener('scroll', reposition);
+    window.addEventListener('resize', reposition);
+    return () => {
+      vv?.removeEventListener('resize', reposition);
+      vv?.removeEventListener('scroll', reposition);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [isOpen, computeDropdownStyle]);
+
   const handleOpen = () => {
     if (disabled) return;
     computeDropdownStyle();
     setIsOpen(true);
-    setTimeout(() => inputRef.current?.focus(), 0);
+    setTimeout(() => {
+      inputRef.current?.focus();
+      // After the keyboard opens, recompute so the dropdown sits above it.
+      setTimeout(computeDropdownStyle, 320);
+    }, 0);
   };
 
   const renderOption = (option: SearchableOption) => (
@@ -145,9 +174,9 @@ export function SearchableSelect({
 
       {/* Dropdown — fixed positioned to escape modal overflow */}
       {isOpen && (
-        <div style={dropdownStyle} className="bg-white border border-gray-200 rounded-lg shadow-xl max-h-[40vh] sm:max-h-[50vh] overflow-hidden flex flex-col" onMouseDown={(e) => e.stopPropagation()}>
+        <div style={dropdownStyle} className="bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden flex flex-col" onMouseDown={(e) => e.stopPropagation()}>
             {/* Search input */}
-            <div className="p-2 border-b border-gray-100">
+            <div className="p-2 border-b border-gray-100 flex-shrink-0">
               <input
                 ref={inputRef}
                 type="text"
@@ -159,7 +188,7 @@ export function SearchableSelect({
             </div>
 
             {/* Options list */}
-            <div className="max-h-[50vh] overflow-y-auto">
+            <div className="overflow-y-auto flex-1">
               {filtered.length === 0 ? (
                 <div className="px-4 py-3 text-sm text-gray-500 text-center">
                   {ES.app.noResults}

@@ -24,7 +24,8 @@ interface SessionCardProps {
   onAddRetailProduct?: () => void;
   onRemoveRetailItem?: (itemId: string) => void;
   onAssignClient?: () => void;
-  canCancel?: boolean; // admin/manager only
+  canCancel?: boolean; // admin only — void/cancel sessions
+  canAssignClient?: boolean; // admin + manager — attach a client to a walk-in session
   loading?: boolean;
 }
 
@@ -53,6 +54,7 @@ export function SessionCard({
   onRemoveRetailItem,
   onAssignClient,
   canCancel = false,
+  canAssignClient = false,
   loading = false,
 }: SessionCardProps) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -85,7 +87,7 @@ export function SessionCard({
             <div>
               <div className="flex items-center gap-1.5">
                 <h3 className="font-semibold text-gray-900 text-lg">{clientName}</h3>
-                {canCancel && onAssignClient && !session.clientId && session.status !== 'cancelled' && (
+                {canAssignClient && onAssignClient && !session.clientId && session.status !== 'cancelled' && (
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onAssignClient(); }}

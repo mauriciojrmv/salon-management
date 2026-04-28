@@ -1,8 +1,9 @@
 import { SessionRepository } from '@/lib/repositories/sessionRepository';
 import { ProductRepository } from '@/lib/repositories/productRepository';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
+import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { LoyaltyRepository } from '@/lib/repositories/loyaltyRepository';
-import { Session, SessionServiceItem, MaterialUsage, Payment } from '@/types/models';
+import { Session, SessionServiceItem, MaterialUsage, Payment, Appointment, Service } from '@/types/models';
 import { AddServiceToSessionRequest, ProcessPaymentRequest, CreateSessionRequest } from '@/types/api';
 import { batchUpdate } from '@/lib/firebase/db';
 import { DEFAULT_COMMISSION_RATE, LOYALTY_POINTS_RATE, getBoliviaDate } from '@/lib/utils/helpers';
@@ -16,6 +17,69 @@ export class SessionService {
     const id = await SessionRepository.createSession(data);
     auditLog('SESSION_CREATED', { sessionId: id, clientId: data.clientId, salonId: data.salonId });
     return id;
+  }
+
+  // Atomic conversion: builds the SessionServiceItem array from the appointment
+  // and writes a single Firestore document with services already populated.
+  // Falls back to fetching the salon's services if any appointment serviceId is
+  // missing from the in-memory lookup — prevents the silent "started session has
+  // no work" bug when the page's service cache is stale or partial.
+  static async createSessionFromAppointment(
+    salonId: string,
+    appointment: Appointment,
+    servicesLookup?: Service[],
+  ): Promise<string> {
+    const serviceIds = appointment.serviceIds || [];
+    let pool: Service[] = servicesLookup || [];
+    const allFound = serviceIds.every((sid) => pool.some((s) => s.id === sid));
+    if (!allFound) {
+      pool = await ServiceRepository.getSalonServices(salonId);
+    }
+
+    const items: SessionServiceItem[] = [];
+    const missing: string[] = [];
+    for (const sid of serviceIds) {
+      const svc = pool.find((s) => s.id === sid);
+      if (!svc) {
+        missing.push(sid);
+        continue;
+      }
+      items.push({
+        id: `service_${Date.now()}_${items.length}`,
+        serviceId: svc.id,
+        serviceName: svc.name,
+        price: svc.price,
+        commissionRate: DEFAULT_COMMISSION_RATE,
+        assignedStaff: appointment.staffId ? [appointment.staffId] : [],
+        startTime: new Date(),
+        status: 'pending',
+        materialsUsed: [],
+      });
+    }
+
+    if (serviceIds.length > 0 && items.length === 0) {
+      throw new Error('APPOINTMENT_SERVICES_MISSING');
+    }
+
+    const totalAmount = items.reduce((sum, s) => sum + s.price, 0);
+    const sessionId = await SessionRepository.createSessionWithServices(
+      {
+        salonId,
+        clientId: appointment.clientId,
+        date: getBoliviaDate(),
+        startTime: new Date(),
+      },
+      items,
+      totalAmount,
+    );
+
+    auditLog('SESSION_CREATED_FROM_APPOINTMENT', {
+      sessionId,
+      appointmentId: appointment.id,
+      serviceCount: items.length,
+      missing,
+    });
+    return sessionId;
   }
 
   static async getSession(sessionId: string): Promise<Session | null> {

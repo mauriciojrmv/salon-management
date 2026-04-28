@@ -29,6 +29,8 @@ export default function AppointmentsPage() {
   const [isQuickClientOpen, setIsQuickClientOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getBoliviaDate());
   const [cancelApptId, setCancelApptId] = useState<string | null>(null);
+  const [cancelReasonKey, setCancelReasonKey] = useState<string>('');
+  const [cancelReasonOther, setCancelReasonOther] = useState<string>('');
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [formData, setFormData] = useState({
     clientId: '',
@@ -39,6 +41,13 @@ export default function AppointmentsPage() {
   });
   const [loading, setLoading] = useState(false);
   const [quickClient, setQuickClient] = useState({ firstName: '', lastName: '', phone: '' });
+  const [serviceSearch, setServiceSearch] = useState('');
+  // Re-render once a minute so "Próximas a recordar" stays current without a refresh.
+  const [, setMinuteTick] = useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setMinuteTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Real-time appointments — syncs across admin/gerente/worker instantly
   const appointmentConstraints = React.useMemo(() => [
@@ -240,19 +249,50 @@ export default function AppointmentsPage() {
     }
   };
 
+  const adminReasonLabel = (key: string): string => {
+    switch (key) {
+      case 'client_request': return ES.appointments.adminReasonClientRequest;
+      case 'reschedule': return ES.appointments.adminReasonReschedule;
+      case 'staff_unavailable': return ES.appointments.adminReasonStaffUnavailable;
+      case 'no_show': return ES.appointments.adminReasonNoShow;
+      case 'other': return cancelReasonOther.trim() || ES.appointments.adminReasonOther;
+      default: return '';
+    }
+  };
+
   const handleCancelAppointment = async (appointmentId: string) => {
+    if (!cancelReasonKey) {
+      error(ES.appointments.adminCancelSubtitle);
+      return;
+    }
+    if (cancelReasonKey === 'other' && !cancelReasonOther.trim()) {
+      error(ES.appointments.otherReasonPlaceholder);
+      return;
+    }
     try {
       const apt = appointments?.find((a) => a.id === appointmentId);
-      await AppointmentService.updateAppointmentStatus(appointmentId, 'cancelled');
+      const reasonLabel = adminReasonLabel(cancelReasonKey);
+      await AppointmentService.cancelAppointment(appointmentId, reasonLabel);
       success(ES.appointments.cancelled);
       setCancelApptId(null);
-      // Open WhatsApp cancellation notification to CLIENT only (staff sees it in-app)
+      setCancelReasonKey('');
+      setCancelReasonOther('');
       if (apt) {
-        const client = clients?.find((c) => c.id === apt.clientId);
         const dateLabel = `${fmtDate(apt.appointmentDate)} ${apt.startTime}`;
+        // Notify client
+        const client = clients?.find((c) => c.id === apt.clientId);
         if (client?.phone) {
-          const msg = `Hola ${client.firstName}, su reserva del ${dateLabel} ha sido cancelada. Disculpe los inconvenientes; contáctenos para reagendar.`;
+          const msg = cancelReasonKey === 'reschedule'
+            ? `Hola ${client.firstName}, necesitamos reagendar su cita del ${dateLabel}. ¿Qué horario le conviene?`
+            : `Hola ${client.firstName}, su reserva del ${dateLabel} ha sido cancelada${reasonLabel ? ` (${reasonLabel})` : ''}. Disculpe los inconvenientes; contáctenos para reagendar.`;
           window.open(whatsappUrl(client.phone, msg), '_blank');
+        }
+        // Notify worker (separate WA window — admin sends both)
+        const staff = staffList?.find((s) => s.id === apt.staffId);
+        if (staff?.phone) {
+          const clientName = client ? `${client.firstName} ${client.lastName}` : 'el cliente';
+          const wmsg = `Hola ${staff.firstName}, la cita con ${clientName} del ${dateLabel} fue cancelada${reasonLabel ? ` (${reasonLabel})` : ''}.`;
+          window.open(whatsappUrl(staff.phone, wmsg), '_blank');
         }
       }
     } catch (err) {
@@ -260,38 +300,44 @@ export default function AppointmentsPage() {
     }
   };
 
+  // Open WhatsApp to the assigned worker's personal phone with a confirmation
+  // request or a reminder. Admin-initiated only — workers never WA the salon
+  // outbound on their own. Falls back to a toast when staff has no phone.
+  const handleNotifyWorker = (item: Appointment, mode: 'ask_confirm' | 'reminder' | 'cancelled') => {
+    const staff = staffList?.find((s) => s.id === item.staffId);
+    if (!staff?.phone) {
+      error(ES.appointments.notifyStaffNoPhone);
+      return;
+    }
+    const client = clients?.find((c) => c.id === item.clientId);
+    const clientName = client ? `${client.firstName} ${client.lastName}` : 'el cliente';
+    const dateLabel = `${fmtDate(item.appointmentDate)} ${item.startTime}`;
+    let msg = '';
+    if (mode === 'ask_confirm') {
+      msg = `Hola ${staff.firstName}, te asigné una cita con ${clientName} el ${dateLabel}. Por favor confirmala desde la app (Mis Citas).`;
+    } else if (mode === 'reminder') {
+      msg = `Hola ${staff.firstName}, te recuerdo tu cita con ${clientName} el ${dateLabel}.`;
+    } else {
+      msg = `Hola ${staff.firstName}, la cita con ${clientName} del ${dateLabel} fue cancelada.`;
+    }
+    window.open(whatsappUrl(staff.phone, msg), '_blank');
+  };
+
   const handleConvertToWork = async (appointment: Appointment) => {
     if (!userData?.salonId) return;
     setLoading(true);
     try {
-      const today = getBoliviaDate();
-      const sessionId = await SessionService.createSession({
-        clientId: appointment.clientId,
-        date: today,
-        startTime: new Date(),
-        salonId: userData.salonId,
-      });
-
-      // Add each service from the appointment to the new session
-      for (const serviceId of (appointment.serviceIds || [])) {
-        const svc = services?.find((s) => s.id === serviceId);
-        if (svc) {
-          await SessionService.addServiceToSession({
-            sessionId,
-            serviceId: svc.id,
-            serviceName: svc.name,
-            price: svc.price,
-            staffIds: appointment.staffId ? [appointment.staffId] : [],
-            materials: [],
-          });
-        }
-      }
-
-      // Mark appointment as completed
+      // Atomic: builds services array up front, writes one Firestore doc, and
+      // refetches the salon services list if the in-page cache is stale. Only
+      // marks the appointment completed if the session truly contains the work.
+      await SessionService.createSessionFromAppointment(userData.salonId, appointment, services || []);
       await AppointmentService.updateAppointmentStatus(appointment.id, 'completed');
       success(ES.appointments.converted);
     } catch (err) {
-      error(err instanceof Error ? err.message : ES.appointments.convertFailed);
+      const msg = err instanceof Error && err.message === 'APPOINTMENT_SERVICES_MISSING'
+        ? ES.appointments.convertServicesMissing
+        : err instanceof Error ? err.message : ES.appointments.convertFailed;
+      error(msg);
     } finally {
       setLoading(false);
     }
@@ -384,8 +430,18 @@ export default function AppointmentsPage() {
             ) : null;
           })()}
           {item.status === 'pending' && (
-            <Button size="sm" onClick={() => handleConfirmAppointment(value as string)}>
+            <Button size="sm" variant="success" onClick={() => handleConfirmAppointment(value as string)}>
               {ES.appointments.confirm}
+            </Button>
+          )}
+          {item.status === 'pending' && item.staffId && (
+            <Button size="sm" variant="secondary" onClick={() => handleNotifyWorker(item, 'ask_confirm')}>
+              {ES.appointments.askWorkerConfirm}
+            </Button>
+          )}
+          {item.status === 'confirmed' && item.staffId && (
+            <Button size="sm" variant="secondary" onClick={() => handleNotifyWorker(item, 'reminder')}>
+              {ES.appointments.notifyStaffWA}
             </Button>
           )}
           {(item.status === 'confirmed' || item.status === 'pending') && (
@@ -399,7 +455,7 @@ export default function AppointmentsPage() {
             </Button>
           )}
           {(item.status === 'pending' || item.status === 'confirmed') && (
-            <Button size="sm" variant="danger" onClick={() => setCancelApptId(value as string)}>
+            <Button size="sm" variant="danger" onClick={() => { setCancelApptId(value as string); setCancelReasonKey(''); setCancelReasonOther(''); }}>
               {ES.actions.cancel}
             </Button>
           )}
@@ -466,6 +522,74 @@ export default function AppointmentsPage() {
         </CardBody>
       </Card>
 
+      {/* Próximas a recordar — admin nudge to send 2h reminders */}
+      {(() => {
+        const today = getBoliviaDate();
+        if (selectedDate !== today) return null;
+        const now = new Date();
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+        const remind = (appointments || []).filter((a) => {
+          if (a.status !== 'pending' && a.status !== 'confirmed') return false;
+          const [h, m] = a.startTime.split(':').map(Number);
+          const startMin = h * 60 + m;
+          const delta = startMin - nowMin;
+          return delta >= 60 && delta <= 180;
+        });
+        if (remind.length === 0) return null;
+        return (
+          <Card className="bg-amber-50 border border-amber-200">
+            <CardBody>
+              <div className="mb-3">
+                <p className="text-sm font-semibold text-amber-900">
+                  ⏰ {ES.appointments.upcomingRemindersTitle}
+                </p>
+                <p className="text-xs text-amber-700 mt-0.5">{ES.appointments.upcomingRemindersHint}</p>
+              </div>
+              <div className="space-y-2">
+                {remind.map((apt) => {
+                  const client = clients?.find((c) => c.id === apt.clientId);
+                  const cName = client ? `${client.firstName} ${client.lastName}` : '-';
+                  const staff = staffList?.find((s) => s.id === apt.staffId);
+                  const sName = staff ? `${staff.firstName} ${staff.lastName}` : '-';
+                  return (
+                    <div key={apt.id} className="bg-white rounded-lg border border-amber-200 p-3 flex items-center justify-between gap-3 flex-wrap">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{cName} · {apt.startTime}</p>
+                        <p className="text-xs text-gray-500 truncate">{sName}{client?.phone ? '' : ` · ${ES.appointments.upcomingClientNoPhone}`}</p>
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        {client?.phone && (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() => {
+                              const svcNames = apt.serviceIds?.map((id) => services?.find((s) => s.id === id)?.name).filter(Boolean).join(', ');
+                              const msg = `Hola ${client.firstName}, le recordamos su cita de hoy a las ${apt.startTime}${svcNames ? ` (${svcNames})` : ''}. ¡Le esperamos!`;
+                              window.open(whatsappUrl(client.phone!, msg), '_blank');
+                            }}
+                          >
+                            📲 {ES.appointments.notifyClientWA}
+                          </Button>
+                        )}
+                        {staff?.phone && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleNotifyWorker(apt, 'reminder')}
+                          >
+                            {ES.appointments.notifyStaffWA}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardBody>
+          </Card>
+        );
+      })()}
+
       {/* Appointments Table */}
       <Card>
         <CardHeader>
@@ -526,19 +650,41 @@ export default function AppointmentsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               {ES.appointments.selectServices}
             </label>
-            <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2">
-              {serviceOptions.map((opt) => (
-                <label key={opt.value} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.serviceIds.includes(opt.value)}
-                    onChange={(e) => toggleService(opt.value, e.target.checked)}
-                    className="rounded"
-                  />
-                  <span className="text-sm">{opt.label}</span>
-                  <span className="text-xs text-gray-500 ml-auto">{opt.secondary}</span>
-                </label>
-              ))}
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <div className="p-2 border-b border-gray-100">
+                <Input
+                  type="text"
+                  value={serviceSearch}
+                  onChange={(e) => setServiceSearch(e.target.value)}
+                  placeholder={ES.actions.search}
+                />
+              </div>
+              <div className="space-y-1 max-h-48 overflow-y-auto p-2">
+                {(() => {
+                  const q = serviceSearch.trim().toLowerCase();
+                  const filtered = q
+                    ? serviceOptions.filter((o) =>
+                        o.label.toLowerCase().includes(q) ||
+                        (o.secondary || '').toLowerCase().includes(q),
+                      )
+                    : serviceOptions;
+                  if (filtered.length === 0) {
+                    return <p className="text-xs text-gray-500 text-center py-3">{ES.app.noResults}</p>;
+                  }
+                  return filtered.map((opt) => (
+                    <label key={opt.value} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.serviceIds.includes(opt.value)}
+                        onChange={(e) => toggleService(opt.value, e.target.checked)}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{opt.label}</span>
+                      <span className="text-xs text-gray-500 ml-auto">{opt.secondary}</span>
+                    </label>
+                  ));
+                })()}
+              </div>
             </div>
           </div>
 
@@ -570,13 +716,55 @@ export default function AppointmentsPage() {
         </div>
       </Modal>
 
-      {/* Cancel Appointment Confirmation */}
-      <Modal isOpen={!!cancelApptId} onClose={() => setCancelApptId(null)} title={ES.appointments.cancelTitle} size="sm">
-        <div className="space-y-4">
-          <p className="text-gray-700">{ES.appointments.confirmCancel}</p>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setCancelApptId(null)} className="flex-1">{ES.actions.cancel}</Button>
-            <Button variant="danger" onClick={() => cancelApptId && handleCancelAppointment(cancelApptId)} className="flex-1">{ES.appointments.cancelTitle}</Button>
+      {/* Cancel Appointment — reason picker (mirrors worker decline flow) */}
+      <Modal
+        isOpen={!!cancelApptId}
+        onClose={() => { setCancelApptId(null); setCancelReasonKey(''); setCancelReasonOther(''); }}
+        title={ES.appointments.adminCancelTitle}
+      >
+        <div className="space-y-3 pb-16 sm:pb-0">
+          <p className="text-sm text-gray-600">{ES.appointments.adminCancelSubtitle}</p>
+          {[
+            { key: 'client_request', label: ES.appointments.adminReasonClientRequest, hint: ES.appointments.adminReasonClientRequestHint },
+            { key: 'reschedule', label: ES.appointments.adminReasonReschedule, hint: ES.appointments.adminReasonRescheduleHint },
+            { key: 'staff_unavailable', label: ES.appointments.adminReasonStaffUnavailable, hint: ES.appointments.adminReasonStaffUnavailableHint },
+            { key: 'no_show', label: ES.appointments.adminReasonNoShow, hint: ES.appointments.adminReasonNoShowHint },
+            { key: 'other', label: ES.appointments.adminReasonOther, hint: ES.appointments.adminReasonOtherHint },
+          ].map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setCancelReasonKey(opt.key)}
+              className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                cancelReasonKey === opt.key
+                  ? 'border-red-500 bg-red-50'
+                  : 'border-gray-200 hover:border-gray-300 bg-white'
+              }`}
+            >
+              <p className="text-sm font-semibold text-gray-900">{opt.label}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{opt.hint}</p>
+            </button>
+          ))}
+          {cancelReasonKey === 'other' && (
+            <Input
+              value={cancelReasonOther}
+              onChange={(e) => setCancelReasonOther(e.target.value)}
+              placeholder={ES.appointments.adminCancelOtherPlaceholder}
+              maxLength={140}
+            />
+          )}
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" className="flex-1" onClick={() => { setCancelApptId(null); setCancelReasonKey(''); setCancelReasonOther(''); }}>
+              {ES.actions.back}
+            </Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              disabled={!cancelReasonKey || (cancelReasonKey === 'other' && !cancelReasonOther.trim())}
+              onClick={() => cancelApptId && handleCancelAppointment(cancelApptId)}
+            >
+              {ES.appointments.adminCancelConfirm}
+            </Button>
           </div>
         </div>
       </Modal>

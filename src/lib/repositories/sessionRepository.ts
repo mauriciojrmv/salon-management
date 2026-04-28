@@ -1,5 +1,5 @@
 import { addDocument, updateDocument, getDocument, queryDocuments, firebaseConstraints } from '@/lib/firebase/db';
-import { Session } from '@/types/models';
+import { Session, SessionServiceItem } from '@/types/models';
 import { CreateSessionRequest } from '@/types/api';
 import { sortByCreatedAtDesc } from '@/lib/utils/helpers';
 
@@ -11,6 +11,22 @@ export class SessionRepository {
       payments: [],
       materialsUsed: [],
       totalAmount: 0,
+      tax: 0,
+      status: 'active',
+    });
+  }
+
+  static async createSessionWithServices(
+    data: CreateSessionRequest,
+    services: SessionServiceItem[],
+    totalAmount: number,
+  ): Promise<string> {
+    return await addDocument('sessions', {
+      ...data,
+      services,
+      payments: [],
+      materialsUsed: [],
+      totalAmount,
       tax: 0,
       status: 'active',
     });

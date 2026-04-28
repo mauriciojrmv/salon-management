@@ -317,6 +317,24 @@ export interface ProductUsageHistory {
   usedBy: string; // Staff ID
 }
 
+// Out-of-session inventory withdrawal — items handed to staff (blades, cotton,
+// etc.) that aren't tied to a specific service. Decrements stock and records
+// who took it for accountability + cost tracking.
+export interface InventoryWithdrawal {
+  id: string;
+  salonId: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unit: string;
+  cost: number; // Total buy cost at withdrawal time (product.cost * quantity)
+  takenBy?: string; // Staff ID receiving the item, optional
+  takenByName?: string; // Snapshot of staff display name
+  note?: string;
+  createdBy: string; // User ID who logged the withdrawal
+  createdAt: Date;
+}
+
 // Payment entity
 export interface Payment {
   id: string;

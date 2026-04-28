@@ -126,6 +126,13 @@ export default function MyWorkPage() {
 
   const router = useRouter();
 
+  // Re-render once a minute so time-based banners update without a refresh.
+  const [tick, setTick] = React.useState(0);
+  React.useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   // Appointments whose start time is within the next 30 min and not yet completed/cancelled
   const readyAppointments = React.useMemo(() => {
     const now = new Date();
@@ -136,7 +143,41 @@ export default function MyWorkPage() {
       const startMin = h * 60 + m;
       return startMin - nowMin <= 30; // within 30 min from now or already started
     });
-  }, [myTodayAppointments]);
+    // tick triggers recompute every minute
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myTodayAppointments, tick]);
+
+  // 2-hour reminder window: appointments starting in 90-150 min that the worker
+  // hasn't dismissed on this device yet. Dismissal persists in localStorage so
+  // closing the banner doesn't make it pop back on every minute tick or reload.
+  const [dismissedReminders, setDismissedReminders] = React.useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const raw = window.localStorage.getItem('apptReminderDismissed') || '[]';
+      return new Set(JSON.parse(raw) as string[]);
+    } catch { return new Set(); }
+  });
+  const dismissReminder = (aptId: string) => {
+    setDismissedReminders((prev) => {
+      const next = new Set(prev);
+      next.add(aptId);
+      try { window.localStorage.setItem('apptReminderDismissed', JSON.stringify(Array.from(next))); } catch { /* ignore */ }
+      return next;
+    });
+  };
+  const upcomingReminders = React.useMemo(() => {
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    return (myTodayAppointments || []).filter((a) => {
+      if (a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show') return false;
+      if (dismissedReminders.has(a.id)) return false;
+      const [h, m] = a.startTime.split(':').map(Number);
+      const startMin = h * 60 + m;
+      const delta = startMin - nowMin;
+      return delta >= 90 && delta <= 150;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myTodayAppointments, dismissedReminders, tick]);
 
   const getClientName = (id: string) => {
     if (!id) return ES.staff.walkInClient;
@@ -957,6 +998,37 @@ export default function MyWorkPage() {
             </div>
           </CardBody>
         </Card>
+      )}
+
+      {/* === 2-HOUR REMINDER BANNER === */}
+      {isToday && upcomingReminders.length > 0 && (
+        <div className="space-y-2">
+          {upcomingReminders.map((apt) => {
+            const client = clients?.find((c) => c.id === apt.clientId);
+            const cName = client ? `${client.firstName} ${client.lastName}` : 'Cliente';
+            return (
+              <Card key={`reminder-${apt.id}`} className="bg-amber-50 border border-amber-300">
+                <CardBody>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-amber-700 font-semibold uppercase tracking-wide">{ES.appointments.reminderBannerTitle}</p>
+                      <p className="text-sm font-semibold text-amber-900 truncate">{cName} · {apt.startTime}</p>
+                      <p className="text-xs text-amber-700 mt-0.5">{ES.appointments.reminderBannerHint}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => dismissReminder(apt.id)}
+                      className="shrink-0 text-xs"
+                    >
+                      {ES.appointments.reminderDismiss}
+                    </Button>
+                  </div>
+                </CardBody>
+              </Card>
+            );
+          })}
+        </div>
       )}
 
       {/* === READY-TO-START APPOINTMENT BANNER === */}
