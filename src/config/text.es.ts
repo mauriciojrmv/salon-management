@@ -385,6 +385,12 @@ export const ES = {
     releaseConfirm: '¿Liberar este servicio para que otro compañero lo tome?',
     released: 'Servicio liberado — otro compañero podrá tomarlo',
     releaseHint: 'Úsalo si no puedes hacer este servicio — quedará disponible para otros',
+    // Live commission preview on active service cards — recomputes whenever
+    // price or materials change so the worker sees her real earnings update.
+    commissionTitle: 'Tu comisión',
+    commissionPriceLabel: 'Precio del servicio',
+    commissionMaterialsLabel: '− Costo materiales',
+    commissionRateHint: (rate: number, net: string) => `${rate}% de ${net}`,
     // Skills config banner
     skillsNotConfigured: 'Configura tus servicios',
     skillsNotConfiguredHint: 'Pide al administrador que marque los servicios que haces en tu perfil. Por ahora ves todo.',

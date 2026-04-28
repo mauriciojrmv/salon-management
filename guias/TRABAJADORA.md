@@ -18,10 +18,12 @@ Léela despacio. Imprimila si te ayuda.
 | Ver tus citas del día y de la semana | Ver clientas de otras trabajadoras |
 | Aceptar o rechazar una cita | Cobrar al cliente |
 | Iniciar una atención cuando llega tu clienta | Cerrar la atención (eso lo hace la gerente) |
-| Marcar los materiales que usaste | Editar precios |
-| Marcar el servicio como completado | Cancelar / anular atenciones |
-| Ver tus ganancias del día / semana / mes | Ver el inventario completo |
-| Ver tu propia receta con cada clienta | Ver lo que ganan las demás |
+| Marcar los materiales que usaste | Cancelar / anular atenciones |
+| Editar el precio del servicio (si negociás con la clienta) | Ver el inventario completo |
+| Marcar el servicio como completado | Ver lo que ganan las demás |
+| **Ver en vivo cuánto vas a ganar** mientras editás precio y materiales | |
+| Ver tus ganancias del día / semana / mes | |
+| Ver tu propia receta con cada clienta | |
 
 ---
 
@@ -133,6 +135,34 @@ Tocar **Guardar**. Listo.
 
 > **Tip:** podés marcar materiales mientras vas trabajando, o todos juntos al final. Lo que te resulte más cómodo.
 
+### 💰 Mirar tu comisión mientras trabajás
+
+En tu servicio activo, abajo de los materiales aparece una caja verde **"Tu comisión"**. Es **el dinero que vas a ganar** después de descontar los materiales.
+
+Se actualiza al instante cuando:
+
+- **Cambiás el precio** del servicio (tocando el lápiz ✎ al lado del precio)
+- **Agregás o sacás materiales**
+- **Cambiás la cantidad** de un material
+
+Ejemplo:
+
+```
+💰 Tu comisión              50% de Bs. 162.00
+Bs. 81.00
+
+Precio del servicio              Bs. 200.00
+− Costo materiales               Bs. 38.00
+```
+
+#### ¿Cuándo me sirve esto?
+
+- **Cuando una clienta pide un descuento.** Tocás el lápiz ✎ del precio, ponés un precio menor, y ves al instante cuánto te quedaría a vos. Si te conviene, lo dejás. Si no, decile a la clienta el precio correcto.
+- **Cuando estás eligiendo qué materiales usar.** Si usás más de algo, ves cuánto baja tu comisión. Te ayuda a decidir si vale la pena.
+- **Antes de avisarle a la gerente que la clienta paga.** Vos ya sabés exactamente cuánto te toca a vos.
+
+> **Importante:** la comisión que ves acá es **estimada**. Es muy parecida a la real, pero la gerente puede ajustar después según el método de pago, descuentos especiales, etc. La cifra final aparece en **Mis Ganancias** una vez que la gerente cierra la atención.
+
 ### Cuando termines el servicio
 
 1. Tocar **Completar** (el ✓ verde).
@@ -191,8 +221,6 @@ Si necesitás saber qué le pusiste a una clienta la última vez y la app no te 
 ## 7. Cosas que NO debes tocar
 
 ❌ **No intentes cobrar al cliente.** Solo la gerente cobra.
-
-❌ **No edites el precio del servicio.** Si la clienta dice que se le prometió un precio diferente, decile a la gerente.
 
 ❌ **No cierres una atención por tu cuenta.** La gerente la cierra después de cobrar.
 
@@ -263,8 +291,10 @@ LO QUE HACÉS EN UN SERVICIO
 2. ▶ Empezar
 3. Materiales usados → buscar (mirá ⭐ Recientes primero)
 4. Marcar cantidades
-5. ✓ Completar
-6. Avisar a la gerente
+5. (opcional) Editar precio con ✎ si negociás con la clienta
+6. Mirar la caja verde 💰 Tu comisión — eso vas a ganar
+7. ✓ Completar
+8. Avisar a la gerente
 
 DUDAS COMUNES
 ─────────────
@@ -281,9 +311,8 @@ NO TOCAR
 ────────
 ✕ Cobrar al cliente
 ✕ Cerrar atenciones
-✕ Editar precios
-✕ Cancelar
-✕ Eliminar productos
+✕ Cancelar atenciones
+✕ Eliminar productos del inventario
 ```
 
 ---

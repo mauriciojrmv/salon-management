@@ -109,6 +109,15 @@ export default function MyWorkPage() {
     return ProductRepository.getSalonProducts(userData.salonId);
   }, [userData?.salonId]);
 
+  // Map productId → buy cost. Used by the live "Tu comisión" preview on each
+  // active service card so the worker sees her earnings update in real time as
+  // the price is edited or materials are adjusted.
+  const productCostMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    (products || []).forEach((p) => { map[p.id] = p.cost || 0; });
+    return map;
+  }, [products]);
+
   const { data: staffList } = useAsync(async () => {
     if (!userData?.salonId) return [];
     return StaffRepository.getSalonStaff(userData.salonId);
@@ -1168,6 +1177,45 @@ export default function MyWorkPage() {
                           ))}
                         </div>
                       )}
+
+                      {/* Live commission preview — recomputes every render so
+                          editing the price (✎ above) or changing materials
+                          updates this number immediately. Helps the worker
+                          quote a final price knowing her actual cut. */}
+                      {(() => {
+                        const materialCost = (service.materialsUsed || []).reduce(
+                          (s, m) => s + (productCostMap[m.productId] ?? 0) * m.quantity,
+                          0,
+                        );
+                        const rate = service.commissionRate || 50;
+                        const net = service.price - materialCost;
+                        const commission = Math.max(0, net * rate / 100);
+                        return (
+                          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                            <div className="flex items-baseline justify-between mb-1.5">
+                              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+                                💰 {ES.staff.commissionTitle}
+                              </p>
+                              <p className="text-xs text-emerald-600">
+                                {ES.staff.commissionRateHint(rate, fmtBs(Math.max(0, net)))}
+                              </p>
+                            </div>
+                            <p className="text-2xl font-bold text-emerald-900 mb-2">
+                              {fmtBs(commission)}
+                            </p>
+                            <div className="text-xs text-emerald-800 space-y-0.5">
+                              <div className="flex justify-between">
+                                <span>{ES.staff.commissionPriceLabel}</span>
+                                <span className="font-medium">{fmtBs(service.price)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>{ES.staff.commissionMaterialsLabel}</span>
+                                <span className="font-medium">{fmtBs(materialCost)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {isToday && (
                         <div className="flex gap-2 flex-wrap">
