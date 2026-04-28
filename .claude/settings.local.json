@@ -22,7 +22,15 @@
       "Read(//c/Users/MAURICIO/AppData/Local/nvm//**)",
       "Bash(export PATH=\"/c/nvm4w/nodejs:$PATH\")",
       "Bash(node node_modules/typescript/bin/tsc --noEmit)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\")",
+      "Bash(export PATH=\"/c/nvm4w/nodejs:/usr/bin:$PATH\")",
+      "Bash(export PATH=\"/mingw64/bin:/cmd:$PATH\")",
+      "Bash(\"/c/Program Files/Git/bin/git\" status)",
+      "Bash(export PATH=\"/c/Program Files/Git/bin:/c/nvm4w/nodejs:/usr/bin:$PATH\")",
+      "Bash(export PATH=\"/c/Program Files/Git/bin:$PATH\")",
+      "Bash(export PATH=\"/c/Program Files/Git/bin:/c/Program Files/Git/usr/bin:$PATH\")",
+      "Bash(awk 'END{print NR}' \"d:/projects/salon/src/app/\\(app\\)/sessions/page.tsx\")"
     ]
   }
 }

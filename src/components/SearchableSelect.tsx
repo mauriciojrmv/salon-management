@@ -19,6 +19,12 @@ interface SearchableSelectProps {
   required?: boolean;
   error?: string;
   disabled?: boolean;
+  // Optional list of option values to pin in a "Recientes" section above the
+  // grouped/filtered list. Helps 60+ users avoid typing — if the item they want
+  // is one they recently used, it's right at the top with one tap. Hidden when
+  // the user types into the search field (the search takes over).
+  pinnedValues?: string[];
+  pinnedLabel?: string;
 }
 
 export function SearchableSelect({
@@ -30,6 +36,8 @@ export function SearchableSelect({
   required,
   error,
   disabled,
+  pinnedValues,
+  pinnedLabel = 'Recientes',
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -193,19 +201,40 @@ export function SearchableSelect({
                 <div className="px-4 py-3 text-sm text-gray-500 text-center">
                   {ES.app.noResults}
                 </div>
-              ) : grouped ? (
-                Array.from(grouped.entries()).map(([groupName, groupOptions]) => (
-                  <div key={groupName}>
-                    {groupName && (
-                      <div className="px-4 py-1.5 text-xs font-semibold text-gray-500 bg-gray-50 uppercase tracking-wider sticky top-0">
-                        {groupName}
-                      </div>
-                    )}
-                    {groupOptions.map(renderOption)}
-                  </div>
-                ))
               ) : (
-                filtered.map(renderOption)
+                <>
+                  {/* Recientes — only shown when no search is active so it doesn't
+                      get in the way of users typing. Resolves option metadata
+                      from the full list so secondary/group still render. */}
+                  {!search && pinnedValues && pinnedValues.length > 0 && (() => {
+                    const pinned = pinnedValues
+                      .map((v) => options.find((o) => o.value === v))
+                      .filter((x): x is SearchableOption => Boolean(x));
+                    if (pinned.length === 0) return null;
+                    return (
+                      <div>
+                        <div className="px-4 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 uppercase tracking-wider sticky top-0">
+                          ⭐ {pinnedLabel}
+                        </div>
+                        {pinned.map(renderOption)}
+                      </div>
+                    );
+                  })()}
+                  {grouped ? (
+                    Array.from(grouped.entries()).map(([groupName, groupOptions]) => (
+                      <div key={groupName}>
+                        {groupName && (
+                          <div className="px-4 py-1.5 text-xs font-semibold text-gray-500 bg-gray-50 uppercase tracking-wider sticky top-0">
+                            {groupName}
+                          </div>
+                        )}
+                        {groupOptions.map(renderOption)}
+                      </div>
+                    ))
+                  ) : (
+                    filtered.map(renderOption)
+                  )}
+                </>
               )}
             </div>
         </div>

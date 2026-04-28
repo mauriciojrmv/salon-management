@@ -107,6 +107,18 @@ export interface Client extends User {
   creditBalance?: number; // Advance payment / saldo a favor
   loyaltyPoints?: number; // Points earned from services/purchases
   preferences?: ClientPreferences;
+  // Per-(staff, service) recipe memory — keyed as `${staffId}__${serviceId}`.
+  // Captures the materials the *primary* assigned staff used last time they
+  // performed this service for this client. Used to prefill the materials list
+  // on the next session so workers don't re-enter the same recipe every visit.
+  // Privacy by design: workers see only their own entries via page-level
+  // filtering (`key.startsWith(currentStaffId)`); admin/gerente sees all.
+  lastFormulasByStaff?: Record<string, ClientServiceFormula>;
+}
+
+export interface ClientServiceFormula {
+  materials: MaterialUsage[];
+  updatedAt: Date;
 }
 
 export interface ClientPreferences {

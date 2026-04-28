@@ -23,7 +23,8 @@ import { AppointmentService } from '@/lib/services/appointmentService';
 import { useRouter } from 'next/navigation';
 import type { Appointment } from '@/types/models';
 import { firebaseConstraints } from '@/lib/firebase/db';
-import type { Session, SessionServiceItem } from '@/types/models';
+import type { Session, SessionServiceItem, Client } from '@/types/models';
+import { productCategoryLabels, computeRecentProductIds } from '@/lib/utils/productLabels';
 import { toDate, fmtBs, fmtDate, getBoliviaDate, getBoliviaDateOffset } from '@/lib/utils/helpers';
 import { canDoService, canDoAny, hasConfiguredSkills } from '@/lib/utils/staffSkills';
 import { getClientBusyState, canTakeClient } from '@/lib/utils/clientBusy';
@@ -540,7 +541,17 @@ export default function MyWorkPage() {
     value: p.id,
     label: p.name,
     secondary: `${ES.sessions.materialSellPrice}: ${fmtBs(p.cost)}/${p.unit || 'ud'} · Stock: ${p.currentStock}`,
+    group: productCategoryLabels[p.category] || 'Otro',
   }));
+
+  // Per-staff "Recientes": top 6 products this worker used most recently across
+  // active+completed sessions. Privacy is automatic — only material rows whose
+  // primary assigned staff matches the current worker are counted, so other
+  // workers' recipes never appear here.
+  const recentProductIds = useMemo(() => {
+    if (!staffId) return [];
+    return computeRecentProductIds((sessions || []) as Session[], { staffFilter: staffId, limit: 6 });
+  }, [sessions, staffId]);
 
   const handleAddMaterialRow = () => {
     setMaterials([...materials, { productId: '', productName: '', quantity: 1, unit: '', pricePerUnit: 0, totalPrice: 0, maxStock: 0, imprecise: false, defaultUsage: 0, manualOverride: false }]);
@@ -630,7 +641,44 @@ export default function MyWorkPage() {
         manualOverride: !isImprecise || (defaultUsage ? (m.quantity % defaultUsage !== 0) : false),
       };
     });
-    setMaterials(existing);
+
+    // Prefill from per-(staff, client, service) memory when the service has no
+    // materials yet AND we have a clientId + assigned staff. Privacy: only the
+    // formulas keyed to the *primary* assigned staff are read — the worker
+    // sees only her own past recipes, never another worker's. Falls through to
+    // empty list when no memory exists (cold start).
+    let prefilled = existing;
+    if (existing.length === 0 && session.clientId && service.assignedStaff?.length) {
+      const client = clients?.find((c) => c.id === session.clientId);
+      const formulas = (client as Client | undefined)?.lastFormulasByStaff;
+      const primaryStaff = service.assignedStaff[0];
+      const key = `${primaryStaff}__${service.serviceId}`;
+      const formula = formulas?.[key];
+      if (formula?.materials?.length) {
+        prefilled = formula.materials
+          .map((m) => {
+            const product = products?.find((p) => p.id === m.productId);
+            if (!product) return null;
+            const isServiceCost = product.type === 'service_cost';
+            const max = isServiceCost ? Number.MAX_SAFE_INTEGER : product.currentStock;
+            return {
+              productId: product.id,
+              productName: product.name,
+              quantity: m.quantity,
+              unit: product.unit || (isServiceCost ? 'uso' : 'ud'),
+              pricePerUnit: product.cost,
+              totalPrice: product.cost * m.quantity,
+              maxStock: max,
+              imprecise: isServiceCost ? true : product.imprecise === true,
+              defaultUsage: isServiceCost ? 1 : (product.defaultUsage || 0),
+              manualOverride: false,
+            } as MaterialEntry;
+          })
+          .filter((x): x is MaterialEntry => x !== null);
+      }
+    }
+
+    setMaterials(prefilled);
     setMaterialModal({ sessionId: session.id, serviceId: service.id, serviceName: service.serviceName });
   };
 
@@ -1428,6 +1476,7 @@ export default function MyWorkPage() {
                         value={mat.productId}
                         onChange={(v) => handleMaterialProductSelect(idx, v)}
                         placeholder={ES.material.product}
+                        pinnedValues={recentProductIds.filter((id) => !usedIds.includes(id))}
                       />
                     </div>
                     <button type="button" onClick={() => handleRemoveMaterial(idx)} className="text-red-400 hover:text-red-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-red-50 shrink-0 mt-1">

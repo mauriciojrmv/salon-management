@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardBody } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
@@ -25,7 +25,8 @@ import { LoyaltyRepository } from '@/lib/repositories/loyaltyRepository';
 import type { LoyaltyReward } from '@/types/models';
 import { batchUpdate, firebaseConstraints } from '@/lib/firebase/db';
 import { fmtBs, unitLabel, toDate, getBoliviaDate } from '@/lib/utils/helpers';
-import type { Session, SessionRetailItem } from '@/types/models';
+import type { Session, SessionRetailItem, Client, ClientServiceFormula } from '@/types/models';
+import { productCategoryLabels, computeRecentProductIds } from '@/lib/utils/productLabels';
 import ES from '@/config/text.es';
 
 interface MaterialEntry {
@@ -207,7 +208,15 @@ export default function SessionsPage() {
     value: p.id,
     label: p.name,
     secondary: `${ES.sessions.materialSellPrice}: ${fmtBs(p.cost)}/${unitLabel(p.unit)} · Stock: ${p.currentStock}${p.currentStock <= p.minStock ? ' ⚠' : ''}`,
+    group: productCategoryLabels[p.category] || 'Otro',
   }));
+
+  // Salon-wide "Recientes": top 6 products used most recently across all
+  // sessions. Admin/gerente sees the full picture (no staff filter) so they
+  // can quickly hand off whichever product the worker asks for.
+  const recentProductIds = useMemo(() => {
+    return computeRecentProductIds((sessions || []) as Session[], { limit: 6 });
+  }, [sessions]);
 
   // Low-stock products for alert banner
   const lowStockProducts = (products || []).filter((p) => p.currentStock <= p.minStock);
@@ -232,6 +241,61 @@ export default function SessionsPage() {
       price: svc?.price || 0,
     });
   };
+
+  // Per-(staff, client, service) recipe memory: when both staff and service are
+  // chosen and the session has a clientId, prefill the materials list with what
+  // this staff member used last time on this client. Privacy by design — only
+  // the formulas keyed to the *assigned* staff are read; admin acting on behalf
+  // of a worker still gets that worker's history. Falls back to empty if no
+  // memory exists. Guarded so editing the form after prefill doesn't get
+  // clobbered on every keystroke.
+  const [hasPrefilledMaterials, setHasPrefilledMaterials] = useState(false);
+  useEffect(() => {
+    if (!isAddServiceModalOpen) return;
+    if (hasPrefilledMaterials) return;
+    if (!serviceForm.serviceId || !serviceForm.staffId || !activeSessionId) return;
+    const session = (sessions || []).find((s) => s.id === activeSessionId);
+    if (!session?.clientId) return;
+    const client = clients?.find((c) => c.id === session.clientId);
+    if (!client) return;
+    const formulas = (client as Client & { lastFormulasByStaff?: Record<string, ClientServiceFormula> }).lastFormulasByStaff;
+    if (!formulas) return;
+    const key = `${serviceForm.staffId}__${serviceForm.serviceId}`;
+    const formula = formulas[key];
+    if (!formula?.materials?.length) return;
+    // Reconstitute MaterialEntry from the stored MaterialUsage by looking up the
+    // current product info (stock, imprecise flag may have changed since the
+    // recipe was saved). Drop products that no longer exist.
+    const reconstituted = formula.materials
+      .map((m) => {
+        const product = products?.find((p) => p.id === m.productId);
+        if (!product) return null;
+        const isServiceCost = product.type === 'service_cost';
+        const max = isServiceCost ? Number.MAX_SAFE_INTEGER : product.currentStock;
+        return {
+          productId: product.id,
+          productName: product.name,
+          quantity: m.quantity,
+          unit: product.unit || (isServiceCost ? 'uso' : 'ud'),
+          pricePerUnit: product.cost,
+          totalPrice: product.cost * m.quantity,
+          maxStock: max,
+          imprecise: isServiceCost ? true : product.imprecise === true,
+          defaultUsage: isServiceCost ? 1 : (product.defaultUsage || 0),
+          manualOverride: false,
+        } as MaterialEntry;
+      })
+      .filter((x): x is MaterialEntry => x !== null);
+    if (reconstituted.length > 0) {
+      setMaterials(reconstituted);
+      setHasPrefilledMaterials(true);
+    }
+  }, [isAddServiceModalOpen, serviceForm.serviceId, serviceForm.staffId, activeSessionId, sessions, clients, products, hasPrefilledMaterials]);
+
+  // Reset the prefill guard when the modal closes so the next open prefills again.
+  useEffect(() => {
+    if (!isAddServiceModalOpen) setHasPrefilledMaterials(false);
+  }, [isAddServiceModalOpen]);
 
   // Material helpers
   const handleAddMaterialRow = () => {
@@ -1448,6 +1512,7 @@ export default function SessionsPage() {
                             value={mat.productId}
                             onChange={(v) => handleMaterialProductSelect(idx, v)}
                             placeholder={ES.material.product}
+                            pinnedValues={recentProductIds.filter((id) => !usedIds.includes(id))}
                           />
                         </div>
                         <button type="button" onClick={() => handleRemoveMaterial(idx)} className="text-red-400 hover:text-red-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-red-50 shrink-0 mt-1">
@@ -2110,7 +2175,12 @@ export default function SessionsPage() {
                 const usedIds = editMaterials.filter((_, i) => i !== idx).map((m) => m.productId).filter(Boolean);
                 const editProductOptions = (products || [])
                   .filter((p) => !usedIds.includes(p.id))
-                  .map((p) => ({ value: p.id, label: p.name, secondary: `${fmtBs(p.cost)} / ${p.unit || 'ud'}` }));
+                  .map((p) => ({
+                    value: p.id,
+                    label: p.name,
+                    secondary: `${fmtBs(p.cost)} / ${p.unit || 'ud'}`,
+                    group: productCategoryLabels[p.category] || 'Otro',
+                  }));
                 return (
                 <div key={idx} className="border border-gray-200 rounded-xl p-3 space-y-3">
                   <div className="flex items-start justify-between gap-2">
@@ -2145,6 +2215,7 @@ export default function SessionsPage() {
                           setEditMaterials(updated);
                         }}
                         placeholder={ES.material.product}
+                        pinnedValues={recentProductIds.filter((id) => !usedIds.includes(id))}
                       />
                     </div>
                     <button type="button" onClick={() => setEditMaterials(editMaterials.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-red-50 shrink-0 mt-1">

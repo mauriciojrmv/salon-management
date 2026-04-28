@@ -3,7 +3,7 @@ import { ProductRepository } from '@/lib/repositories/productRepository';
 import { ClientRepository } from '@/lib/repositories/clientRepository';
 import { ServiceRepository } from '@/lib/repositories/serviceRepository';
 import { LoyaltyRepository } from '@/lib/repositories/loyaltyRepository';
-import { Session, SessionServiceItem, MaterialUsage, Payment, Appointment, Service } from '@/types/models';
+import { Session, SessionServiceItem, MaterialUsage, Payment, Appointment, Service, Client } from '@/types/models';
 import { AddServiceToSessionRequest, ProcessPaymentRequest, CreateSessionRequest } from '@/types/api';
 import { batchUpdate } from '@/lib/firebase/db';
 import { DEFAULT_COMMISSION_RATE, LOYALTY_POINTS_RATE, getBoliviaDate } from '@/lib/utils/helpers';
@@ -200,17 +200,44 @@ export class SessionService {
       ...(pointsEarned > 0 ? { loyaltyPointsAwarded: true } : {}),
     });
 
-    // Update client totalSpent and award loyalty points
+    // Update client totalSpent and award loyalty points + persist per-(staff, service)
+    // recipe memory so the worker doesn't have to re-enter the same materials on
+    // the next visit. Keyed by `${primaryStaffId}__${serviceId}`. Skipped for
+    // walk-ins (no clientId) and for services with no assigned staff.
     if (session.clientId) {
       try {
         const client = await ClientRepository.getClient(session.clientId);
         if (client) {
+          const existingFormulas = (client as Client & { lastFormulasByStaff?: Record<string, unknown> }).lastFormulasByStaff || {};
+          const updatedFormulas: Record<string, { materials: MaterialUsage[]; updatedAt: Date }> = { ...existingFormulas as Record<string, { materials: MaterialUsage[]; updatedAt: Date }> };
+          for (const svc of cascadedServices) {
+            const primaryStaff = svc.assignedStaff?.[0];
+            if (!primaryStaff || !svc.serviceId) continue;
+            const mats = svc.materialsUsed || [];
+            // Only persist if there were materials — empty list shouldn't overwrite a
+            // prior good recipe. Skipped services / no-material services keep the
+            // last known formula.
+            if (mats.length === 0) continue;
+            const key = `${primaryStaff}__${svc.serviceId}`;
+            updatedFormulas[key] = {
+              materials: mats.map((m) => ({
+                productId: m.productId,
+                productName: m.productName,
+                quantity: m.quantity,
+                unit: m.unit,
+                cost: m.cost,
+                usedAt: m.usedAt,
+              })),
+              updatedAt: new Date(),
+            };
+          }
           await ClientRepository.updateClient(session.clientId, {
             totalSpent: (client.totalSpent || 0) + totalAmount,
             totalSessions: (client.totalSessions || 0) + 1,
             lastVisit: new Date(),
             ...(pointsEarned > 0 ? { loyaltyPoints: (client.loyaltyPoints || 0) + pointsEarned } : {}),
-          });
+            ...(Object.keys(updatedFormulas).length > 0 ? { lastFormulasByStaff: updatedFormulas } : {}),
+          } as Partial<Client>);
           if (pointsEarned > 0) {
             await LoyaltyRepository.addTransaction({
               salonId: session.salonId,
