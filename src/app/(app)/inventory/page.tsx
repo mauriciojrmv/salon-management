@@ -88,6 +88,15 @@ export default function InventoryPage() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawForm, setWithdrawForm] = useState({ productId: '', quantity: 1, takenBy: '', note: '' });
   const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
+
+  // Quick stock-in ("Recibí mercadería") — add received quantity to existing stock
+  const [stockInOpen, setStockInOpen] = useState(false);
+  const [stockInForm, setStockInForm] = useState({ productId: '', quantityToAdd: 0, newCost: 0, updateCost: false });
+  const [stockInSubmitting, setStockInSubmitting] = useState(false);
+
+  // Bulk CSV upload
+  const [csvUploading, setCsvUploading] = useState(false);
+  const [csvResults, setCsvResults] = useState<{ created: number; errors: string[] } | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   // Category filter chip — null = "Todas". User-driven scope for the products table.
   const [categoryFilter, setCategoryFilter] = useState<ProductCategory | null>(null);
@@ -219,6 +228,99 @@ export default function InventoryPage() {
       error(err instanceof Error ? err.message : ES.messages.operationFailed);
     } finally {
       setWithdrawSubmitting(false);
+    }
+  };
+
+  const downloadCsvTemplate = () => {
+    const header = 'nombre,categoria,tipo,unidad,stock_actual,stock_minimo,stock_maximo,costo,precio_venta';
+    const examples = [
+      'Koleston Perfect 6/0,hair_dye,measurable,g,500,100,1000,0.15,0',
+      'Welloxon 20vol,hair_dye,measurable,ml,1000,200,2000,0.08,0',
+      'Shampoo Profesional,shampoo,service_cost,,0,0,0,2,0',
+      'Guantes talla M,supplies,unit,pairs,50,10,100,1.5,0',
+      'Ampolletas Keratina,treatment,unit,pieces,24,5,50,8,0',
+    ].join('\n');
+    const csv = `${header}\n${examples}`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'plantilla_productos.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const VALID_CATEGORIES: ProductCategory[] = [
+    'hair_products','hair_dye','shampoo','treatment','skincare','makeup','wax','nail_products','tools','accessories','supplies','other',
+  ];
+  const VALID_TYPES = ['unit', 'measurable', 'service_cost'];
+  const VALID_UNITS = ['ml','g','l','kg','pieces','sachets','bottles','tubes','pairs','kits',''];
+
+  const handleCsvUpload = async (file: File | undefined) => {
+    if (!file || !userData?.salonId) return;
+    setCsvUploading(true);
+    setCsvResults(null);
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter(Boolean);
+    if (lines.length < 2) { error('El archivo CSV está vacío'); setCsvUploading(false); return; }
+    const rows = lines.slice(1); // skip header
+    let created = 0;
+    const errors: string[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const cols = rows[i].split(',').map((c) => c.trim());
+      const [nombre, categoria, tipo, unidad, stockActual, stockMinimo, stockMaximo, costo, precioVenta] = cols;
+      const rowNum = i + 2;
+      if (!nombre) { errors.push(`Fila ${rowNum}: nombre vacío`); continue; }
+      if (!VALID_CATEGORIES.includes(categoria as ProductCategory)) { errors.push(`Fila ${rowNum} (${nombre}): categoría inválida "${categoria}"`); continue; }
+      if (!VALID_TYPES.includes(tipo)) { errors.push(`Fila ${rowNum} (${nombre}): tipo inválido "${tipo}" (use unit/measurable/service_cost)`); continue; }
+      if (!VALID_UNITS.includes(unidad)) { errors.push(`Fila ${rowNum} (${nombre}): unidad inválida "${unidad}"`); continue; }
+      try {
+        await ProductRepository.createProduct(userData.salonId, {
+          name: nombre,
+          category: categoria as ProductCategory,
+          type: tipo as 'unit' | 'measurable' | 'service_cost',
+          unit: unidad as Product['unit'] || undefined,
+          currentStock: parseFloat(stockActual) || 0,
+          minStock: parseFloat(stockMinimo) || 0,
+          maxStock: parseFloat(stockMaximo) || 0,
+          cost: parseFloat(costo) || 0,
+          price: parseFloat(precioVenta) || 0,
+          sku: '',
+          imprecise: tipo === 'service_cost',
+          defaultUsage: tipo === 'service_cost' ? 1 : 0,
+          isActive: true,
+        });
+        created++;
+      } catch (e) {
+        errors.push(`Fila ${rowNum} (${nombre}): ${e instanceof Error ? e.message : 'error desconocido'}`);
+      }
+    }
+    setCsvResults({ created, errors });
+    if (created > 0) { success(`${created} producto${created !== 1 ? 's' : ''} cargado${created !== 1 ? 's' : ''}`); refetch(); }
+    if (errors.length > 0 && created === 0) error('No se pudo cargar ningún producto — revisá los errores abajo');
+    setCsvUploading(false);
+  };
+
+  const handleStockIn = async () => {
+    if (!userData?.salonId) return;
+    const product = products.find((p) => p.id === stockInForm.productId);
+    if (!product) { error('Seleccioná un producto'); return; }
+    const qty = Number(stockInForm.quantityToAdd) || 0;
+    if (qty <= 0) { error('La cantidad debe ser mayor a 0'); return; }
+    setStockInSubmitting(true);
+    try {
+      await ProductRepository.restockProduct(product.id, qty);
+      if (stockInForm.updateCost && stockInForm.newCost > 0) {
+        await ProductRepository.updateProduct(product.id, { cost: stockInForm.newCost });
+      }
+      success(`Stock actualizado: +${qty} ${unitLabel(product.unit)} de ${product.name}`);
+      setStockInOpen(false);
+      setStockInForm({ productId: '', quantityToAdd: 0, newCost: 0, updateCost: false });
+      refetch();
+    } catch (err) {
+      error(err instanceof Error ? err.message : ES.messages.operationFailed);
+    } finally {
+      setStockInSubmitting(false);
     }
   };
 
@@ -430,9 +532,29 @@ export default function InventoryPage() {
           <Button variant="ghost" onClick={() => setTemplatesOpen(true)} size="lg">
             {ES.inventory.startFromTemplate}
           </Button>
+          <Button variant="ghost" onClick={() => setStockInOpen(true)} size="lg">
+            📦 Recibí mercadería
+          </Button>
           <Button variant="secondary" onClick={openWithdrawModal} size="lg">
             {ES.inventory.withdraw}
           </Button>
+          <div className="flex flex-col items-center gap-0.5">
+            <label className="cursor-pointer">
+              <span className="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors">
+                {csvUploading ? 'Cargando...' : '⬆ Carga masiva CSV'}
+              </span>
+              <input
+                type="file"
+                accept=".csv"
+                className="hidden"
+                disabled={csvUploading}
+                onChange={(e) => handleCsvUpload(e.target.files?.[0])}
+              />
+            </label>
+            <button type="button" onClick={downloadCsvTemplate} className="text-xs text-blue-500 hover:underline leading-none">
+              Descargar plantilla
+            </button>
+          </div>
           <Button onClick={openCreateModal} size="lg">
             {ES.inventory.add}
           </Button>
@@ -976,6 +1098,113 @@ export default function InventoryPage() {
           )}
         </div>
       </Modal>
+
+      {/* Quick Stock-In Modal */}
+      <Modal
+        isOpen={stockInOpen}
+        onClose={() => { setStockInOpen(false); setStockInForm({ productId: '', quantityToAdd: 0, newCost: 0, updateCost: false }); }}
+        title="Recibí mercadería"
+        size="sm"
+      >
+        <div className="space-y-4 pb-16 sm:pb-0">
+          <p className="text-xs text-gray-500">Sumá al stock lo que acabás de comprar. Rápido — sin necesidad de editar el producto.</p>
+          <SearchableSelect
+            label="Producto"
+            options={products.filter((p) => p.type !== 'service_cost').map((p) => ({
+              value: p.id,
+              label: p.name,
+              secondary: `Stock actual: ${p.currentStock} ${unitLabel(p.unit)}`,
+            }))}
+            value={stockInForm.productId}
+            onChange={(v) => {
+              const p = products.find((x) => x.id === v);
+              setStockInForm({ ...stockInForm, productId: v, newCost: p?.cost || 0 });
+            }}
+            placeholder="Buscar producto"
+            required
+          />
+          {stockInForm.productId && (() => {
+            const p = products.find((x) => x.id === stockInForm.productId);
+            if (!p) return null;
+            return (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm">
+                <p className="font-medium text-blue-900">{p.name}</p>
+                <p className="text-blue-700">Stock actual: <span className="font-semibold">{p.currentStock} {unitLabel(p.unit)}</span></p>
+                {stockInForm.quantityToAdd > 0 && (
+                  <p className="text-green-700 font-semibold">→ Nuevo stock: {p.currentStock + (Number(stockInForm.quantityToAdd) || 0)} {unitLabel(p.unit)}</p>
+                )}
+              </div>
+            );
+          })()}
+          <Input
+            label={`Cantidad recibida${stockInForm.productId ? ` (${unitLabel(products.find((x) => x.id === stockInForm.productId)?.unit)})` : ''}`}
+            type="number"
+            value={stockInForm.quantityToAdd || ''}
+            onChange={(e) => setStockInForm({ ...stockInForm, quantityToAdd: parseFloat(e.target.value) || 0 })}
+            placeholder="Ej: 500"
+            min={0}
+            step="any"
+            required
+          />
+          <div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={stockInForm.updateCost}
+                onChange={(e) => setStockInForm({ ...stockInForm, updateCost: e.target.checked })}
+                className="w-4 h-4 rounded"
+              />
+              <span className="text-sm text-gray-700">Actualizar costo de compra</span>
+            </label>
+            {stockInForm.updateCost && (
+              <Input
+                label="Nuevo costo por unidad (Bs.)"
+                type="number"
+                value={stockInForm.newCost || ''}
+                onChange={(e) => setStockInForm({ ...stockInForm, newCost: parseFloat(e.target.value) || 0 })}
+                placeholder="Ej: 0.15"
+                min={0}
+                step="0.01"
+                className="mt-2"
+              />
+            )}
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" className="flex-1 py-3" onClick={() => setStockInOpen(false)}>
+              {ES.actions.cancel}
+            </Button>
+            <Button className="flex-1 py-3" onClick={handleStockIn} loading={stockInSubmitting}>
+              Actualizar stock
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* CSV Results */}
+      {csvResults && (
+        <div className="fixed bottom-4 right-4 z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-4 max-w-sm w-full space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-gray-900">Carga masiva completada</p>
+            <button type="button" onClick={() => setCsvResults(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+          </div>
+          <p className="text-sm text-green-700">✓ {csvResults.created} producto{csvResults.created !== 1 ? 's' : ''} cargado{csvResults.created !== 1 ? 's' : ''}</p>
+          {csvResults.errors.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-red-700 mb-1">{csvResults.errors.length} error{csvResults.errors.length !== 1 ? 'es' : ''}:</p>
+              <ul className="text-xs text-red-600 space-y-0.5 max-h-32 overflow-y-auto">
+                {csvResults.errors.map((e, i) => <li key={i}>• {e}</li>)}
+              </ul>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={downloadCsvTemplate}
+            className="text-xs text-blue-600 hover:underline"
+          >
+            Descargar plantilla CSV de ejemplo
+          </button>
+        </div>
+      )}
     </div>
   );
 }

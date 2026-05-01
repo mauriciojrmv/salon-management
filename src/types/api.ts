@@ -89,6 +89,9 @@ export interface CreateProductRequest {
   cost: number;
   price: number;
   supplier?: string;
+  imprecise?: boolean;
+  defaultUsage?: number;
+  isActive?: boolean;
 }
 
 export interface CreateRetailSaleRequest {

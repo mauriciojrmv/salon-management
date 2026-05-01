@@ -316,6 +316,21 @@ export interface MaterialUsage {
   usedAt: Date;
 }
 
+// Transient UI model for the materials modal — never persisted directly.
+// Converted to MaterialUsage on save.
+export interface MaterialEntry {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unit: string;
+  pricePerUnit: number; // buy cost per unit
+  totalPrice: number;   // pricePerUnit * quantity
+  maxStock: number;     // available stock cap (MAX_SAFE_INTEGER for service_cost)
+  imprecise: boolean;   // shows Marcar uso button instead of numeric stepper
+  defaultUsage: number; // amount per tap in imprecise mode
+  manualOverride: boolean; // worker overrode imprecise mode for this row
+}
+
 export interface ProductUsageHistory {
   id: string;
   salonId: string;
